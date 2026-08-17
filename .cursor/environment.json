@@ -1,0 +1,17 @@
+{
+  "name": "Outreach OS",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "git submodule update --init && pnpm install && pnpm --dir cloudflare-os install",
+  "repositoryDependencies": [
+    "github.com/cloudflare/cloudflare-os"
+  ],
+  "ports": [
+    {
+      "name": "Cloudflare OS local",
+      "port": 8787
+    }
+  ]
+}
