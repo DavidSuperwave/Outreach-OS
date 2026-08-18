@@ -1,0 +1,385 @@
+diff --git a/packages/workshop-backend/__tests__/ai-gateway.test.ts b/packages/workshop-backend/__tests__/ai-gateway.test.ts
+index 54a5996..add9bed 100644
+--- a/packages/workshop-backend/__tests__/ai-gateway.test.ts
++++ b/packages/workshop-backend/__tests__/ai-gateway.test.ts
+@@ -1,7 +1,9 @@
+ import { afterEach, describe, expect, it, vi } from "vitest";
+ import {
++  AiGatewayConfig,
+   AiGatewayLogRetryableError,
+   getAiGatewayLogCost,
++  tryGetAiGatewayConfig,
+ } from "../src/ai-gateway.js";
+ 
+ function env(overrides: Partial<Cloudflare.Env> = {}): Cloudflare.Env {
+@@ -114,3 +116,28 @@ describe("getAiGatewayLogCost", () => {
+         .rejects.toBeInstanceOf(AiGatewayLogRetryableError);
+   });
+ });
++
++describe("tryGetAiGatewayConfig", () => {
++  it("returns null when the gateway name is set without credentials", () => {
++    expect(tryGetAiGatewayConfig(env({
++      CF_AI_GATEWAY: "platform-gateway",
++      CF_AI_GATEWAY_ACCOUNT_ID: undefined,
++      CF_AI_GATEWAY_API_TOKEN: undefined,
++    }))).toBeNull();
++  });
++
++  it("constructs config when credentials are present", () => {
++    const config = tryGetAiGatewayConfig(env({
++      CF_AI_GATEWAY_ACCOUNT_ID: "gateway-account-id",
++      CF_AI_GATEWAY_API_TOKEN: "gateway-token",
++      CF_AI_GATEWAY_PROVIDERS: "openrouter",
++    }));
++    expect(config).toBeInstanceOf(AiGatewayConfig);
++    expect(config?.getModelList().map((model) => model.id)).toContain("openai/gpt-5-mini");
++    expect(config?.getQuickModelConfig()).toEqual({
++      provider: "openrouter",
++      model: "openai/gpt-5-mini",
++      apiToken: "",
++    });
++  });
++});
+diff --git a/packages/workshop-backend/__tests__/ai-models.test.ts b/packages/workshop-backend/__tests__/ai-models.test.ts
+index cfad0d6..6c9c306 100644
+--- a/packages/workshop-backend/__tests__/ai-models.test.ts
++++ b/packages/workshop-backend/__tests__/ai-models.test.ts
+@@ -259,6 +259,31 @@ describe("getModel AI Gateway routing", () => {
+       apiToken: "gateway-token",
+     });
+   });
++
++  it("routes OpenRouter through the gateway's openrouter chat-completions path", async () => {
++    const handle = getModel(env({ CF_AI_GATEWAY_PROVIDERS: "openrouter" }), {
++      provider: "openrouter",
++      model: "openai/gpt-5-mini",
++      apiToken: "ignored-in-gateway-mode",
++    }, INITIATOR);
++
++    expect(handle.model.api).toBe("openai-completions");
++    expect(handle.model.id).toBe("openai/gpt-5-mini");
++    expect(handle.model.baseUrl).toBe(
++        "https://gateway.ai.cloudflare.com/v1/gateway-account-id/platform-gateway/openrouter");
++    expect(handle.aiGatewayLogRoute).toEqual({
++      gateway: "platform-gateway",
++      accountId: "gateway-account-id",
++      apiToken: "gateway-token",
++    });
++
++    const request = await captureRequest(handle);
++    expect(request.url).toBe(
++        "https://gateway.ai.cloudflare.com/v1/gateway-account-id/platform-gateway/openrouter/" +
++        "chat/completions");
++    expect(request.headers.get("cf-aig-authorization")).toBe("Bearer gateway-token");
++    expect(request.headers.get("authorization")).toBeNull();
++  }, 15000);
+ });
+ 
+ describe("getModel direct routing (no gateway)", () => {
+@@ -364,6 +389,22 @@ describe("getModel direct routing (no gateway)", () => {
+       expect(handle.model.baseUrl).toBe("http://my-ollama:11434/v1");
+     }
+   });
++
++  it("uses OpenRouter's native chat-completions endpoint outside gateway mode", async () => {
++    const handle = getModel(env({ CF_AI_GATEWAY: undefined }), {
++      provider: "openrouter",
++      model: "openai/gpt-5-mini",
++      apiToken: "or-direct-token",
++    }, INITIATOR);
++
++    expect(handle.model.api).toBe("openai-completions");
++    expect(handle.model.baseUrl).toBe("https://openrouter.ai/api/v1");
++    expect(handle.aiGatewayLogRoute).toBeUndefined();
++
++    const request = await captureRequest(handle);
++    expect(request.url).toBe("https://openrouter.ai/api/v1/chat/completions");
++    expect(request.headers.get("authorization")).toBe("Bearer or-direct-token");
++  }, 15000);
+ });
+ 
+ describe("PDF attachment bridging", () => {
+diff --git a/packages/workshop-backend/__tests__/chat-attachment-validation.test.ts b/packages/workshop-backend/__tests__/chat-attachment-validation.test.ts
+index 05b278f..cd19702 100644
+--- a/packages/workshop-backend/__tests__/chat-attachment-validation.test.ts
++++ b/packages/workshop-backend/__tests__/chat-attachment-validation.test.ts
+@@ -33,6 +33,10 @@ describe("assertChatAttachmentSupportedByProvider", () => {
+       .toThrow("Unsupported file type");
+     expect(() => assertChatAttachmentSupportedByProvider("ollama", "application/zip", 1))
+       .toThrow("Unsupported file type");
++    expect(() => assertChatAttachmentSupportedByProvider("openrouter", "image/png", 1))
++      .not.toThrow();
++    expect(() => assertChatAttachmentSupportedByProvider("openrouter", "application/pdf", 1))
++      .toThrow("Unsupported file type");
+   });
+ 
+   it("enforces the per-file byte limit", () => {
+diff --git a/packages/workshop-backend/src/ai-gateway.ts b/packages/workshop-backend/src/ai-gateway.ts
+index b065640..143afde 100644
+--- a/packages/workshop-backend/src/ai-gateway.ts
++++ b/packages/workshop-backend/src/ai-gateway.ts
+@@ -80,7 +80,19 @@ export class AiGatewayConfig {
+    * Get the AiModelConfig for the quick model (used for title generation).
+    */
+   getQuickModelConfig(): AiModelConfig | undefined {
+-    // Always use Workers AI here.
++    // OpenRouter-only catalogs have no Workers AI key. Use the cheap inspect model instead of
++    // the hardcoded Workers AI title model, which would 401.
++    if (!this.providers.has("cloudflare") && this.providers.has("openrouter")) {
++      const inspectId = Object.keys(SUGGESTED_MODELS.openrouter)[0];
++      if (inspectId) {
++        return {
++          provider: "openrouter",
++          model: inspectId,
++          apiToken: "",
++        };
++      }
++    }
++    // Always use Workers AI here when Cloudflare is in the catalog (or OpenRouter is not).
+     return {
+       provider: "cloudflare",
+       model: QUICK_MODEL_ID,
+@@ -98,6 +110,20 @@ export function getAiGatewayConfig(env: Cloudflare.Env): AiGatewayConfig | null
+   return new AiGatewayConfig(env);
+ }
+ 
++/**
++ * Same as getAiGatewayConfig, but returns null when gateway mode is half-configured
++ * (name set without account id / token). Catalog listing must not throw — that surfaces as
++ * Home's "Couldn't load AI models" toast. Inference still uses getAiGatewayConfig and fails
++ * closed when credentials are missing.
++ */
++export function tryGetAiGatewayConfig(env: Cloudflare.Env): AiGatewayConfig | null {
++  try {
++    return getAiGatewayConfig(env);
++  } catch {
++    return null;
++  }
++}
++
+ /** Identifies the Gateway and credentials needed to retrieve an inference log. */
+ export type AiGatewayLogRoute =
+   | { gateway: string }
+diff --git a/packages/workshop-backend/src/ai-models.ts b/packages/workshop-backend/src/ai-models.ts
+index 204c3a5..fd78ceb 100644
+--- a/packages/workshop-backend/src/ai-models.ts
++++ b/packages/workshop-backend/src/ai-models.ts
+@@ -123,8 +123,9 @@ function catalogModel(provider: AiModelConfig["provider"], modelId: string): Mod
+     case "openai": return (OPENAI_MODELS as Record<string, Model<Api>>)[modelId];
+     case "google": return (GOOGLE_MODELS as Record<string, Model<Api>>)[modelId];
+     case "cloudflare": return (CLOUDFLARE_WORKERS_AI_MODELS as Record<string, Model<Api>>)[modelId];
+-    case "ollama": return undefined;
+-    default: return undefined;
++    case "ollama":
++    case "openrouter":
++      return undefined;
+   }
+ }
+ 
+@@ -154,6 +155,13 @@ function workersAiCompat(catalog: Model<Api> | undefined): OpenAICompletionsComp
+   };
+ }
+ 
++function openRouterCompletionsCompat(): OpenAICompletionsCompat {
++  return {
++    supportsStore: false,
++    supportsDeveloperRole: false,
++  };
++}
++
+ // Build the pi model descriptor for reaching a provider's own native API through an AI Gateway
+ // (the platform's or a user's). `gatewayUrl` is a gateway root
+ // (https://gateway.ai.cloudflare.com/v1/{accountId}/{gateway}); each provider's native API is
+@@ -231,6 +239,22 @@ function gatewayNativeModel(config: AiModelConfig, gatewayUrl: string): Model<Ap
+         ...window,
+         compat: workersAiCompat(catalog),
+       };
++    case "openrouter":
++      // OpenRouter's native API is OpenAI chat completions. AI Gateway exposes it at
++      // /openrouter (not /compat); the completions client appends /chat/completions.
++      // https://developers.cloudflare.com/ai-gateway/usage/providers/openrouter/
++      return {
++        id: config.model,
++        name: catalog?.name ?? config.model,
++        api: "openai-completions",
++        provider: "openrouter",
++        baseUrl: `${gatewayUrl}/openrouter`,
++        reasoning: catalog?.reasoning ?? false,
++        input: catalog?.input ?? ["text", "image"],
++        cost: catalog?.cost ?? ZERO_COST,
++        ...window,
++        compat: openRouterCompletionsCompat(),
++      };
+     default:
+       return undefined;
+   }
+@@ -587,6 +611,23 @@ function getModelDirect(config: AiModelConfig, sessionAffinity?: string): ModelH
+         apiKey: config.apiToken,
+         sessionAffinity,
+       });
++    case "openrouter":
++      return makeHandle({
++        model: {
++          id: config.model,
++          name: catalog?.name ?? config.model,
++          api: "openai-completions",
++          provider: "openrouter",
++          baseUrl: config.apiUrl ?? "https://openrouter.ai/api/v1",
++          reasoning: catalog?.reasoning ?? false,
++          input: catalog?.input ?? ["text", "image"],
++          cost: catalog?.cost ?? ZERO_COST,
++          ...window,
++          compat: openRouterCompletionsCompat(),
++        },
++        apiKey: config.apiToken,
++        sessionAffinity,
++      });
+     default:
+       config.provider satisfies never;
+       throw new Error(`Unknown provider "${config.provider}".`);
+diff --git a/packages/workshop-backend/src/chat-attachment-validation.ts b/packages/workshop-backend/src/chat-attachment-validation.ts
+index 4f236a6..07177c8 100644
+--- a/packages/workshop-backend/src/chat-attachment-validation.ts
++++ b/packages/workshop-backend/src/chat-attachment-validation.ts
+@@ -38,6 +38,8 @@ const ATTACHMENT_SUPPORT_BY_PROVIDER = {
+   google: isTextImageOrPdfMime,
+   cloudflare: isTextOrImageMime,
+   ollama: isTextOrImageMime,
++  // OpenRouter is spoken as OpenAI chat completions; that API has no document input.
++  openrouter: isTextOrImageMime,
+ } satisfies Record<AiModelProvider, (mimeType: string) => boolean>;
+ 
+ function sanitizeChatAttachmentMimeType(mimeType: string | undefined): string {
+diff --git a/packages/workshop-backend/src/env.d.ts b/packages/workshop-backend/src/env.d.ts
+index 14d29fd..eed26d5 100644
+--- a/packages/workshop-backend/src/env.d.ts
++++ b/packages/workshop-backend/src/env.d.ts
+@@ -14,7 +14,7 @@ declare global {
+       // Inference goes over HTTPS with tokens (there is no Workers-binding transport), so the
+       // ACCOUNT_ID/API_TOKEN pair is REQUIRED whenever CF_AI_GATEWAY is set.
+       CF_AI_GATEWAY?: string;            // Gateway name (enables gateway mode)
+-      CF_AI_GATEWAY_PROVIDERS?: string;   // Comma-separated list: "anthropic,openai,google,cloudflare"
++      CF_AI_GATEWAY_PROVIDERS?: string;   // Comma-separated list: "anthropic,openai,google,cloudflare,openrouter"
+       CF_AI_GATEWAY_ACCOUNT_ID?: string;  // Gateway owner account ID (required with CF_AI_GATEWAY)
+       CF_AI_GATEWAY_API_TOKEN?: string;   // Run + Read token for inference and cost-log reads
+       CF_AI_GATEWAY_WAI?: string;         // Optional Workers AI gateway override
+diff --git a/packages/workshop-backend/src/server.ts b/packages/workshop-backend/src/server.ts
+index a5c7124..909c9f6 100644
+--- a/packages/workshop-backend/src/server.ts
++++ b/packages/workshop-backend/src/server.ts
+@@ -15,7 +15,7 @@ import { deploymentOutputForBlueprint, listFormatOffers, readAdminConfig } from
+ export { PendingLogin, LoginConnectCallbackImpl };
+ import { GatekeeperUiFrame } from "@gadgets/workshop-shared/gatekeeper";
+ import { LanguageModelGatekeeper } from "./ai-models";
+-import { getAiGatewayConfig } from "./ai-gateway.js";
++import { tryGetAiGatewayConfig } from "./ai-gateway.js";
+ import { AdminSettings, AdminApiImpl } from "./admin-settings.js";
+ import { BlueprintKvRecord, buildBlueprintArchiveStream, sanitizeBlueprintOutput, listFeaturedBlueprintsFromKv, parseBlueprintArchive, randomBlueprintId, readBlueprintContent, readBlueprintKvRecord } from "./blueprint-archive.js";
+ import { GatekeeperConnectCallbackImpl, normalizeUsername, UserDurableObject, CLOUDFLARE_VENDOR_ID } from "./user";
+@@ -187,7 +187,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
+   }
+ 
+   getAiConfig(): Promise<AiGatewayInfo> {
+-    let gwConfig = getAiGatewayConfig(this.env);
++    let gwConfig = tryGetAiGatewayConfig(this.env);
+     if (gwConfig) {
+       return Promise.resolve({
+         enabled: true,
+diff --git a/packages/workshop-backend/src/user.ts b/packages/workshop-backend/src/user.ts
+index 727d089..e408765 100644
+--- a/packages/workshop-backend/src/user.ts
++++ b/packages/workshop-backend/src/user.ts
+@@ -6,7 +6,7 @@ import { CloudflareGatekeeperUser } from "@gadgets/workshop-shared/cloudflare-ga
+ import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
+ import { createTypedStorage, collection } from "@gadgets/typed-storage";
+ import { createWorkshopLogger } from "./observability";
+-import { getAiGatewayConfig } from "./ai-gateway.js";
++import { getAiGatewayConfig, tryGetAiGatewayConfig } from "./ai-gateway.js";
+ import { utcDayKey, nextUtcMidnightIso, DailyQuotaResult } from "./ai-gateway-billing/limits/config.js";
+ import type { AdminSettings } from "./admin-settings.js";
+ import { isReservedBlueprintKey, readBlueprintKvRecord } from "./blueprint-archive.js";
+@@ -506,7 +506,8 @@ export class UserDurableObject extends DurableObject<Cloudflare.Env> {
+     let result: AiChatAuthorInfo[] = [];
+ 
+     // When AI Gateway mode is active, include all suggested models for enabled providers.
+-    let gwConfig = getAiGatewayConfig(this.env);
++    // tryGet: a half-configured gateway must not crash Home's model picker.
++    let gwConfig = tryGetAiGatewayConfig(this.env);
+     let gwModelIds = new Set<string>();
+     if (gwConfig) {
+       for (let entry of gwConfig.getModelList()) {
+@@ -525,7 +526,7 @@ export class UserDurableObject extends DurableObject<Cloudflare.Env> {
+   }
+ 
+   async addModel(profile: AiChatAuthorInfo, config: AiModelConfig): Promise<void> {
+-    let gwConfig = getAiGatewayConfig(this.env);
++    let gwConfig = tryGetAiGatewayConfig(this.env);
+     if (gwConfig && !gwConfig.providers.has(config.provider)) {
+       throw new Error(`Provider "${config.provider}" is not available in AI Gateway mode.`);
+     }
+@@ -536,7 +537,7 @@ export class UserDurableObject extends DurableObject<Cloudflare.Env> {
+ 
+   async deleteModel(id: string): Promise<void> {
+     // In AI Gateway mode, don't allow deleting built-in suggested models.
+-    let gwConfig = getAiGatewayConfig(this.env);
++    let gwConfig = tryGetAiGatewayConfig(this.env);
+     if (gwConfig) {
+       for (let [provider, models] of Object.entries(SUGGESTED_MODELS)) {
+         if (gwConfig.providers.has(provider) && id in models) {
+@@ -568,7 +569,7 @@ export class UserDurableObject extends DurableObject<Cloudflare.Env> {
+   async setPreferredModel(id: string | null): Promise<void> {
+     if (id !== null) {
+       // Validate that the model exists in the user's configured models or as a gateway model.
+-      let gwConfig = getAiGatewayConfig(this.env);
++      let gwConfig = tryGetAiGatewayConfig(this.env);
+       let exists = !!this.storage.aiModels.get(id) || !!gwConfig?.resolveModel(id);
+       if (!exists) {
+         throw new Error(`No such model: ${id}`);
+diff --git a/packages/workshop-frontend/src/AddModelModal.tsx b/packages/workshop-frontend/src/AddModelModal.tsx
+index e827b97..5987900 100644
+--- a/packages/workshop-frontend/src/AddModelModal.tsx
++++ b/packages/workshop-frontend/src/AddModelModal.tsx
+@@ -22,6 +22,7 @@ const PROVIDER_LABELS: Record<AiModelProvider, string> = {
+   google: 'Google',
+   cloudflare: 'Cloudflare Workers AI',
+   ollama: 'Ollama',
++  openrouter: 'OpenRouter',
+ }
+ 
+ // Placeholder hinting at the shape of each provider's API token.
+@@ -31,6 +32,7 @@ const API_TOKEN_PLACEHOLDERS: Record<AiModelProvider, string> = {
+   google: 'AIza...',
+   cloudflare: 'Cloudflare API token',
+   ollama: '(optional)',
++  openrouter: 'sk-or-...',
+ }
+ 
+ // Example used in the custom-model placeholders for providers that have no suggested models
+diff --git a/packages/workshop-shared/src/api.ts b/packages/workshop-shared/src/api.ts
+index 7cee2e7..79ea150 100644
+--- a/packages/workshop-shared/src/api.ts
++++ b/packages/workshop-shared/src/api.ts
+@@ -917,7 +917,8 @@ export type CloudflareAccountOption = {
+ };
+ 
+ // Supported AI providers.
+-export type AiModelProvider = "openai" | "anthropic" | "google" | "cloudflare" | "ollama";
++export type AiModelProvider =
++  "openai" | "anthropic" | "google" | "cloudflare" | "ollama" | "openrouter";
+ 
+ // Information about the AI gateway configuration. Returned by `AuthenticatedApi.getAiConfig()`.
+ export type AiGatewayInfo = {
+@@ -985,6 +986,12 @@ export const SUGGESTED_MODELS: Record<
+   },
+   "ollama": {
+   },
++  "openrouter": {
++    // OpenRouter ids are `vendor/model`. First entry is the cheap inspect default.
++    "openai/gpt-5-mini": {name: "GPT 5 Mini (OpenRouter)", contextWindow: 400000, outputLimit: 128000},
++    "anthropic/claude-sonnet-4.5": {name: "Claude Sonnet 4.5 (OpenRouter)", contextWindow: 200000},
++    "google/gemini-2.5-flash": {name: "Gemini 2.5 Flash (OpenRouter)", contextWindow: 1048576},
++  },
+ };
+ 
+ // Metadata about a workspace (one Overseer DO and everything in it). Includes everything needed

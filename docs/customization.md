@@ -126,7 +126,7 @@ AI is optional for deployment. The Workers AI binding remains available to Cloud
 | No platform model | `aiGateway.enabled: false` | Deploys without an AI secret; no funded model catalog is advertised |
 | Workers AI direct | Enable AI, include only `cloudflare`, set `workersAi.mode: "direct"` | Calls the Workers AI REST endpoint without Gateway model logs |
 | Workers AI through Gateway | Enable AI, include `cloudflare`, set `workersAi.mode: "gateway"` | Adds [AI Gateway observability](https://developers.cloudflare.com/ai-gateway/observability/) |
-| External providers | Add `anthropic`, `openai`, or `google` | Exposes supported models through [AI Gateway](https://developers.cloudflare.com/ai-gateway/) and its billing/key configuration |
+| External providers | Add `anthropic`, `openai`, `google`, or `openrouter` | Exposes supported models through [AI Gateway](https://developers.cloudflare.com/ai-gateway/) and its billing/key configuration |
 
 To fund Workers AI directly:
 

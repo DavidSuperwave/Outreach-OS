@@ -235,6 +235,24 @@ test("ignores the gateway name in direct Workers AI mode", async () => {
   assert.equal(generated.workshop.vars.CF_AI_GATEWAY_WAI, undefined);
 });
 
+test("accepts OpenRouter as an AI Gateway provider", async () => {
+  const config = structuredClone(validConfig);
+  config.aiGateway.providers = ["openrouter"];
+
+  const generated = generateConfigs(config, await baseConfigs());
+
+  assert.equal(generated.workshop.vars.CF_AI_GATEWAY_PROVIDERS, "openrouter");
+});
+
+test("rejects unknown AI Gateway providers", () => {
+  const config = structuredClone(validConfig);
+  config.aiGateway.providers = ["not-a-provider"];
+  assert.throws(
+    () => validateConfig(config),
+    /openrouter/,
+  );
+});
+
 test("uses the default Context Artifacts namespace when omitted", async () => {
   const config = structuredClone(validConfig);
   delete config.context.artifacts.namespace;

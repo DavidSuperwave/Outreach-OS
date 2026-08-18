@@ -37,7 +37,7 @@
     "enabled": false,
     "name": "<AI_GATEWAY_NAME>",
     "accountId": "<AI_GATEWAY_ACCOUNT_ID>",
-    "providers": ["anthropic", "openai", "google", "cloudflare"],
+    "providers": ["anthropic", "openai", "google", "cloudflare", "openrouter"],
 
     // "direct" sends Workers AI to its REST endpoint. "gateway" adds AI Gateway logs.
     "workersAi": { "mode": "gateway", "gateway": "<WORKERS_AI_GATEWAY_NAME>" }
