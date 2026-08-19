@@ -370,3 +370,56 @@ No Linear changes have been made. Suggested, in order:
   scheduled_action, convert_service, analytics-proxy, future coding-agent),
   plus the two standing deferrals: **B** (auth mount) and **C3**
   (`/.well-known`).
+
+- **2026-08-19 (research pass — long tail)** — Second research pass, run in
+  Claude Code against the pinned sibling clone `Neuwave@9f7a26b` with the
+  `cloudflare-os` submodule initialized. **All 19 remaining researchable ☐
+  rows filled**; `Verdict:` left empty on every one (David absent — no
+  rulings simulated). Ledger status moved **☐ 20 → 1, ◐ 38 → 57**, ✔
+  unchanged at 43, **101 rows intact**. The single remaining `☐` is the
+  *Coding-agent capability (future)* row, which already carries a dated
+  verdict from ruling A3 — its glyph is a status inconsistency, not open
+  research, and only David should reconcile it.
+  **Two deep audits written:** `merge/audits/dss-native-chrome-audit.md` and
+  `merge/audits/standalone-services-audit.md`.
+  Headline findings: **(1) the one-line "DSS-native chrome" row is not
+  chrome** — it contains `entity_access`, the platform's authorization core
+  at 6,448 non-test LOC (plus 13,519 lines of tests, 68% of the crate) with
+  13 per-entity-type access queries and 14 typed request extractors; it is
+  the running form of D1/1a's "per-type access policy stays code", it is
+  where the SEC-1/2/3 holes live, and every other kept domain depends on it.
+  **(2) A second hard substrate gap beside ffmpeg:** `convert_service`
+  embeds **LibreOffice** (Collabora core + MS core fonts) and is what
+  produces `DocumentContentLocation::ConvertedPdf`, so it must be ruled with
+  the documents content model, not alone. **(3) SSRF defence is implemented
+  by DNS resolution in three services independently** (unfurl, image-proxy,
+  outbound webhooks) and **Workers cannot resolve hostnames** — one ruling is
+  needed covering those three plus any connector that accepts a user-entered
+  endpoint. **(4) The `webhook` row was mislabelled:** it is not ingestion,
+  it is an **outbound delivery engine** (Macro-as-webhook-provider) with HMAC
+  signing, a 5-attempt 30/60/120/300s retry ladder, per-delivery idempotency,
+  and a 20-event subscribable catalog. **(5) `notification_service`'s
+  provisional "Drop" is now load-bearing** — 19 notification types, 9,703
+  non-test LOC, three egress channels, and every producing domain (channels,
+  mailbox, CRM, calls, calendar, reminders, documents/tasks, GitHub — 7 of
+  the 19 types are GitHub alone) is ruled keep; dropping relocates the work
+  rather than removing it. **(6) Exactly six Cloudflare Workers exist at the
+  pin** — the three lifted ones plus `analytics-proxy` and two channel bots;
+  three sit outside the A3 lift set, and `coding-agent-worker` has **no
+  wrangler config at all**, independently corroborating A3 by a method the
+  first pass did not use. **(7) A second DynamoDB table was never
+  harvested** — `static_file_service` keeps all file metadata in DynamoDB,
+  while `schema-harvest.md` records only `BulkUploadRequest`. **(8)
+  "Automation" means "a scheduled chat"** (`ActionKind` has exactly one
+  variant, `Agent`, and executing one creates a real `Chat`), and the AI
+  stream is already a durable, resumable, offset-addressed stream with
+  cross-instance cancellation — the strongest "the kernel already has this"
+  case in the ledger. Also recorded: `services/websocket-service` is a
+  23-line Bun echo stub that **must not become scope**; and `frecency` (the
+  real recents/quick-access engine, consumed by five domains) plus the
+  `activity_events` action vocabulary have **no ledger rows**. Every output
+  states its own coverage. Linear untouched; no product code written. Next:
+  David rules the researched rows in batches — the ledger is now
+  research-complete, and the only things between it and the Linear scope-map
+  pass are **57 ◐ rows awaiting verdicts** and the two standing deferrals
+  **B** (auth mount) and **C3** (`/.well-known`).

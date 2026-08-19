@@ -99,6 +99,8 @@ clients), `static_assets/` (GraphQL SDL), `infra/`, `docker/`, `docs/`.
 | `audits/company-mailbox-audit.md` | P1 audit: email service, 24 `email_*` tables, sync/send architecture + delta | Written 2026-08-19 |
 | `audits/documents-audit.md` | Research-pass audit: the polymorphic core entity — 25 endpoints from two codebases, 5 creation flavors, 15 tables, 8 events, the 5-way content-location model coupled to the lifted `sync-service`, and the D2 canonicalization evidence | Written 2026-08-19 (research pass) |
 | `audits/lambda-batch-families-audit.md` | Research-pass audit: **closes the inventory hole** — exactly 20 Lambda crates + 1 ECS worker in 7 families, every trigger and schedule mapped, plus the four items needing a ruling (row split, DLP, Redis, ffmpeg) | Written 2026-08-19 (research pass) |
+| `audits/dss-native-chrome-audit.md` | Research-pass audit (long tail): the seven-in-one DSS-native row — **`entity_access` is the authorization core** (6,448 non-test LOC + 13,519 test LOC, 13 per-type access queries, 14 typed extractors), the `activity_events` fact log and its closed 10-action vocabulary, the frecency ranking algorithm, and the three saved-view tiers; four unrowed items surfaced | Written 2026-08-19 (research pass, long tail) |
+| `audits/standalone-services-audit.md` | Research-pass audit (long tail): the seven standalone services — notification (19 types, 3 egress channels), static-file (**metadata in an unharvested DynamoDB table**), unfurl, image-proxy, scheduled-action, convert (**embeds LibreOffice — the second hard substrate gap**), analytics-proxy; plus the **six-Cloudflare-Worker census** at the pin and the shared **SSRF-by-DNS** blocker | Written 2026-08-19 (research pass, long tail) |
 
 ## How the merge audit works
 
