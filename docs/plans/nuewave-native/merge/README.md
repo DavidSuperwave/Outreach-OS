@@ -87,7 +87,9 @@ clients), `static_assets/` (GraphQL SDL), `infra/`, `docker/`, `docs/`.
 | `merge-ledger.md` | **The audit backbone** — one row per capability: old location → verdict → CF target | Scaffold; verdicts fill as David rules |
 | `agent-brief.md` | Standing brief for every agent working the merge (incl. the future Linear scope-map agent) | Live |
 | `next-agent-prompt.md` | Paste-ready prompt for the next pass — now the **research pass** (☐ ledger rows, cloud-ready); the executed ruling-session version is summarized in the roadmap Status log | Rewritten 2026-08-19 (v3) |
+| `claude-code-kickoff.md` | Local Claude Code paste: first-message setup (two starter files, Neuwave pin, no push) + research-pass job | Written 2026-08-19 |
 | `cloud-handoff.md` | **Fresh-environment entry point** (cloud agent / new machine): state of play, remaining pipeline, environment reconstruction, key code pointers, binding rules | Written 2026-08-19 |
+| `handoff-map.md` | Founder-facing picture of the two-repo setup, ledger snapshot, pipeline, and cloud-agent launch checklist | Written 2026-08-19 |
 | `reference-packet.md` | Curated index: repos, read order, ruling state (all five batches ruled), still-open rows, coverage caveats | Updated 2026-08-19 (v3 — batches ruled) |
 | `route-reconciliation.md` | Unified route map: old proxy paths → CF-OS router model, lifted-service mounts, 20-item collision register, ruling batches A–C | **Ruled 2026-08-19** — R3, L1 (+prefixes), A3 drop; B and C3 deferred; C1, C2 ruled |
 | `pattern-review.md` | Per-pattern adopt/replace review of the four parked data patterns (Q21) | **Ruled 2026-08-19** — 1a/2a/3a/4a with riders |
@@ -95,6 +97,8 @@ clients), `static_assets/` (GraphQL SDL), `infra/`, `docker/`, `docs/`.
 | `audits/connectivity-layer-audit.md` | P1 audit: old MCP/import/integrations analogues vs kernel gatekeeper seams, 9-gap delta | Written 2026-08-19 |
 | `audits/crm-audit.md` | P1 audit: CRM endpoints/tables/UI/invariants + delta; corrects the contacts_service premise | Written 2026-08-19 |
 | `audits/company-mailbox-audit.md` | P1 audit: email service, 24 `email_*` tables, sync/send architecture + delta | Written 2026-08-19 |
+| `audits/documents-audit.md` | Research-pass audit: the polymorphic core entity — 25 endpoints from two codebases, 5 creation flavors, 15 tables, 8 events, the 5-way content-location model coupled to the lifted `sync-service`, and the D2 canonicalization evidence | Written 2026-08-19 (research pass) |
+| `audits/lambda-batch-families-audit.md` | Research-pass audit: **closes the inventory hole** — exactly 20 Lambda crates + 1 ECS worker in 7 families, every trigger and schedule mapped, plus the four items needing a ruling (row split, DLP, Redis, ffmpeg) | Written 2026-08-19 (research pass) |
 
 ## How the merge audit works
 

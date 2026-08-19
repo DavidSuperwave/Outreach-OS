@@ -327,3 +327,46 @@ No Linear changes have been made. Suggested, in order:
   started is frontend-only localStorage). README carve-out corrected (three
   lifted services). Nothing committed; Linear untouched. Next: research the
   remaining ☐ ledger rows, then the Linear scope-map pass.
+- **2026-08-19 (research pass)** — First research pass on the still-open ☐
+  ledger rows, run in Claude Code against a fresh clone of
+  `DavidSuperwave/Neuwave` at the pin `9f7a26b` (sibling dir) with the
+  `cloudflare-os` submodule initialized. **All six highest-leverage rows
+  researched**; ledger research columns filled, **every `Verdict:` left
+  empty** (David absent — no rulings simulated). Ledger status moved
+  **☐ 26 → 20, ◐ 32 → 38**, ✔ unchanged at 43, 101 rows intact.
+  **Two deep audits written:** `audits/documents-audit.md` and
+  `audits/lambda-batch-families-audit.md`.
+  Headline findings: **(1) `documents` is the polymorphic core entity, not
+  one capability** — 18.6k LOC, 25 endpoints from two codebases, 5 creation
+  flavors, 15 tables, 8 Kafka events, 413 file types, and a 5-way content
+  location model in which live-collab bytes are owned by the **lifted
+  `sync-service`**, so the A2/L1 route reconciliation is a prerequisite of
+  building it, not a follow-up. **(2) The Lambda inventory hole is closed
+  exactly:** 20 Lambda crates + 1 ECS worker in 7 families, with every
+  trigger and schedule mapped — and most of them *dissolve* rather than
+  port under D3/3a and D4/4a (the trigger→handler pairs are a 15-minute-
+  Lambda artifact; the two 1-minute polls are the "no ported dispatchers"
+  case). **(3) The D2 entity-type-canonicalization rider now has exact
+  evidence:** `property_entity_type` (10 values) and `EntityType` (16) are
+  different sets, and `THREAD`/`TASK` exist only in the former because both
+  are document facets — canonicalization can't be settled without deciding
+  whether thread and task are entities. **(4) The `macro.*` Kafka bus is
+  14 topics** — the event-bus contract for the whole rebuild, not just
+  search. **(5) connection_gateway event types fully enumerated** for the
+  C1 kernel-session design: 2 client→server verbs (`track_entity` with
+  `open|ping|close`, `stream_events`) and 5 server→client type families,
+  with the note that presence/stream-lifecycle and cache-invalidation pokes
+  are two different design problems. **Four things now need David rather
+  than more research:** split the `documents` and `Lambda` mega-rows;
+  **DLP has no ledger row** (a daily job that deletes user content on
+  policy); **Redis** appears as infrastructure with no CF successor named;
+  **ffmpeg has no Workers-native successor** (call recording previews).
+  Every output states its own coverage. Linear untouched; no product code
+  written. Next: David rules the researched rows in batches, then the
+  remaining 20 ☐ rows get researched (favorites, foreign_entity, webhook,
+  bots, github, DSS-native chrome, memory, import, onboarding, ai_usage,
+  ai_projections, streaming/completions, notification_service,
+  static_file_service, unfurl_service, image_proxy_service,
+  scheduled_action, convert_service, analytics-proxy, future coding-agent),
+  plus the two standing deferrals: **B** (auth mount) and **C3**
+  (`/.well-known`).
