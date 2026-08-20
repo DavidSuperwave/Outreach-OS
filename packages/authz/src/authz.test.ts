@@ -1,86 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { fixtureId } from "registry";
-import { grantShare } from "./access-state.js";
-import { PolicyEngine } from "./engine.js";
+import { grantShare, revokeShare } from "./access-state.js";
 import { AuthzError, isReceipt } from "./receipt.js";
-import { requireReceipt } from "./engine.js";
 import {
   assertSec1RevokeDenies,
   assertSec2NoEscalate,
   assertSec3CrossTenantDenies,
   secFixtures,
 } from "./sec.js";
-import type { MatrixRow } from "./sec.js";
 
-const { ownerId, teammateId, outsiderId, actor, seedDocument } = secFixtures();
-
-describe("05-MAP row 2: user × entity × level matrix", () => {
-  const rows: MatrixRow[] = [
-    {
-      name: "owner has owner on their document/task",
-      actorId: ownerId,
-      need: "owner",
-      entityType: "document",
-      setup: (state) => state,
-      expect: "allow",
-    },
-    {
-      name: "comment share can comment but not edit",
-      actorId: teammateId,
-      need: "comment",
-      entityType: "document",
-      setup: (state) => grantShare(state, teammateId, "comment"),
-      expect: "allow",
-    },
-    {
-      name: "comment share cannot edit",
-      actorId: teammateId,
-      need: "edit",
-      entityType: "document",
-      setup: (state) => grantShare(state, teammateId, "comment"),
-      expect: "deny",
-    },
-    {
-      name: "outsider has no view",
-      actorId: outsiderId,
-      need: "view",
-      entityType: "document",
-      setup: (state) => state,
-      expect: "deny",
-    },
-    {
-      name: "edit share satisfies view",
-      actorId: teammateId,
-      need: "view",
-      entityType: "document",
-      setup: (state) => grantShare(state, teammateId, "edit"),
-      expect: "allow",
-    },
-  ];
-
-  for (const row of rows) {
-    it(row.name, () => {
-      const { engine, docId, state } = seedDocument("task");
-      const next = row.setup(state);
-      const run = () =>
-        engine.mint({
-          actor: actor(row.actorId),
-          entityType: row.entityType,
-          entityId: docId,
-          need: row.need,
-          state: next,
-        });
-      if (row.expect === "allow") {
-        const receipt = run();
-        expect(isReceipt(receipt)).toBe(true);
-        expect(receipt.entityType).toBe("document");
-        requireReceipt(receipt, row.need, docId);
-      } else {
-        expect(run).toThrow(AuthzError);
-      }
-    });
-  }
-});
+const { ownerId, teammateId, actor, seedDocument } = secFixtures();
 
 describe("SEC-1/2/3 fixed not recreated", () => {
   it("SEC-1: revoked share cannot view (stale favorites path would deny)", () => {
@@ -91,6 +20,36 @@ describe("SEC-1/2/3 fixed not recreated", () => {
   });
   it("SEC-3: cross-tenant id guess is denied", () => {
     assertSec3CrossTenantDenies();
+  });
+  it("grant/revoke/re-grant is last-write-wins (replay-safe revocation)", () => {
+    const { engine, docId, state } = seedDocument();
+    const commented = grantShare(state, teammateId, "comment");
+    engine.mint({
+      actor: actor(teammateId),
+      entityType: "document",
+      entityId: docId,
+      need: "comment",
+      state: commented,
+    });
+    const revoked = revokeShare(commented, teammateId);
+    expect(() =>
+      engine.mint({
+        actor: actor(teammateId),
+        entityType: "document",
+        entityId: docId,
+        need: "view",
+        state: revoked,
+      }),
+    ).toThrow(AuthzError);
+    const regranted = grantShare(revoked, teammateId, "edit");
+    const receipt = engine.mint({
+      actor: actor(teammateId),
+      entityType: "document",
+      entityId: docId,
+      need: "edit",
+      state: regranted,
+    });
+    expect(isReceipt(receipt)).toBe(true);
   });
 });
 

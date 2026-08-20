@@ -9,6 +9,7 @@ export function extractReminder<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "reminder"> {
-  return extractTyped("reminder", receipt, need, entityId);
+  return extractTyped("reminder", receipt, need, entityId, actorId);
 }

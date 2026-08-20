@@ -8,6 +8,7 @@ export function extractForeignEntity<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "foreign_entity"> {
-  return extractTyped("foreign_entity", receipt, need, entityId);
+  return extractTyped("foreign_entity", receipt, need, entityId, actorId);
 }

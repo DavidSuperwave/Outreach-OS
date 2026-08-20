@@ -10,6 +10,7 @@ export function extractChannel<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "channel"> {
-  return extractTyped("channel", receipt, need, entityId);
+  return extractTyped("channel", receipt, need, entityId, actorId);
 }

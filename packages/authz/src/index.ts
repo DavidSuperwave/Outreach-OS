@@ -50,4 +50,5 @@ export {
   canToggleCrmKillswitch,
   directoryTracksDomain,
   listChannelUsers,
+  transcriptInheritsCall,
 } from "./queries/index.js";

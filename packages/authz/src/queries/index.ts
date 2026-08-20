@@ -1,6 +1,6 @@
 import type { EntityType } from "registry";
 import type { PolicyFn } from "./lattice.js";
-import { highestGrant, maxLevel } from "./lattice.js";
+import { shareLattice, maxLevel } from "./lattice.js";
 import { callAccess } from "./call_access.js";
 import { callChannel } from "./call_channel.js";
 import { channelMembership } from "./channel_membership.js";
@@ -66,18 +66,18 @@ export const POLICIES: Record<EntityType, PolicyFn> = {
   document: documentAccess,
   project: projectAccess,
   email_thread: threadAccess,
-  calendar_event: highestGrant,
+  calendar_event: shareLattice,
   team: teamAccess,
   call: callPolicy,
   foreign_entity: foreignEntityAccess,
   static_file: staticFilePolicy,
   crm_company: crmCompanyAccess,
   crm_contact: crmContactAccess,
-  reminder: highestGrant,
+  reminder: shareLattice,
   skill: documentAccess,
 };
 
-export { callAccess } from "./call_access.js";
+export { callAccess, transcriptInheritsCall } from "./call_access.js";
 export { callChannel } from "./call_channel.js";
 export { channelMembership } from "./channel_membership.js";
 export { channelRole } from "./channel_role.js";
@@ -90,5 +90,5 @@ export { foreignEntityAccess } from "./foreign_entity_access.js";
 export { projectAccess } from "./project_access.js";
 export { teamAccess } from "./team_access.js";
 export { threadAccess } from "./thread_access.js";
-export { highestGrant, maxLevel } from "./lattice.js";
+export { highestGrant, shareLattice, maxLevel } from "./lattice.js";
 export type { PolicyFn, PolicyContext } from "./lattice.js";

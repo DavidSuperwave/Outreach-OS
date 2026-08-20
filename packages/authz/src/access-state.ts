@@ -40,6 +40,8 @@ export interface AccessState {
   botToken: string | null;
   /** Visible channel members (channel_users). */
   channelUserIds: string[];
+  /** Call/chat participants (call_access, chat_access). */
+  participantIds: string[];
 }
 
 export function emptyAccess(ownerId: string, tenantId: string): AccessState {
@@ -58,6 +60,7 @@ export function emptyAccess(ownerId: string, tenantId: string): AccessState {
     assigneeIds: [],
     botToken: null,
     channelUserIds: [ownerId],
+    participantIds: [],
   };
 }
 

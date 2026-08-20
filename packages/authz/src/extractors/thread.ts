@@ -9,6 +9,7 @@ export function extractThread<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "email_thread"> {
-  return extractTyped("email_thread", receipt, need, entityId);
+  return extractTyped("email_thread", receipt, need, entityId, actorId);
 }

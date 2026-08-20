@@ -41,9 +41,9 @@ describe("14 extractors (B2 freeze)", () => {
       need: "edit",
       state: seeded.state,
     });
-    const edit = extractDocument(receipt, "edit", seeded.id);
+    const edit = extractDocument(receipt, "edit", seeded.id, ownerId);
     expect(edit.entityType).toBe("document");
-    expect(() => extractEntityPermission(receipt, seeded.id)).not.toThrow();
+    expect(() => extractEntityPermission(receipt, seeded.id, ownerId)).not.toThrow();
     const shared = grantShare(seeded.state, teammateId, "comment");
     const comment = seeded.engine.mint({
       actor: actor(teammateId),
@@ -52,9 +52,10 @@ describe("14 extractors (B2 freeze)", () => {
       need: "comment",
       state: shared,
     });
-    expect(() => extractEntityPermission(comment, seeded.id)).toThrow(AuthzError);
-    expect(() => extractPin(comment, seeded.id, true)).toThrow(AuthzError);
-    expect(extractHistory(comment, seeded.id).level).toBe("comment");
+    expect(() => extractEntityPermission(comment, seeded.id, teammateId)).toThrow(AuthzError);
+    expect(() => extractPin(comment, seeded.id, teammateId, true)).toThrow(AuthzError);
+    expect(extractHistory(comment, seeded.id, teammateId).level).toBe("comment");
+    expect(() => extractDocument(receipt, "edit", seeded.id, teammateId)).toThrow(/actor mismatch/);
   });
 
   it("bot extractor rejects non-bot principals", () => {

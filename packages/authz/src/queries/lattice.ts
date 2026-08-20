@@ -20,18 +20,23 @@ export function maxLevel(...levels: Array<AccessLevel | null | undefined>): Acce
   return best;
 }
 
-/** Owner, explicit shares, then membership view. Shared lattice for share-based types. */
-export function highestGrant(state: AccessState, actorId: string, _ctx?: PolicyContext): AccessLevel | null {
+/** Owner + explicit shares only. No membership fallback. */
+export function shareLattice(state: AccessState, actorId: string, _ctx?: PolicyContext): AccessLevel | null {
   if (state.ownerId === actorId) return "owner";
   let best: AccessLevel | null = null;
   for (const grant of state.shares) {
     if (grant.actorId !== actorId) continue;
     if (!best || LEVEL_RANK[grant.level] > LEVEL_RANK[best]) best = grant.level;
   }
-  if (!best && state.memberIds.includes(actorId)) {
-    best = "view";
-  }
   return best;
+}
+
+/** Owner, explicit shares, then membership view. Used where membership is an access path. */
+export function highestGrant(state: AccessState, actorId: string, _ctx?: PolicyContext): AccessLevel | null {
+  const shared = shareLattice(state, actorId);
+  if (shared) return shared;
+  if (state.memberIds.includes(actorId)) return "view";
+  return null;
 }
 
 export const BOT_TOKEN_RE = /^mbot_[0-9a-f]{12}_[0-9a-f]{64}$/;

@@ -20,6 +20,7 @@ import {
   tenant,
 } from "./sec.js";
 import { BEHAVIOR_MATRIX, type BehaviorCell, type MatrixSetup } from "./fixtures/behavior-matrix.js";
+import { listChannelUsers } from "./queries/index.js";
 
 function applySetup(setup: MatrixSetup, state: ReturnType<typeof emptyAccess>, store: ReturnType<typeof seedEntity>["store"]) {
   switch (setup) {
@@ -61,6 +62,12 @@ function applySetup(setup: MatrixSetup, state: ReturnType<typeof emptyAccess>, s
       return { ...state, botToken: `mbot_${"a".repeat(12)}_${"b".repeat(64)}` };
     case "on-behalf-of-comment":
       return grantShare(state, teammateId, "comment");
+    case "membership-without-share":
+      return withMembers(state, [ownerId, teammateId]);
+    case "chat-participant":
+      return { ...state, participantIds: [teammateId] };
+    case "call-participant":
+      return { ...state, participantIds: [teammateId] };
   }
 }
 
@@ -79,8 +86,11 @@ describe("05-MAP row 2 harvested behavior matrix", () => {
     expect(task.length).toBeGreaterThanOrEqual(12);
     const actors = new Set(task.map((row) => row.actor));
     const needs = new Set(task.map((row) => row.need));
-    expect(actors).toEqual(new Set(["owner", "teammate", "outsider"]));
+    expect(actors.has("owner")).toBe(true);
+    expect(actors.has("teammate")).toBe(true);
+    expect(actors.has("outsider")).toBe(true);
     expect(needs).toEqual(new Set(["view", "comment", "edit", "owner"]));
+    expect(BEHAVIOR_MATRIX.length).toBeGreaterThanOrEqual(16 * 3 * 4);
   });
 
   for (const cell of BEHAVIOR_MATRIX) {
@@ -88,6 +98,15 @@ describe("05-MAP row 2 harvested behavior matrix", () => {
       const seeded = seedEntity(cell.entityType, cell.facet ?? null);
       const next = applySetup(cell.setup, seeded.state, seeded.store);
       seeded.store.put(seeded.id, next);
+      if (cell.kind === "list") {
+        const listed = listChannelUsers(next, actorFor(cell).actor.id, {
+          store: seeded.store,
+          actor: actorFor(cell).actor,
+        });
+        if (cell.expect === "allow") expect(listed).not.toBeNull();
+        else expect(listed).toBeNull();
+        return;
+      }
       const run = () =>
         seeded.engine.mint({
           actor: actorFor(cell),

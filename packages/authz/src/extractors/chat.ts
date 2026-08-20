@@ -9,6 +9,7 @@ export function extractChat<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "chat"> {
-  return extractTyped("chat", receipt, need, entityId);
+  return extractTyped("chat", receipt, need, entityId, actorId);
 }

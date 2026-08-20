@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { QUERY_MODULES, listChannelUsers, canToggleCrmKillswitch, directoryTracksDomain } from "./queries/index.js";
+import { QUERY_MODULES, listChannelUsers, canToggleCrmKillswitch, directoryTracksDomain, transcriptInheritsCall } from "./queries/index.js";
 import { BEHAVIOR_MATRIX } from "./fixtures/behavior-matrix.js";
 import { emptyAccess, withMembers, withTeamRole } from "./access-state.js";
 import { AccessStore } from "./access-store.js";
@@ -26,7 +26,6 @@ describe("13 query modules (B3 freeze)", () => {
     expect(QUERY_MODULES).toHaveLength(13);
     const named = new Set(BEHAVIOR_MATRIX.map((row) => row.module));
     for (const name of QUERY_MODULES) {
-      if (name === "channel_users") continue;
       expect(named.has(name), `${name} missing from behavior matrix`).toBe(true);
     }
   });
@@ -59,5 +58,10 @@ describe("13 query modules (B3 freeze)", () => {
       need: "owner",
     });
     expect(receipt.actorId).toBe(ownerId);
+  });
+
+  it("transcripts inherit the call receipt level", () => {
+    expect(transcriptInheritsCall("comment")).toBe("comment");
+    expect(transcriptInheritsCall(null)).toBeNull();
   });
 });

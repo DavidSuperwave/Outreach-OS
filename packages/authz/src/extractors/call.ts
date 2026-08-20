@@ -8,6 +8,7 @@ export function extractCall<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "call"> {
-  return extractTyped("call", receipt, need, entityId);
+  return extractTyped("call", receipt, need, entityId, actorId);
 }

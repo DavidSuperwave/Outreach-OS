@@ -11,6 +11,7 @@ export function extractDocument<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "document"> {
-  return extractTyped("document", receipt, need, entityId);
+  return extractTyped("document", receipt, need, entityId, actorId);
 }

@@ -10,6 +10,7 @@ export function extractTeam<L extends AccessLevel>(
   receipt: Receipt,
   need: L,
   entityId: string,
+  actorId: string,
 ): Receipt<L, "team"> {
-  return extractTyped("team", receipt, need, entityId);
+  return extractTyped("team", receipt, need, entityId, actorId);
 }

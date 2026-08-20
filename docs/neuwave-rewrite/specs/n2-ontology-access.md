@@ -45,7 +45,7 @@ No public RPC. Share methods are per-domain and land with those domains.
 
 ## Authorization matrix
 
-05-MAP row 2: owner / comment-share / outsider × view / comment / edit / owner on a task-facet document, plus harvested cells for all 13 query modules (`packages/authz/src/fixtures/behavior-matrix.ts`).
+05-MAP row 2: 16 EntityTypes × owner / comment-share / outsider × view / comment / edit / owner, plus harvested specials for all 13 query modules (`packages/authz/src/fixtures/behavior-matrix.ts`).
 
 ## Events, jobs, retries, and replay
 
