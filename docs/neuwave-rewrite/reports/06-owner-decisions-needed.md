@@ -63,7 +63,7 @@ converter/search → cutover. Rank = the earliest graph node the decision blocks
 | 27 | OD-24 | **RULED 2026-08-20** — rename ALL Macro-branded strings, themes, and storage keys to Outreach OS equivalents from day one | First shipped UI strings | ~~Wave 2/3~~ resolved |
 | 28 | OD-23 | Command-ledger flagged dispositions (4 small items) | N5 polish | Wave 3/4 |
 | 29 | OD-25 | Merge-branch pin drift resolution | Hygiene | Any time |
-| 30 | OD-26 | Node 24 enforcement (`engines`/`.nvmrc`) | Hygiene | Any time |
+| 30 | OD-26 | **IMPLEMENTED (SUP-547, 2026-08-20)** — root `engines` + `.nvmrc` (`24`) | Hygiene | ~~Any time~~ done |
 
 ---
 
@@ -525,6 +525,7 @@ here. Per-item summary, recommendation, and build-graph impact:
 - **Options/recommendation:** **add `engines` (+ optional `.nvmrc`)** so local shells fail fast;
   trivial, no downside identified.
 - **Blocked:** nothing; developer-experience hardening.
+- **IMPLEMENTED (SUP-547, 2026-08-20):** root `package.json` `"engines": { "node": ">=24 <25", "pnpm": ">=11 <12" }` and `.nvmrc` containing `24`. Dockerfile + `packageManager` pins remain.
 
 ---
 

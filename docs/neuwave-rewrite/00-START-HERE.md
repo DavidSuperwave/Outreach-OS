@@ -4,7 +4,7 @@
 
 Create a new Cloudflare-native product from the Outreach OS baseline that faithfully recreates the ruled Neuwave features, architecture semantics, workflows, command behavior, and UI/UX—without copying Rust implementation code or Macro branding.
 
-The first Codex session is a **verification and implementation-planning session**, not a broad coding session.
+Wave-1 verification and planning is complete. Implementation starts at Linear **SUP-547** (N0 kernel governance) and proceeds issue-by-issue. Do not re-litigate owner rulings in `reports/06-owner-decisions-needed.md`.
 
 ## Read order
 
@@ -19,14 +19,6 @@ The first Codex session is a **verification and implementation-planning session*
 
 ## First action
 
-Run the first-pass script, inspect the generated reports, and then complete WP-000 through WP-030.
+Verify pins (`KERNEL-STATUS.md`, `pnpm governance`), read the assigned Linear issue, and implement only that issue. Wave-1 reports already exist under `reports/`.
 
-Do not begin domain implementation until these conditions are true:
-
-- Repository pins and branch roles are verified.
-- The current closed decision ledger has been located and reconciled.
-- The exact Cloudflare OS RPC inventory exists.
-- The exact Neuwave command/hotkey inventory exists, including dynamically registered entries.
-- Every stateful domain has a proposed authoritative owner.
-- Plan contradictions and premise-breaking facts have been escalated rather than silently resolved.
-- A representative vertical slice has been selected and approved.
+Domain implementation (N1+) starts only after N0 (SUP-547) lands. The vertical slice (N6 / SUP-553) remains the hard gate before wave-4 fan-out.

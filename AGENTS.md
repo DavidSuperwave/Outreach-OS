@@ -23,7 +23,11 @@ pnpm --dir cloudflare-os run-local
 # http://localhost:8787
 ```
 
-Always `pnpm`, never npm. Node 24, pnpm 11.
+Always `pnpm`, never npm. Node 24, pnpm 11 (`engines` in root `package.json` + `.nvmrc`).
+
+## Governance (N0 / ADR-014)
+
+Kernel pin, carried patches, and the frozen 182-capability RPC surface are asserted by `pnpm governance` (also part of `pnpm test`). See `KERNEL-STATUS.md`. Do not edit files under `cloudflare-os/`.
 
 ## Secrets
 
@@ -39,7 +43,7 @@ Cloud agents start from `.cursor/environment.json`. After checkout, `install` al
 
 Do not run `pnpm deploy` or spend Cloudflare/OpenRouter/Instantly quota unless the issue explicitly asks. Local `pnpm run-local` is enough to verify the shell.
 
-Node 24 is required (pinned by `.cursor/Dockerfile` + corepack `pnpm@11`). If a session lands on Node 22 (e.g. a just-in-time VM that did not boot from the Dockerfile), switch with `nvm install 24 && nvm use 24` before installing — the `/exec-daemon` node is ahead of nvm on `PATH`, so prepend the nvm bin dir to `PATH` for that shell.
+Node 24 is required (`.nvmrc`, root `package.json` `engines`, `.cursor/Dockerfile`, corepack `pnpm@11`). If a session lands on Node 22 (e.g. a just-in-time VM that did not boot from the Dockerfile), switch with `nvm install 24 && nvm use 24` before installing — the `/exec-daemon` node is ahead of nvm on `PATH`, so prepend the nvm bin dir to `PATH` for that shell.
 
 `pnpm --dir cloudflare-os run-local` serves the Workshop at http://localhost:8787. The first run is slow: it builds the gatekeeper single-file apps and the frontend bundle before `wrangler` prints `Ready on http://localhost:8787`. Repeat runs are cached via `cloudflare-os/.run-local-stamp` and only rebuild when tracked source changes. No `.dev.vars` is needed for the basic shell; gatekeepers/AI stay `[not connected]` locally.
 
