@@ -22,6 +22,7 @@ export {
   DOCUMENT_EVENTS_NOT_FORWARDED,
 } from "./webhooks.js";
 export { blockedSafeFetch, loopbackSafeFetch } from "./safe-fetch.js";
+export type { SafeFetch, SafeFetchResponse } from "./safe-fetch.js";
 export {
   GITHUB_INGRESS_EVENTS,
   GITHUB_PR_SOURCE,
