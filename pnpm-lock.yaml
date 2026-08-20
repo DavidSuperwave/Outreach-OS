@@ -211,6 +211,31 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
 
+  packages/soup:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
 packages:
 
   '@cloudflare/kv-asset-handler@0.5.0':
