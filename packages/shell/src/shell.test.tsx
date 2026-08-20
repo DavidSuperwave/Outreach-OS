@@ -244,4 +244,17 @@ describe("Shell boots", () => {
     const bots = renderToString(createElement(Shell, { path: "/settings?tab=bots", theme: "outreach-dark" }));
     expect(bots).toContain("user XOR bot");
   });
+
+  it("keeps /onboarding and /getting-started in the map as parked N19 chrome", () => {
+    expect(PATH_ROUTES).toContain("/onboarding");
+    expect(PATH_ROUTES).toContain("/getting-started");
+    const onboarding = renderToString(createElement(Shell, { path: "/onboarding", panes: [{ type: "home", id: "_" }] }));
+    expect(onboarding).toContain("data-surface=\"n19.parked\"");
+    expect(onboarding).toContain("data-spec=\"needed\"");
+    expect(onboarding).toContain("parked pending owner spec");
+    expect(onboarding).not.toMatch(/tutorialComplete|user_onboarding/);
+    expect(onboarding).not.toContain("<form");
+    const started = renderToString(createElement(Shell, { path: "/getting-started", panes: [{ type: "home", id: "_" }] }));
+    expect(started).toContain("data-surface=\"n19.parked\"");
+  });
 });

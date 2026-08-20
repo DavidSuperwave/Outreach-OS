@@ -115,6 +115,11 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
           </section>
         ))}
         {children}
+        {path === "/onboarding" || path === "/getting-started" ? (
+          <section data-surface="n19.parked" data-spec="needed" data-path={path}>
+            <p>Onboarding, getting-started, and billing are parked pending owner spec (SUP-566 / OD-5). Sign-in stays N1. No paywall, tutorial, or billing chrome.</p>
+          </section>
+        ) : null}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
       </main>
       <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: `1px solid ${tokens.border}` }}>

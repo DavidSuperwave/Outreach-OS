@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 import { INSTANTLY_FORBIDDEN_METHODS } from "connectivity";
-import { ownerOf } from "control-plane";
+import { STORAGE_OWNERS, ownerOf } from "control-plane";
+import { PATH_ROUTES, KERNEL_RPC_TOTAL as SHELL_KERNEL_RPC_TOTAL } from "shell";
 import {
   REQUIRED_DOMAIN_PACKAGES,
   REQUIRED_STORAGE_OWNERS,
@@ -12,7 +14,21 @@ import {
   SEED_TEAM,
   SEED_USER,
 } from "./catalog.js";
+import {
+  AGENT_DEPLOY_ALLOWED,
+  BRANCH_A_DATA_MIGRATION,
+  BRANCH_A_DECOMMISSION_LEGACY_DATA,
+  BRANCH_A_DUAL_RUN,
+  CUTOVER_HUMAN_LEFTOVERS,
+  KERNEL_PIN,
+  KERNEL_RPC_TOTAL,
+  N19_FORBIDDEN_CHROME,
+  N19_PARKED,
+  N19_PARKED_ROUTES,
+  ROLLBACK_STRATEGY,
+} from "./cutover.js";
 import { dryRunAllDomains } from "./mapping.js";
+import { DOMAIN_RELEASE_SIGNOFF, RELEASE_GATE_IDS, signedGateIds } from "./release-gates.js";
 import {
   EMAIL_LIVE_TABLE_COUNT,
   HARVESTED_SCHEMA_FAMILIES,
@@ -88,5 +104,47 @@ describe("N21 Branch A cutover checklist", () => {
     for (const name of REQUIRED_STORAGE_OWNERS) {
       expect(ownerOf(name).name).toBe(name);
     }
+  });
+
+  it("signs every 09 release gate across kept domain packages", () => {
+    expect(DOMAIN_RELEASE_SIGNOFF.map((row) => row.pkg).sort()).toEqual([...REQUIRED_DOMAIN_PACKAGES].sort());
+    expect(signedGateIds()).toEqual([...RELEASE_GATE_IDS]);
+    expect(STORAGE_OWNERS.length).toBeGreaterThan(0);
+  });
+
+  it("keeps Branch A cutover light: no dual-run, no data migration, no agent deploy", () => {
+    expect(BRANCH_A_DATA_MIGRATION).toBe(false);
+    expect(BRANCH_A_DUAL_RUN).toBe(false);
+    expect(BRANCH_A_DECOMMISSION_LEGACY_DATA).toBe(false);
+    expect(AGENT_DEPLOY_ALLOWED).toBe(false);
+    expect(ROLLBACK_STRATEGY).toBe("previous-worker-and-seed");
+    expect(CUTOVER_HUMAN_LEFTOVERS).toEqual(
+      expect.arrayContaining(["pnpm deploy with David's explicit go", "production DNS / switch-on"]),
+    );
+    const deployment = readFileSync(join(ROOT, "deployment.jsonc"), "utf8");
+    expect(deployment).toContain("<CLOUDFLARE_ACCOUNT_ID>");
+  });
+
+  it("asserts the kernel pin is pristine and the RPC freeze is 182", () => {
+    expect(KERNEL_RPC_TOTAL).toBe(182);
+    expect(SHELL_KERNEL_RPC_TOTAL).toBe(182);
+    const head = execFileSync("git", ["-C", join(ROOT, "cloudflare-os"), "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+    expect(head).toBe(KERNEL_PIN);
+    const dirty = execFileSync("git", ["-C", join(ROOT, "cloudflare-os"), "status", "--porcelain"], {
+      encoding: "utf8",
+    }).trim();
+    expect(dirty).toBe("");
+  });
+});
+
+describe("N19 parked business chrome", () => {
+  it("keeps onboarding routes in the 27-route map without paywall chrome", () => {
+    expect(N19_PARKED).toBe(true);
+    for (const route of N19_PARKED_ROUTES) {
+      expect(PATH_ROUTES).toContain(route);
+    }
+    expect(N19_FORBIDDEN_CHROME).toEqual(["paywall", "tutorialComplete", "billing"]);
   });
 });

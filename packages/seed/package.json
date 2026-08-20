@@ -22,6 +22,7 @@
     "notifications": "workspace:*",
     "registry": "workspace:*",
     "search": "workspace:*",
+    "shell": "workspace:*",
     "task-properties": "workspace:*"
   },
   "devDependencies": {

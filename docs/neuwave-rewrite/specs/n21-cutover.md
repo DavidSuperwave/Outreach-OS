@@ -23,10 +23,14 @@ previous worker + previous seed; there is no dual-run store.
 ## Tests and parity fixtures
 
 `packages/seed` cutover checklist: required domain packages exist,
-`STORAGE_OWNERS` covers Wave 4 rows, Instantly forbidden methods stay closed.
+`STORAGE_OWNERS` covers Wave 4 rows, Instantly forbidden methods stay closed,
+per-domain `DOMAIN_RELEASE_SIGNOFF` covers all ten 09 gates, kernel pin is
+pristine (182-cap freeze), `deployment.jsonc` still has `<PLACEHOLDER>` values,
+Branch A dual-run / data-migration / agent-deploy flags stay false. Rollback
+strategy is `previous-worker-and-seed`. Fixture gallery `#cutover`.
 
 ## Open decisions
 
 Live DNS and Cloudflare account placeholders in `deployment.jsonc` stay
 `<PLACEHOLDER>` until a human fills them. `pnpm check` failing on those values
-is expected, not a gate failure.
+is expected, not a gate failure. Old-repo archive is a human leftover.
