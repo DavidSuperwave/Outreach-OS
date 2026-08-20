@@ -14,9 +14,15 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/tasks", label: "Tasks" },
   { href: "/documents", label: "Documents" },
+  { href: "/inbox", label: "Inbox" },
+  { href: "/mail", label: "Mail" },
+  { href: "/file", label: "Files" },
   { href: "/settings", label: "Settings" },
   { href: "/mcp", label: "MCP" },
   { href: "/channels", label: "Channels" },
+  { href: "/calendar", label: "Calendar" },
+  { href: "/calls", label: "Calls" },
+  { href: "/companies", label: "Companies" },
 ];
 
 /** Original React shell (OD-11). Not a SolidJS port and not a workshop-frontend fork. */
@@ -77,6 +83,24 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}
             {pane.type === "channel" ? (
               <p>Channels (N9): messages, DMs, threads, presence. Ordered delivery + reconnect.</p>
+            ) : null}
+            {pane.type === "companies" ? (
+              <p>Companies (N12): CRM directory, contacts, enrichment. Kanban by Stage.</p>
+            ) : null}
+            {pane.type === "calendar" ? (
+              <p>Calendar (N13): events, reminders. Provider-mirrored; Soup list + receipts.</p>
+            ) : null}
+            {pane.type === "call" ? (
+              <p>Calls (N13): records, transcripts, LiveKit stub. Preview is OD-8/N15.</p>
+            ) : null}
+            {pane.type === "email" ? (
+              <p>Mailbox (N11): inbox, threads, compose. Gmail-API send via approval queue. No SMTP.</p>
+            ) : null}
+            {pane.type === "inbox" ? (
+              <p>Inbox (N11): company mailbox threads. Pub/Sub push sync with checkpoints.</p>
+            ) : null}
+            {pane.type === "files" || (pane.type === "home" && path === "/file") ? (
+              <p>Files (N14): upload pending→ready, safe unfurl. Image proxy deferred.</p>
             ) : null}
           </section>
         ))}

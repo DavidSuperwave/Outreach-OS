@@ -1,10 +1,27 @@
 import { useEffect, useState } from "react";
+import { CalendarWorkspace } from "calendar/browser";
 import { ChannelWorkspace } from "channels/browser";
+import { CompanyWorkspace, STAGE_OPTION_IDS } from "crm/browser";
 import { DocumentWorkspace } from "documents/browser";
+import { FileWorkspace } from "files/browser";
+import { MailboxWorkspace } from "mailbox/browser";
 import { Shell } from "shell";
 import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties/browser";
 
-export const FIXTURE_PAGES = ["home", "settings", "mcp", "bots", "documents", "tasks", "channels"] as const;
+export const FIXTURE_PAGES = [
+  "home",
+  "settings",
+  "mcp",
+  "bots",
+  "documents",
+  "tasks",
+  "channels",
+  "files",
+  "mail",
+  "calendar",
+  "calls",
+  "companies",
+] as const;
 export type FixturePage = (typeof FIXTURE_PAGES)[number];
 
 function pageFromHash(): FixturePage {
@@ -100,6 +117,24 @@ const CHANNEL_MESSAGES = [
   },
 ];
 
+const FILE_ITEMS = [
+  {
+    id: "file_00000000000000000000000000000001",
+    tenantId: "team_fixture",
+    ownerId: "usr_fixture_1",
+    name: "brief.pdf",
+    contentType: "application/pdf",
+    extensionData: {},
+    state: "ready" as const,
+    blobKey: "r2:file_fixture_1",
+    size: 8,
+    sha: "abc",
+    createdAt: 1,
+    updatedAt: 1,
+    failReason: null,
+  },
+];
+
 const CHANNEL_PRESENCE = {
   entityType: "channel",
   entityId: "chn_fixture_1",
@@ -115,6 +150,186 @@ const CHANNEL_PRESENCE = {
     },
   ],
 };
+
+const MAIL_ITEMS = [
+  {
+    entityId: "eth_fixture_1",
+    entityType: "email_thread" as const,
+    tenantId: "team_fixture",
+    title: "Intraplex ICP",
+    body: "Can we inspect the playbook?",
+    facet: null,
+    projectId: null,
+    updatedAt: 1,
+    createdAt: 1,
+    version: 1,
+    unread: true,
+    done: false,
+    tombstoned: false,
+  },
+];
+
+const MAIL_THREAD = {
+  id: "eth_fixture_1",
+  tenantId: "team_fixture",
+  accountId: "acct_fixture_1",
+  mailboxId: "mbox_fixture_1",
+  gmailThreadId: "gmail_th_1",
+  subject: "Intraplex ICP",
+  snippet: "Can we inspect the playbook?",
+  unread: true,
+  done: false,
+  version: 1,
+  createdAt: 1,
+  updatedAt: 1,
+};
+
+const CALENDAR_ITEMS = [
+  {
+    entityId: "cal_fixture_1",
+    entityType: "calendar_event" as const,
+    tenantId: "team_fixture",
+    title: "ICP review",
+    body: "",
+    facet: null,
+    projectId: null,
+    updatedAt: 1,
+    createdAt: 1,
+    version: 1,
+    unread: false,
+    done: false,
+    tombstoned: false,
+  },
+];
+
+const CALENDAR_EVENT = {
+  id: "cal_fixture_1",
+  tenantId: "team_fixture",
+  title: "ICP review",
+  startsAt: 1,
+  endsAt: 2,
+  providerEventId: null,
+  connectionId: null,
+  recurrenceRule: null,
+  deleted: false,
+  version: 1,
+  createdAt: 1,
+};
+
+const CALL_ITEMS = [
+  {
+    entityId: "call_fixture_1",
+    entityType: "call" as const,
+    tenantId: "team_fixture",
+    title: "Stand-up",
+    body: "",
+    facet: null,
+    projectId: null,
+    updatedAt: 1,
+    createdAt: 1,
+    version: 1,
+    unread: false,
+    done: false,
+    tombstoned: false,
+  },
+];
+
+const CALL_RECORD = {
+  id: "call_fixture_1",
+  tenantId: "team_fixture",
+  title: "Stand-up",
+  status: "live" as const,
+  participantIds: ["usr_fixture_1"],
+  channelId: null,
+  calendarEventId: null,
+  room: null,
+  transcriptId: null,
+  recordingHandle: null,
+  finalized: false,
+  version: 1,
+  createdAt: 1,
+};
+
+const COMPANY_ITEMS = [
+  {
+    entityId: "co_fixture_1",
+    entityType: "crm_company" as const,
+    tenantId: "team_fixture",
+    title: "Intraplex",
+    body: "intraplex.example",
+    facet: null,
+    projectId: null,
+    updatedAt: 1,
+    createdAt: 1,
+    version: 1,
+    unread: false,
+    done: false,
+    tombstoned: false,
+  },
+];
+
+const COMPANY_KANBAN = [
+  {
+    optionId: STAGE_OPTION_IDS.lead,
+    label: "Lead",
+    items: [
+      {
+        id: "co_fixture_1",
+        tenantId: "team_fixture",
+        domain: "intraplex.example",
+        title: "Intraplex",
+        hidden: false,
+        deleted: false,
+        derived: false,
+        version: 1,
+        createdAt: 1,
+        properties: {
+          stage: { value: STAGE_OPTION_IDS.lead, source: "user" as const },
+          owner: { value: null, source: null },
+          revenue: { value: null, source: null },
+        },
+        enrichment: null,
+      },
+    ],
+  },
+];
+
+const COMPANY_VIEW = {
+  company: COMPANY_KANBAN[0]!.items[0]!,
+  contacts: [
+    {
+      id: "ctc_fixture_1",
+      tenantId: "team_fixture",
+      companyId: "co_fixture_1",
+      email: "ada@intraplex.example",
+      name: "Ada",
+      derived: false,
+      deleted: false,
+      version: 1,
+      createdAt: 1,
+    },
+  ],
+  properties: COMPANY_KANBAN[0]!.items[0]!.properties,
+  emailLinks: [] as const,
+  activity: [] as const,
+};
+
+const MAIL_MESSAGES = [
+  {
+    id: "gmail_msg_in_1",
+    threadId: "eth_fixture_1",
+    gmailMessageId: "gmail_msg_in_1",
+    gmailThreadId: "gmail_th_1",
+    historyId: "10",
+    from: "prospect@example.com",
+    to: ["hello@superwave.example"],
+    cc: [],
+    subject: "Intraplex ICP",
+    body: "Can we inspect the playbook?",
+    direction: "inbound" as const,
+    createdAt: 1,
+  },
+];
 
 export function FixtureApp() {
   const [page, setPage] = useState<FixturePage>(pageFromHash);
@@ -174,6 +389,55 @@ export function FixtureApp() {
           composeOpen
           draft="Outreach stand-up"
           findOpen
+        />
+      ) : null}
+      {page === "files" ? (
+        <FileWorkspace
+          files={FILE_ITEMS}
+          uploadOpen
+          draft="brief.pdf"
+        />
+      ) : null}
+      {page === "mail" ? (
+        <MailboxWorkspace
+          items={MAIL_ITEMS}
+          thread={MAIL_THREAD}
+          messages={MAIL_MESSAGES}
+          composeOpen
+          draft="Re: Intraplex ICP"
+          path="/mail"
+        />
+      ) : null}
+      {page === "calendar" ? (
+        <CalendarWorkspace
+          surface="calendar"
+          events={CALENDAR_ITEMS}
+          openEvent={CALENDAR_EVENT}
+          composeOpen
+          reminderOpen
+          draft="ICP review"
+          view="week"
+        />
+      ) : null}
+      {page === "calls" ? (
+        <CalendarWorkspace
+          surface="calls"
+          events={[]}
+          calls={CALL_ITEMS}
+          openCall={CALL_RECORD}
+          composeOpen={false}
+          draft=""
+        />
+      ) : null}
+      {page === "companies" ? (
+        <CompanyWorkspace
+          items={COMPANY_ITEMS}
+          columns={COMPANY_KANBAN}
+          view={COMPANY_VIEW}
+          composeOpen
+          contactComposeOpen
+          draft="intraplex.example"
+          contactDraft="ada@intraplex.example"
         />
       ) : null}
     </div>

@@ -9,8 +9,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "calendar": "workspace:*",
     "channels": "workspace:*",
+    "crm": "workspace:*",
     "documents": "workspace:*",
+    "files": "workspace:*",
+    "mailbox": "workspace:*",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "shell": "workspace:*",
