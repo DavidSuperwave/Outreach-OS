@@ -3,8 +3,13 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
   "scripts": {
     "test": "node --test scripts/*.test.mjs && pnpm --filter custom-gatekeeper test && pnpm --filter error-reporter test",
+    "governance": "node scripts/governance/kernel-budget.mjs && node scripts/governance/rpc-contract.mjs",
     "check": "node scripts/deploy.mjs --check",
     "deploy": "node scripts/deploy.mjs"
   },

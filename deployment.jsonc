@@ -1,4 +1,7 @@
 {
+  // PLACEHOLDERS ARE INTENTIONAL. `pnpm check` fails until real Cloudflare account
+  // values replace every <ANGLE_BRACKET> token. That failure is deploy discipline,
+  // not a broken checkout — see KERNEL-STATUS.md.
   // Cloudflare account that owns every Worker and provisioned resource.
   // Find it: https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/
   "accountId": "<CLOUDFLARE_ACCOUNT_ID>",
