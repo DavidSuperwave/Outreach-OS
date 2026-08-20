@@ -8,7 +8,7 @@
     "pnpm": ">=11 <12"
   },
   "scripts": {
-    "test": "node --test scripts/*.test.mjs && pnpm --filter custom-gatekeeper test && pnpm --filter error-reporter test && pnpm --filter identity test && pnpm --filter registry test && pnpm --filter authz test && pnpm --filter control-plane test && pnpm --filter soup test",
+    "test": "node --test scripts/*.test.mjs && pnpm --filter custom-gatekeeper test && pnpm --filter error-reporter test && pnpm --filter identity test && pnpm --filter registry test && pnpm --filter authz test && pnpm --filter control-plane test && pnpm --filter soup test && pnpm --filter shell test",
     "governance": "node scripts/governance/kernel-budget.mjs && node scripts/governance/rpc-contract.mjs",
     "check": "node scripts/deploy.mjs --check",
     "deploy": "node scripts/deploy.mjs"
