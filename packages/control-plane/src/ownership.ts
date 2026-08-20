@@ -185,6 +185,41 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     rebuildSource: "crm outbox replay (company-linked contacts)",
     checkpoint: "crm.contacts",
   },
+  {
+    name: "converter_jobs",
+    kind: "queue",
+    owner: "converter.ConverterSlice",
+    rebuildSource: "idempotent re-enqueue by (input sha, converter version)",
+    checkpoint: "converter.jobs",
+  },
+  {
+    name: "search_rank_prototype",
+    kind: "d1",
+    owner: "search.SearchSlice",
+    rebuildSource: "soup search family + N16 title-boost ranking (OD-15 prototype)",
+    checkpoint: "search.golden",
+  },
+  {
+    name: "activity_facts",
+    kind: "d1",
+    owner: "activity.ActivitySlice",
+    rebuildSource: "append-only uuidv5 fact log (OD-21 vocabulary)",
+    checkpoint: "activity.facts",
+  },
+  {
+    name: "frecency_state",
+    kind: "do",
+    owner: "activity.ActivitySlice",
+    rebuildSource: "lazy score from last-10 activity facts (no cron decay)",
+    checkpoint: "activity.frecency",
+  },
+  {
+    name: "notification_log",
+    kind: "do",
+    owner: "notifications.NotificationAuthority",
+    rebuildSource: "per-user notification DO (eventId+recipientId idempotency)",
+    checkpoint: "notifications.outbox",
+  },
 ];
 
 export function ownerOf(name: string): StorageOwner {

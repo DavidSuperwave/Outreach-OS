@@ -74,6 +74,49 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/activity:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      react:
+        specifier: ^19.1.1
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.8(react@19.2.8)
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+      shell:
+        specifier: workspace:*
+        version: link:../shell
+      soup:
+        specifier: workspace:*
+        version: link:../soup
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.1.12
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
   packages/authz:
     dependencies:
       identity:
@@ -219,6 +262,37 @@ importers:
       '@types/node':
         specifier: ^26.1.0
         version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
+  packages/converter:
+    dependencies:
+      react:
+        specifier: ^19.1.1
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.8(react@19.2.8)
+      shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.1.12
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.4(@types/react@19.2.18)
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -507,7 +581,133 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
 
+  packages/notifications:
+    dependencies:
+      react:
+        specifier: ^19.1.1
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.8(react@19.2.8)
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+      shell:
+        specifier: workspace:*
+        version: link:../shell
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.1.12
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
   packages/registry:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
+  packages/search:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      react:
+        specifier: ^19.1.1
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.8(react@19.2.8)
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+      shell:
+        specifier: workspace:*
+        version: link:../shell
+      soup:
+        specifier: workspace:*
+        version: link:../soup
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.1.12
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
+  packages/seed:
+    dependencies:
+      activity:
+        specifier: workspace:*
+        version: link:../activity
+      calendar:
+        specifier: workspace:*
+        version: link:../calendar
+      channels:
+        specifier: workspace:*
+        version: link:../channels
+      connectivity:
+        specifier: workspace:*
+        version: link:../connectivity
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
+      converter:
+        specifier: workspace:*
+        version: link:../converter
+      crm:
+        specifier: workspace:*
+        version: link:../crm
+      documents:
+        specifier: workspace:*
+        version: link:../documents
+      files:
+        specifier: workspace:*
+        version: link:../files
+      mailbox:
+        specifier: workspace:*
+        version: link:../mailbox
+      notifications:
+        specifier: workspace:*
+        version: link:../notifications
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+      search:
+        specifier: workspace:*
+        version: link:../search
     devDependencies:
       '@types/node':
         specifier: ^26.1.0
@@ -663,12 +863,18 @@ importers:
 
   packages/ui-fixtures:
     dependencies:
+      activity:
+        specifier: workspace:*
+        version: link:../activity
       calendar:
         specifier: workspace:*
         version: link:../calendar
       channels:
         specifier: workspace:*
         version: link:../channels
+      converter:
+        specifier: workspace:*
+        version: link:../converter
       crm:
         specifier: workspace:*
         version: link:../crm
@@ -681,12 +887,18 @@ importers:
       mailbox:
         specifier: workspace:*
         version: link:../mailbox
+      notifications:
+        specifier: workspace:*
+        version: link:../notifications
       react:
         specifier: ^19.1.1
         version: 19.2.8
       react-dom:
         specifier: ^19.1.1
         version: 19.2.8(react@19.2.8)
+      search:
+        specifier: workspace:*
+        version: link:../search
       shell:
         specifier: workspace:*
         version: link:../shell

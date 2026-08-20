@@ -10,7 +10,7 @@ import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties";
 import { FIXTURE_PAGES, FixtureApp } from "./FixtureApp.js";
 
 describe("UI fixtures gallery", () => {
-  it("names the N10/N6/N7/N8/N9/N11/N12/N13/N14 fixture pages", () => {
+  it("names the N10/N6/N7/N8/N9/N11/N12/N13/N14/N15/N16/N17/N18 fixture pages", () => {
     expect(FIXTURE_PAGES).toEqual([
       "home",
       "settings",
@@ -24,6 +24,10 @@ describe("UI fixtures gallery", () => {
       "calendar",
       "calls",
       "companies",
+      "search",
+      "activity",
+      "notifications",
+      "converter",
     ]);
     const html = renderToString(createElement(FixtureApp));
     expect(html).toContain("data-fixtures=\"outreach-os\"");
@@ -35,6 +39,10 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-fixture-link=\"calendar\"");
     expect(html).toContain("data-fixture-link=\"calls\"");
     expect(html).toContain("data-fixture-link=\"companies\"");
+    expect(html).toContain("data-fixture-link=\"search\"");
+    expect(html).toContain("data-fixture-link=\"activity\"");
+    expect(html).toContain("data-fixture-link=\"notifications\"");
+    expect(html).toContain("data-fixture-link=\"converter\"");
   });
 
   it("renders TaskGrid and KanbanBoard on Shell /tasks", () => {

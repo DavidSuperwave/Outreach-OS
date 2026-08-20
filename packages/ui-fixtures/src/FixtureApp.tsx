@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { ActivityWorkspace } from "activity/browser";
 import { CalendarWorkspace } from "calendar/browser";
 import { ChannelWorkspace } from "channels/browser";
+import { ConverterWorkspace } from "converter/browser";
 import { CompanyWorkspace, STAGE_OPTION_IDS } from "crm/browser";
 import { DocumentWorkspace } from "documents/browser";
 import { FileWorkspace } from "files/browser";
 import { MailboxWorkspace } from "mailbox/browser";
+import { NotificationWorkspace } from "notifications/browser";
+import { SearchWorkspace } from "search/browser";
 import { Shell } from "shell";
 import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties/browser";
 
@@ -21,6 +25,10 @@ export const FIXTURE_PAGES = [
   "calendar",
   "calls",
   "companies",
+  "search",
+  "activity",
+  "notifications",
+  "converter",
 ] as const;
 export type FixturePage = (typeof FIXTURE_PAGES)[number];
 
@@ -438,6 +446,105 @@ export function FixtureApp() {
           contactComposeOpen
           draft="intraplex.example"
           contactDraft="ada@intraplex.example"
+        />
+      ) : null}
+      {page === "search" ? (
+        <SearchWorkspace
+          query="intraplex"
+          hits={[
+            {
+              entityType: "crm_company",
+              entityId: "co_fixture_1",
+              tenantId: "team_fixture",
+              title: "Intraplex",
+              snippet: "intraplex.example",
+              score: 3,
+              updatedAt: 1,
+            },
+          ]}
+        />
+      ) : null}
+      {page === "activity" ? (
+        <ActivityWorkspace
+          mine={[
+            {
+              id: "act_fixture_1",
+              action: "created",
+              entityType: "document",
+              entityId: "doc_fixture_1",
+              actorId: "usr_fixture_1",
+              occurredAt: 1,
+            },
+          ]}
+          recents={[
+            {
+              entityId: "doc_fixture_1",
+              entityType: "document",
+              score: 1,
+              frequency: 1,
+              recency: 1,
+              lastOccurredAt: 1,
+              eventCount: 1,
+            },
+          ]}
+          favorites={[
+            {
+              entityId: "doc_fixture_1",
+              entityType: "document",
+              title: "Playbook: Intraplex ICP",
+              sortOrder: 1,
+            },
+          ]}
+        />
+      ) : null}
+      {page === "notifications" ? (
+        <NotificationWorkspace
+          unreadCount={1}
+          items={[
+            {
+              id: "ntf_fixture_1",
+              eventId: "evt_fixture_1",
+              recipientId: "usr_fixture_1",
+              type: "channel_mention",
+              entityId: "chn_fixture_1",
+              meta: { title: "Outreach stand-up" },
+              title: "Mentioned: Outreach stand-up",
+              seen: false,
+              done: false,
+              deleted: false,
+              createdAt: 1,
+            },
+          ]}
+        />
+      ) : null}
+      {page === "converter" ? (
+        <ConverterWorkspace
+          jobs={[
+            {
+              job_id: "job_golden_1",
+              type: "doc-convert",
+              fromKey: "r2:docx/golden",
+              toKey: "r2:pdf/golden",
+              state: "succeeded",
+              attempts: 1,
+              error: null,
+              fixture: "golden",
+              createdAt: 1,
+              updatedAt: 2,
+            },
+            {
+              job_id: "job_poison_1",
+              type: "doc-convert",
+              fromKey: "r2:docx/poison",
+              toKey: "r2:pdf/poison",
+              state: "failed",
+              attempts: 1,
+              error: "convert_failed",
+              fixture: "poison",
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ]}
         />
       ) : null}
     </div>
