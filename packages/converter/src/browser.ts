@@ -1,4 +1,4 @@
-// Browser-safe exports for UI fixtures. No node:crypto.
+// Browser-safe exports for UI fixtures.
 export { ConverterWorkspace, JobList } from "./ui.js";
 export { CONVERTER_COMMAND_IDS, N15_CHROME_COMMAND_IDS } from "./commands.js";
 export type { ConverterCommandId, N15ChromeCommandId } from "./commands.js";
