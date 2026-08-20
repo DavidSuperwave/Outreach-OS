@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { CalendarWorkspace } from "calendar";
 import { ChannelWorkspace } from "channels";
-import { CompanyWorkspace, STAGE_OPTION_IDS } from "crm";
+import { DocumentWorkspace } from "documents";
 import { FileWorkspace } from "files";
 import { MailboxWorkspace } from "mailbox";
 import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties";
@@ -70,6 +70,38 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-surface=\"soup.tasks.grid\"");
     expect(html).toContain("data-surface=\"soup.tasks.kanban\"");
     expect(html).toContain("Ship N10 settings tabs");
+  });
+
+  it("renders DocumentWorkspace lifted workers on Shell /documents", () => {
+    const html = renderToString(
+      createElement(DocumentWorkspace, {
+        items: [
+          {
+            entityId: "doc_fixture_1",
+            entityType: "document",
+            tenantId: "team_fixture",
+            title: "Playbook: Intraplex ICP",
+            body: "Inspect then ask.",
+            facet: null,
+            projectId: "proj_fixture_1",
+            updatedAt: 1,
+            createdAt: 1,
+            version: 1,
+            unread: false,
+            done: false,
+            tombstoned: false,
+          },
+        ],
+        composeOpen: true,
+        draft: "Weekly inspect notes",
+        folderUpload: { jobId: "job_folder_1", progress: 50, state: "running" },
+      }),
+    );
+    expect(html).toContain("data-split=\"documents\"");
+    expect(html).toContain("data-surface=\"documents.workers\"");
+    expect(html).toContain("data-worker=\"sync-service\"");
+    expect(html).toContain("data-surface=\"documents.folder-upload\"");
+    expect(html).toContain("job_folder_1");
   });
 
   it("renders ChannelWorkspace on Shell /channels", () => {

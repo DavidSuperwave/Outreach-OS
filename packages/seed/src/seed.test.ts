@@ -13,6 +13,14 @@ import {
   SEED_USER,
 } from "./catalog.js";
 import { dryRunAllDomains } from "./mapping.js";
+import {
+  EMAIL_LIVE_TABLE_COUNT,
+  HARVESTED_SCHEMA_FAMILIES,
+  SCHEMA_REFERENCE_DROPPED_TABLES,
+  SCHEMA_REFERENCE_LIVE_TABLE_COUNT,
+  harvestedPostgresTables,
+  unmappedLiveTableRemainder,
+} from "./schema-reference.js";
 
 const ROOT = join(fileURLToPath(new URL("../../..", import.meta.url)));
 
@@ -38,7 +46,30 @@ describe("N20 Branch A seed fixtures", () => {
     const rows = dryRunAllDomains();
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.wrote === false)).toBe(true);
-    expect(new Set(rows.map((row) => row.domain)).size).toBeGreaterThanOrEqual(6);
+    expect(new Set(rows.map((row) => row.domain)).size).toBe(Object.keys(HARVESTED_SCHEMA_FAMILIES).length);
+  });
+});
+
+describe("N20 schema-reference census (194 live tables)", () => {
+  it("freezes the corrected live/dropped/email counts from 01 I2/I3", () => {
+    expect(SCHEMA_REFERENCE_LIVE_TABLE_COUNT).toBe(194);
+    expect(SCHEMA_REFERENCE_DROPPED_TABLES).toHaveLength(8);
+    expect(HARVESTED_SCHEMA_FAMILIES.mailbox).toHaveLength(EMAIL_LIVE_TABLE_COUNT);
+    expect(HARVESTED_SCHEMA_FAMILIES.documents).toHaveLength(15);
+  });
+
+  it("aggregates per-domain harvested tables and does not map dropped names", () => {
+    const postgres = harvestedPostgresTables();
+    expect(postgres.length).toBeGreaterThan(0);
+    expect(postgres).toContain("documents");
+    expect(postgres).toContain("email_threads");
+    expect(postgres).not.toContain("static_files");
+    for (const dropped of SCHEMA_REFERENCE_DROPPED_TABLES) {
+      expect(postgres).not.toContain(dropped);
+    }
+    const remainder = unmappedLiveTableRemainder();
+    expect(remainder).toBe(SCHEMA_REFERENCE_LIVE_TABLE_COUNT - postgres.length);
+    expect(remainder).toBeGreaterThan(0);
   });
 });
 

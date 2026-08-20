@@ -21,7 +21,8 @@
     "mailbox": "workspace:*",
     "notifications": "workspace:*",
     "registry": "workspace:*",
-    "search": "workspace:*"
+    "search": "workspace:*",
+    "task-properties": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

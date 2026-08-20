@@ -8,7 +8,8 @@ import { envelope, ownerOf } from "control-plane";
 import { commandEnabled as chromeEnabled, defaultChromeContext, CommandRegistry } from "shell";
 import { commandEnabled as soupEnabled, type SoupCommandContext } from "soup";
 import { DocumentsSlice, actorContext, requestContext } from "./slice.js";
-import { dryRunIdentityMapping } from "./mapping.js";
+import { DOCUMENT_TABLES, dryRunIdentityMapping } from "./mapping.js";
+import { KERNEL_YJS_PLANE, LIFTED_WORKERS, WORKER_SCHEMAS } from "./workers.js";
 import {
   DOCUMENT_COMMAND_IDS,
   DOCUMENT_COMMAND_FREEZE,
@@ -174,7 +175,7 @@ describe("N7 documents + projects (05-MAP row 5)", () => {
       "ConvertedPdf",
     );
     expect(invoked).toBe(0);
-    expect(CRDT_PLANES.documentContent).toBe("loro-sync-service-later");
+    expect(CRDT_PLANES.documentContent).toBe("loro-sync-service");
     expect(CRDT_PLANES.workspaceCode).toBe("kernel-yjs-untouched");
   });
 
@@ -356,11 +357,86 @@ describe("N7 documents + projects (05-MAP row 5)", () => {
     expect(html).toContain("data-command=\"create-menu.md\"");
     expect(html).toContain("data-command=\"create-menu.project\"");
     expect(html).toContain("aria-label=\"Document title\"");
+    expect(html).toContain("data-surface=\"documents.workers\"");
+    expect(html).toContain("data-worker=\"sync-service\"");
+    expect(html).toContain("data-worker=\"lexical-service\"");
+    expect(html).toContain("data-worker=\"ai-editing-worker\"");
     expect(html).not.toMatch(/macro/i);
   });
 
-  it("registers document_authority and folder_edges in STORAGE_OWNERS", () => {
+  it("registers document_authority, folder_edges, and lifted-worker storage in STORAGE_OWNERS", () => {
     expect(ownerOf("document_authority").owner).toBe("documents.DocumentsSlice");
     expect(ownerOf("folder_edges").kind).toBe("d1");
+    expect(ownerOf("sync_service_docs").owner).toBe("documents.SyncServiceWorker");
+    expect(ownerOf("lexical_documents").kind).toBe("d1");
+    expect(ownerOf("edit_traces").owner).toBe("documents.AiEditingWorker");
+    expect(ownerOf("folder_upload_jobs").kind).toBe("queue");
+  });
+});
+
+describe("N7 lifted workers (SUP-555)", () => {
+  it("freezes the 15-table document schema as design reference (OD-1)", () => {
+    expect(DOCUMENT_TABLES).toHaveLength(15);
+    const mapped = dryRunIdentityMapping(DOCUMENT_TABLES.map((table, index) => ({ table, pgId: index + 1 })));
+    expect(mapped.every((row) => row.wrote === false)).toBe(true);
+  });
+
+  it("names the ruled lift set and keeps kernel Yjs untouched", () => {
+    expect(LIFTED_WORKERS).toEqual(["sync-service", "lexical-service", "ai-editing-worker"]);
+    expect(KERNEL_YJS_PLANE).toBe("untouched");
+    expect(WORKER_SCHEMAS["sync-service"]).toEqual(["sync_documents", "sync_updates"]);
+    const slice = new DocumentsSlice();
+    expect(() => slice.sync.updateCode()).toThrow(/kernel Yjs is untouched/);
+  });
+
+  it("extracts Loro-plane text without writing kernel Yjs", () => {
+    resetIdSequence();
+    const slice = new DocumentsSlice();
+    const { document } = slice.createDocument(
+      { title: "Sync me", body: "loro body", location: "SyncService" },
+      requestContext(ownerActor(), { correlationId: "sync-1" }),
+    );
+    const extracted = slice.syncExtract(document.id);
+    expect(extracted).toEqual({ documentId: document.id, text: "loro body", version: 1 });
+  });
+
+  it("parses markdown into a lexical JSON stand-in", () => {
+    resetIdSequence();
+    const slice = new DocumentsSlice();
+    const { document } = slice.createDocument(
+      { title: "Lex", body: "hello lexical" },
+      requestContext(ownerActor(), { correlationId: "lex-1" }),
+    );
+    const parsed = slice.parseLexical(document.id);
+    expect(parsed.documentId).toBe(document.id);
+    expect(JSON.parse(parsed.json)).toMatchObject({
+      type: "root",
+      children: [{ type: "paragraph", text: "hello lexical" }],
+    });
+  });
+
+  it("requires approval before applying an AI edit trace", () => {
+    resetIdSequence();
+    const slice = new DocumentsSlice();
+    const { document } = slice.createDocument(
+      { title: "Edit me", body: "draft" },
+      requestContext(ownerActor(), { correlationId: "ai-1" }),
+    );
+    const pending = slice.proposeAiEdit(document.id, "tighten", "tight draft");
+    expect(pending.status).toBe("pending");
+    expect(() => slice.applyAiEdit(pending.id)).toThrow(/approval/);
+    expect(slice.approveAiEdit(pending.id).status).toBe("approved");
+    expect(slice.applyAiEdit(pending.id).status).toBe("applied");
+    expect(slice.aiEditing.traces()).toHaveLength(1);
+  });
+
+  it("runs folder-upload jobs with 0/50/100 progress and idempotent jobId", () => {
+    const slice = new DocumentsSlice();
+    const first = slice.beginFolderUpload("job_folder_1", "proj_1", ["a.md", "b.md"]);
+    expect(first).toMatchObject({ state: "queued", progress: 0 });
+    expect(slice.beginFolderUpload("job_folder_1", "proj_1", ["a.md", "b.md"]).progress).toBe(0);
+    expect(slice.tickFolderUpload("job_folder_1")).toMatchObject({ state: "running", progress: 50 });
+    expect(slice.tickFolderUpload("job_folder_1")).toMatchObject({ state: "succeeded", progress: 100 });
+    expect(slice.tickFolderUpload("job_folder_1").state).toBe("succeeded");
   });
 });

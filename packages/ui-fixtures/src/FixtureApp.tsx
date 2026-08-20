@@ -378,6 +378,7 @@ export function FixtureApp() {
           folderComposeOpen
           draft="Weekly inspect notes"
           folderDraft="ICP"
+          folderUpload={{ jobId: "job_folder_1", progress: 50, state: "running" }}
         />
       ) : null}
       {page === "tasks" ? (

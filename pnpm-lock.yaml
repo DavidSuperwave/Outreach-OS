@@ -708,6 +708,9 @@ importers:
       search:
         specifier: workspace:*
         version: link:../search
+      task-properties:
+        specifier: workspace:*
+        version: link:../task-properties
     devDependencies:
       '@types/node':
         specifier: ^26.1.0

@@ -4,7 +4,14 @@ import { fixtureId } from "registry";
  * OD-1 Branch A: identity-mapping dry run. Never writes authorities.
  * Old EAV table shapes are a design reference (semantics kept, storage replaced).
  */
-export type LegacyPropertyTable = "property_definition" | "property_option" | "entity_properties" | "tags";
+export const PROPERTY_TABLES = [
+  "property_definition",
+  "property_option",
+  "entity_properties",
+  "tags",
+] as const;
+
+export type LegacyPropertyTable = (typeof PROPERTY_TABLES)[number];
 
 export interface LegacyPropertyRef {
   table: LegacyPropertyTable;

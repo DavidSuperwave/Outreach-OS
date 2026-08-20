@@ -7,7 +7,7 @@ import { emptyAccess, grantShare, commandEnabled as n2Enabled, N2_COMMAND_IDS } 
 import { ownerOf } from "control-plane";
 import { commandEnabled as soupEnabled, type SoupCommandContext } from "soup";
 import { actorContext, requestContext, TaskProperties } from "./slice.js";
-import { dryRunIdentityMapping } from "./mapping.js";
+import { dryRunIdentityMapping, PROPERTY_TABLES } from "./mapping.js";
 import { N8_PARITY_COMMAND_IDS, PROPERTY_COMMAND_COUNT, PROPERTY_COMMAND_IDS } from "./commands.js";
 import {
   KANBAN_NONE,
@@ -77,6 +77,7 @@ describe("N8 task properties (EAV / bulk / kanban-grid)", () => {
       { table: "tags", pgId: 3 },
     ]);
     expect(mapped.every((row) => row.wrote === false)).toBe(true);
+    expect(PROPERTY_TABLES).toHaveLength(4);
     expect(mapped[0]).toMatchObject({ role: "definition", wrote: false, storageHint: "schema" });
     expect(mapped[2]).toMatchObject({
       role: "value",

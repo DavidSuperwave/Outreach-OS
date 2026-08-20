@@ -36,14 +36,14 @@ export function inMemoryHandle(location: ContentLocation, body: string): Content
 }
 
 /**
- * Two CRDT planes (ADR-008). Do not implement either here:
- * - Loro is the document content plane and lands later with the lifted
- *   sync-service (`SyncService` location). This wrapper only stores the
- *   location tag.
+ * Two CRDT planes (ADR-008):
+ * - Loro is the document content plane. N7 lifts it in-process as
+ *   `SyncServiceWorker` (`SyncService` location). No live Loro network.
  * - Kernel Yjs (workspace code, draft/merge/revert) is untouched (ADR-014).
+ *   `SyncServiceWorker.updateCode()` throws.
  */
 export const CRDT_PLANES = {
-  documentContent: "loro-sync-service-later",
+  documentContent: "loro-sync-service",
   workspaceCode: "kernel-yjs-untouched",
 } as const;
 

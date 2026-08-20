@@ -9,8 +9,26 @@ export type {
   ProjectRecord,
   CreateDocumentInput,
 } from "./slice.js";
-export { dryRunIdentityMapping, mapLegacyDocumentId } from "./mapping.js";
+export { dryRunIdentityMapping, mapLegacyDocumentId, DOCUMENT_TABLES } from "./mapping.js";
 export type { LegacyDocumentRef, IdentityMappingResult, LegacyDocumentTable } from "./mapping.js";
+export {
+  LIFTED_WORKERS,
+  KERNEL_YJS_PLANE,
+  WORKER_SCHEMAS,
+  SyncServiceWorker,
+  LexicalServiceWorker,
+  AiEditingWorker,
+  FolderUploadQueue,
+} from "./workers.js";
+export type {
+  LiftedWorkerId,
+  SyncExtract,
+  LexicalDocument,
+  AiEditStatus,
+  AiEditTrace,
+  FolderUploadState,
+  FolderUploadJob,
+} from "./workers.js";
 export {
   DOCUMENT_COMMAND_IDS,
   DOCUMENT_COMMAND_FREEZE,
@@ -27,4 +45,10 @@ export {
   contentSha,
 } from "./content.js";
 export type { ContentLocation, ContentHandle, ConvertedPdfPort, ConverterFn, DocumentKind } from "./content.js";
-export { DocumentComposePopover, FolderComposePopover, DocumentList, DocumentWorkspace } from "./ui.js";
+export {
+  DocumentComposePopover,
+  FolderComposePopover,
+  DocumentList,
+  DocumentWorkspace,
+  LiftedWorkersPanel,
+} from "./ui.js";

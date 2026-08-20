@@ -25,8 +25,12 @@ Seed data is in-process maps on domain slices. Physical D1/R2 load is later.
 ## Tests and parity fixtures
 
 `packages/seed` — catalog completeness, identity-mapping dry run across
-domains, load into in-process slices without throw.
+every harvested table (`wrote: false`), load into in-process slices without
+throw, schema-reference census: freeze `SCHEMA_REFERENCE_LIVE_TABLE_COUNT = 194`,
+8 dropped tables, 23 live `email_*` tables, and the per-domain `*_TABLES`
+aggregation. Unmapped remainder names are not invented; they stay counted.
 
 ## Open decisions
 
-None for Branch A. N20b is dead.
+None for Branch A. N20b is dead. Live table *names* beyond the harvested
+per-domain lists require the original schema-harvest dump (not in this wrapper).

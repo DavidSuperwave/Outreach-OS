@@ -23,6 +23,7 @@ import {
   type ConverterFn,
   type DocumentKind,
 } from "./content.js";
+import { AiEditingWorker, FolderUploadQueue, LexicalServiceWorker, SyncServiceWorker } from "./workers.js";
 
 export interface DocumentVersion {
   version: number;
@@ -104,6 +105,10 @@ export class DocumentsSlice {
   readonly activity = new ActivityLog();
   readonly idempotency = new IdempotencyStore();
   readonly convertedPdf = convertedPdfStub();
+  readonly sync = new SyncServiceWorker();
+  readonly lexical = new LexicalServiceWorker();
+  readonly aiEditing = new AiEditingWorker();
+  readonly folderUploads = new FolderUploadQueue();
   #docs = new Map<string, DocumentRecord>();
   #folders = new Map<string, FolderRecord>();
   #clock = 0;
@@ -248,6 +253,41 @@ export class DocumentsSlice {
     const doc = this.#docs.get(id);
     if (!doc) throw new Error(`unknown document ${id}`);
     return this.convertedPdf.attach(id, doc.current.sha, converter);
+  }
+
+  /** Loro plane put + extract. Does not write kernel Yjs. */
+  syncExtract(id: string): ReturnType<SyncServiceWorker["extractSync"]> {
+    const doc = this.#docs.get(id);
+    if (!doc) throw new Error(`unknown document ${id}`);
+    this.sync.put(id, doc.current.body, doc.version);
+    return this.sync.extractSync(id);
+  }
+
+  parseLexical(id: string) {
+    const doc = this.#docs.get(id);
+    if (!doc) throw new Error(`unknown document ${id}`);
+    return this.lexical.parseMarkdown(id, doc.current.body, doc.version);
+  }
+
+  proposeAiEdit(documentId: string, instruction: string, proposed: string) {
+    if (!this.#docs.has(documentId)) throw new Error(`unknown document ${documentId}`);
+    return this.aiEditing.propose(documentId, instruction, proposed);
+  }
+
+  approveAiEdit(id: number) {
+    return this.aiEditing.approve(id);
+  }
+
+  applyAiEdit(id: number) {
+    return this.aiEditing.apply(id);
+  }
+
+  beginFolderUpload(jobId: string, folderId: string, fileNames: readonly string[]) {
+    return this.folderUploads.begin(jobId, folderId, fileNames);
+  }
+
+  tickFolderUpload(jobId: string) {
+    return this.folderUploads.tick(jobId);
   }
 
   listDocuments(receipts: readonly Receipt[]): SoupItem[] {
