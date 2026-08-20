@@ -61,10 +61,11 @@ export function SearchWorkspace({
 }) {
   return (
     <div data-slice="search">
-      <Shell path="/search" panes={[{ type: "search", id: "_" }]} theme="outreach-dark" />
-      <SearchQueryInput query={query} />
-      <SearchTypeFilter />
-      <SearchHitList hits={hits} />
+      <Shell path="/search" panes={[{ type: "search", id: "_" }]} theme="outreach-dark">
+        <SearchQueryInput query={query} />
+        <SearchTypeFilter />
+        <SearchHitList hits={hits} />
+      </Shell>
     </div>
   );
 }

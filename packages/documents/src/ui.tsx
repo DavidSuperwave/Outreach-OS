@@ -61,10 +61,11 @@ export function DocumentWorkspace({
 }) {
   return (
     <div data-slice="documents">
-      <Shell path="/documents" panes={[{ type: "documents", id: "_" }]} theme="outreach-dark" />
-      <DocumentComposePopover open={composeOpen} title={draft} />
-      <FolderComposePopover open={folderComposeOpen ?? false} title={folderDraft ?? ""} />
-      <DocumentList items={[...(folders ?? []), ...items]} />
+      <Shell path="/documents" panes={[{ type: "documents", id: "_" }]} theme="outreach-dark">
+        <DocumentComposePopover open={composeOpen} title={draft} />
+        <FolderComposePopover open={folderComposeOpen ?? false} title={folderDraft ?? ""} />
+        <DocumentList items={[...(folders ?? []), ...items]} />
+      </Shell>
     </div>
   );
 }

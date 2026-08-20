@@ -53,13 +53,14 @@ export function ActivityWorkspace({
 }) {
   return (
     <div data-slice="activity" data-path-route="/activity">
-      <Shell path="/activity" panes={[{ type: "home", id: "_" }]} theme="outreach-dark" />
-      <MyActivityList items={mine} />
-      <RecentsList items={recents} />
-      <FavoritesList items={favorites} />
-      <button type="button" data-command="soup-entity.favorite">
-        Favorite
-      </button>
+      <Shell path="/activity" panes={[{ type: "home", id: "_" }]} theme="outreach-dark">
+        <MyActivityList items={mine} />
+        <RecentsList items={recents} />
+        <FavoritesList items={favorites} />
+        <button type="button" data-command="soup-entity.favorite">
+          Favorite
+        </button>
+      </Shell>
     </div>
   );
 }

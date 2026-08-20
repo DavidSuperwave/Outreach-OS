@@ -43,12 +43,13 @@ export function FileWorkspace({
 }) {
   return (
     <div data-slice="files">
-      <Shell path="/file" panes={[{ type: "files", id: "_" }]} theme="outreach-dark" />
-      <FileUploadForm open={uploadOpen} name={draft} />
-      <FileList files={files} />
-      <p data-surface="files.image-proxy" data-status={IMAGE_PROXY.status}>
-        {IMAGE_PROXY.note}
-      </p>
+      <Shell path="/file" panes={[{ type: "files", id: "_" }]} theme="outreach-dark">
+        <FileUploadForm open={uploadOpen} name={draft} />
+        <FileList files={files} />
+        <p data-surface="files.image-proxy" data-status={IMAGE_PROXY.status}>
+          {IMAGE_PROXY.note}
+        </p>
+      </Shell>
     </div>
   );
 }

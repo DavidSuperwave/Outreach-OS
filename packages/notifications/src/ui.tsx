@@ -44,9 +44,10 @@ export function NotificationWorkspace({
 }) {
   return (
     <div data-slice="notifications">
-      <Shell path="/" panes={[{ type: "home", id: "_" }]} theme="outreach-dark" />
-      <UnreadBadge count={unreadCount} />
-      <NotificationList items={items} />
+      <Shell path="/" panes={[{ type: "home", id: "_" }]} theme="outreach-dark">
+        <UnreadBadge count={unreadCount} />
+        <NotificationList items={items} />
+      </Shell>
     </div>
   );
 }

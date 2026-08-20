@@ -164,12 +164,13 @@ export function CompanyWorkspace({
 }) {
   return (
     <div data-slice="crm">
-      <Shell path="/companies" panes={[{ type: "companies", id: "_" }]} theme="outreach-dark" />
-      <CompanyComposePopover open={composeOpen} domain={draft} />
-      <ContactComposePopover open={contactComposeOpen ?? false} email={contactDraft ?? ""} />
-      <CompanyList items={items} />
-      <CompanyKanban columns={columns} />
-      <CompanyDetail view={view ?? null} />
+      <Shell path="/companies" panes={[{ type: "companies", id: "_" }]} theme="outreach-dark">
+        <CompanyComposePopover open={composeOpen} domain={draft} />
+        <ContactComposePopover open={contactComposeOpen ?? false} email={contactDraft ?? ""} />
+        <CompanyList items={items} />
+        <CompanyKanban columns={columns} />
+        <CompanyDetail view={view ?? null} />
+      </Shell>
     </div>
   );
 }

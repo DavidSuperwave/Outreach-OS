@@ -29,8 +29,9 @@ export function JobList({ jobs }: { jobs: readonly ConvertJob[] }) {
 export function ConverterWorkspace({ jobs }: { jobs: readonly ConvertJob[] }) {
   return (
     <div data-slice="converter">
-      <Shell path="/documents" panes={[{ type: "documents", id: "_" }]} theme="outreach-dark" />
-      <JobList jobs={jobs} />
+      <Shell path="/documents" panes={[{ type: "documents", id: "_" }]} theme="outreach-dark">
+        <JobList jobs={jobs} />
+      </Shell>
     </div>
   );
 }

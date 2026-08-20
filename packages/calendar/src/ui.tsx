@@ -142,13 +142,14 @@ export function CalendarWorkspace({
       : { type: "calendar" as const, id: openEvent?.id ?? "_" };
   return (
     <div data-slice={surface === "calls" ? "calls" : "calendar"}>
-      <Shell path={path} panes={[pane]} theme="outreach-dark" />
-      {surface === "calendar" ? <CalendarViewSwitcher view={view} /> : null}
-      <EventComposePopover open={composeOpen} title={draft} />
-      <ReminderComposer open={reminderOpen ?? false} />
-      {surface === "calendar" ? <EventList items={events} /> : <CallList items={calls ?? []} />}
-      <EventDetail event={openEvent ?? null} />
-      <CallDetail call={openCall ?? null} transcript={transcript ?? null} />
+      <Shell path={path} panes={[pane]} theme="outreach-dark">
+        {surface === "calendar" ? <CalendarViewSwitcher view={view} /> : null}
+        <EventComposePopover open={composeOpen} title={draft} />
+        <ReminderComposer open={reminderOpen ?? false} />
+        {surface === "calendar" ? <EventList items={events} /> : <CallList items={calls ?? []} />}
+        <EventDetail event={openEvent ?? null} />
+        <CallDetail call={openCall ?? null} transcript={transcript ?? null} />
+      </Shell>
     </div>
   );
 }

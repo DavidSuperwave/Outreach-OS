@@ -133,11 +133,12 @@ export function TaskPropertiesWorkspace({
 }) {
   return (
     <div data-slice="task-properties">
-      <Shell path="/tasks" panes={[{ type: "tasks", id: "_" }]} theme="outreach-dark" />
-      <TaskComposePopover open={composeOpen} title={draft} />
-      <PropertyEditor open={editorOpen ?? false} definitions={definitions} />
-      <TaskGrid rows={gridRows} />
-      <KanbanBoard columns={kanbanColumns} />
+      <Shell path="/tasks" panes={[{ type: "tasks", id: "_" }]} theme="outreach-dark">
+        <TaskComposePopover open={composeOpen} title={draft} />
+        <PropertyEditor open={editorOpen ?? false} definitions={definitions} />
+        <TaskGrid rows={gridRows} />
+        <KanbanBoard columns={kanbanColumns} />
+      </Shell>
     </div>
   );
 }

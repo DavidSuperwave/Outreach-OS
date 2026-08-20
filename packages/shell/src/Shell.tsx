@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
@@ -8,6 +9,7 @@ export interface ShellProps {
   panes?: readonly SplitPane[];
   theme?: ThemeId;
   username?: string;
+  children?: ReactNode;
 }
 
 const NAV = [
@@ -17,6 +19,8 @@ const NAV = [
   { href: "/inbox", label: "Inbox" },
   { href: "/mail", label: "Mail" },
   { href: "/file", label: "Files" },
+  { href: "/search", label: "Search" },
+  { href: "/activity", label: "Activity" },
   { href: "/settings", label: "Settings" },
   { href: "/mcp", label: "MCP" },
   { href: "/channels", label: "Channels" },
@@ -26,7 +30,7 @@ const NAV = [
 ];
 
 /** Original React shell (OD-11). Not a SolidJS port and not a workshop-frontend fork. */
-export function Shell({ path, panes, theme = "outreach-dark", username = "admin" }: ShellProps) {
+export function Shell({ path, panes, theme = "outreach-dark", username = "admin", children }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
@@ -102,8 +106,15 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
             {pane.type === "files" || (pane.type === "home" && path === "/file") ? (
               <p>Files (N14): upload pending→ready, safe unfurl. Image proxy deferred.</p>
             ) : null}
+            {pane.type === "search" || (pane.type === "home" && path === "/search") ? (
+              <p>Search (N16): 7-entity coverage, title-boost ranking. Vectorize deferred.</p>
+            ) : null}
+            {path === "/activity" ? (
+              <p>Activity (N17): facts, frecency recents, favorites. No retention job (OD-19).</p>
+            ) : null}
           </section>
         ))}
+        {children}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
       </main>
       <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: `1px solid ${tokens.border}` }}>

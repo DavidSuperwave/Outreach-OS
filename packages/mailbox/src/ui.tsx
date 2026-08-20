@@ -87,10 +87,11 @@ export function MailboxWorkspace({
   const pane = path === "/inbox" ? { type: "inbox" as const, id: "_" } : { type: "email" as const, id: "_" };
   return (
     <div data-slice="mailbox">
-      <Shell path={path} panes={[pane]} theme="outreach-dark" />
-      <MailComposePopover open={composeOpen} subject={draft} />
-      <InboxList items={items} />
-      <ThreadView thread={thread ?? null} messages={messages ?? []} />
+      <Shell path={path} panes={[pane]} theme="outreach-dark">
+        <MailComposePopover open={composeOpen} subject={draft} />
+        <InboxList items={items} />
+        <ThreadView thread={thread ?? null} messages={messages ?? []} />
+      </Shell>
     </div>
   );
 }

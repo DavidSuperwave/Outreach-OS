@@ -85,12 +85,13 @@ export function ChannelWorkspace({
 }) {
   return (
     <div data-slice="channels">
-      <Shell path="/channels" panes={[{ type: "channel", id: "_" }]} theme="outreach-dark" />
-      <ChannelComposePopover open={composeOpen} title={draft} />
-      <ChannelFindBar open={findOpen ?? false} />
-      <ChannelList items={items} />
-      <MessageLog messages={messages} />
-      <PresenceStrip snapshot={presence ?? null} />
+      <Shell path="/channels" panes={[{ type: "channel", id: "_" }]} theme="outreach-dark">
+        <ChannelComposePopover open={composeOpen} title={draft} />
+        <ChannelFindBar open={findOpen ?? false} />
+        <ChannelList items={items} />
+        <MessageLog messages={messages} />
+        <PresenceStrip snapshot={presence ?? null} />
+      </Shell>
     </div>
   );
 }

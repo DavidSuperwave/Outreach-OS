@@ -37,9 +37,10 @@ export function TaskWorkspace({
 }) {
   return (
     <div data-slice="task">
-      <Shell path="/tasks" panes={[{ type: "tasks", id: "_" }]} theme="outreach-dark" />
-      <TaskComposePopover open={composeOpen} title={draft} />
-      <TaskList items={items} />
+      <Shell path="/tasks" panes={[{ type: "tasks", id: "_" }]} theme="outreach-dark">
+        <TaskComposePopover open={composeOpen} title={draft} />
+        <TaskList items={items} />
+      </Shell>
     </div>
   );
 }
