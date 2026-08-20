@@ -93,6 +93,28 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
 
+  packages/control-plane:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
   packages/custom-gatekeeper:
     dependencies:
       '@gadgets/workshop-shared':

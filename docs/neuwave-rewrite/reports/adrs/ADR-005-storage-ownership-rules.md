@@ -77,6 +77,19 @@ topology gets copied instead of the behavior.
    DO-routed signals (a cancellation reaches the DO that owns the run —
    replacing the Redis pub/sub hop in `ai_stream_registry`); work sets →
    queue + DO alarm.
+
+### OD-20 Redis successor mapping (Ruled 2026-08-20)
+
+The owner signs this table once; per-domain designs cite it and do not re-decide.
+
+| Source Redis role | Successor |
+|---|---|
+| Stream transport | Queues / kernel sessions |
+| Cancellation pub/sub | DO alarms / hibernation signals |
+| Counters | DO storage or D1 |
+| Work sets | DO storage or D1 |
+
+Code freeze: `packages/control-plane/src/redis-map.ts`.
 9. **Hyperdrive is transitional only** (OD-1 Branch B), never a design
    element of the target.
 
