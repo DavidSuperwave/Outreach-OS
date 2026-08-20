@@ -109,6 +109,11 @@ describe("receipts", () => {
     ).toThrow(/tombstoned/);
   });
 
+  it("mintReceipt is not on the public barrel", async () => {
+    const barrel = await import("./index.js");
+    expect("mintReceipt" in barrel).toBe(false);
+  });
+
   it("plain objects are not receipts", () => {
     expect(
       isReceipt({
