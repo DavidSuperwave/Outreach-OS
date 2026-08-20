@@ -18,27 +18,35 @@ function actor(userId: string, tenantId: string | null = tenant): ActorContext {
   };
 }
 
-function seedDocument(facet: "task" | null = "task"): {
+export function seedEntity(
+  type: EntityType,
+  facet: "task" | null = null,
+): {
   engine: PolicyEngine;
   registry: EntityRegistry;
-  docId: string;
+  id: string;
   state: AccessState;
 } {
   const registry = new EntityRegistry();
-  const docId = fixtureId("document", 1);
+  const id = fixtureId(type, 1);
   registry.register({
-    type: "document",
-    id: docId,
+    type,
+    id,
     tenantId: tenant,
     createdAt: 1,
-    facet,
+    facet: type === "document" ? facet : null,
   });
   return {
     engine: new PolicyEngine(registry),
     registry,
-    docId,
+    id,
     state: emptyAccess(ownerId, tenant),
   };
+}
+
+export function seedDocument(facet: "task" | null = "task") {
+  const seeded = seedEntity("document", facet);
+  return { ...seeded, docId: seeded.id };
 }
 
 /**

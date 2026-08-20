@@ -11,4 +11,14 @@ export {
   assertSec2NoEscalate,
   assertSec3CrossTenantDenies,
   secFixtures,
+  seedEntity,
 } from "./sec.js";
+export type {
+  ViewReceipt,
+  CommentReceipt,
+  EditReceipt,
+  OwnerReceipt,
+  DocumentEdit,
+  ChannelComment,
+  TeamOwner,
+} from "./extractors.js";
