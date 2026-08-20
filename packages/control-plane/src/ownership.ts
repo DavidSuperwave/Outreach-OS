@@ -45,6 +45,27 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     rebuildSource: "domain outbox replay (search schema family)",
     checkpoint: "soup.search",
   },
+  {
+    name: "webhook_endpoint",
+    kind: "do",
+    owner: "connectivity.WebhookEndpoint",
+    rebuildSource: "per-webhook DO drain + delivery log",
+    checkpoint: "webhooks.outbox",
+  },
+  {
+    name: "team_connections",
+    kind: "do",
+    owner: "connectivity.TeamConnectionStore",
+    rebuildSource: "Team DO custody snapshot (OD-29 recommendation)",
+    checkpoint: "connectors.outbox",
+  },
+  {
+    name: "user_memory",
+    kind: "do",
+    owner: "connectivity.MemoryStore",
+    rebuildSource: "User DO on-activity refresh (OD-28)",
+    checkpoint: "memory.alarm",
+  },
 ];
 
 export function ownerOf(name: string): StorageOwner {
