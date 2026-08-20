@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { CalendarWorkspace } from "calendar";
 import { ChannelWorkspace } from "channels";
+import { CompanyWorkspace, STAGE_OPTION_IDS } from "crm";
 import { DocumentWorkspace } from "documents";
 import { FileWorkspace } from "files";
 import { MailboxWorkspace } from "mailbox";
