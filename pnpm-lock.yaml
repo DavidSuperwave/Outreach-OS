@@ -74,6 +74,25 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/authz:
+    dependencies:
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
   packages/custom-gatekeeper:
     dependencies:
       '@gadgets/workshop-shared':
@@ -157,6 +176,18 @@ importers:
       wrangler:
         specifier: ^4.115.0
         version: 4.118.0(@cloudflare/workers-types@4.20260702.1)
+
+  packages/registry:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
 
 packages:
 

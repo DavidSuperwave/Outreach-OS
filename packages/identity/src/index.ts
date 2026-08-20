@@ -23,7 +23,6 @@ export type { TeamSnapshot } from "./team-authority.js";
 export { TeamsApi } from "./teams-api.js";
 export type { KernelSession } from "./teams-api.js";
 export { DurableTeamsApi } from "./durable-teams-api.js";
-export { TeamDurableObject } from "./team-do.js";
 export { loadSeedFixtures, SEED_ADMIN, SEED_MEMBER, SEED_OUTSIDER } from "./seed.js";
 export { afterKernelAuthenticate, assertAdminPolicyAgrees } from "./kernel-auth-bridge.js";
 export type { KernelIdentityDirectory } from "./kernel-auth-bridge.js";
