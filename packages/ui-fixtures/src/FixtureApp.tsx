@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChannelWorkspace } from "channels";
-import { DocumentWorkspace } from "documents";
+import { ChannelWorkspace } from "channels/browser";
+import { DocumentWorkspace } from "documents/browser";
 import { Shell } from "shell";
-import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties";
+import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties/browser";
 
 export const FIXTURE_PAGES = ["home", "settings", "mcp", "bots", "documents", "tasks", "channels"] as const;
 export type FixturePage = (typeof FIXTURE_PAGES)[number];

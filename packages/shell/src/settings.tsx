@@ -1,5 +1,5 @@
-import { CONNECTOR_CATALOG, HARVESTED_OAUTH_STRATEGIES, N10_COMMAND_IDS } from "connectivity";
-import type { ConnectorCatalogEntry } from "connectivity";
+import { CONNECTOR_CATALOG, HARVESTED_OAUTH_STRATEGIES, N10_COMMAND_IDS } from "connectivity/browser";
+import type { ConnectorCatalogEntry } from "connectivity/browser";
 
 export const SETTINGS_TABS = ["connections", "mcp", "bots"] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

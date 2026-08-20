@@ -1,5 +1,5 @@
 import { Shell } from "shell";
-import { TaskComposePopover } from "task-slice";
+import { TaskComposePopover } from "task-slice/browser";
 import { KANBAN_NONE } from "./system.js";
 import type { GridRow, KanbanColumn, PropertyDefinition, PropertyValue } from "./types.js";
 

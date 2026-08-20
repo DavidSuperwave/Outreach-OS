@@ -1,5 +1,5 @@
 import { Shell } from "shell";
-import type { SoupItem } from "soup";
+import type { SoupItem } from "soup/browser";
 
 export function TaskComposePopover({ open, title }: { open: boolean; title: string }) {
   if (!open) return null;

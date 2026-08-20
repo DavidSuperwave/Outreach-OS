@@ -1,4 +1,4 @@
-import type { SoupItem } from "soup";
+import type { SoupItem } from "soup/browser";
 import { Shell } from "shell";
 import type { ChannelMessage } from "./types.js";
 import type { PresenceSnapshot } from "./presence.js";
