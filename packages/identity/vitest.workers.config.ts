@@ -10,6 +10,7 @@ export default defineConfig({
         compatibilityFlags: ["nodejs_compat"],
         durableObjects: {
           TEAM: { className: "TeamDurableObject", useSQLite: true },
+          USER: { className: "UserDurableObject", useSQLite: true },
           KERNEL_USER: { className: "KernelPasswordUser", useSQLite: true },
           PENDING_LOGIN: { className: "PendingLogin", useSQLite: true },
         },

@@ -28,7 +28,7 @@ User DO (kernel) = credentials and sessions. TeamAuthority (wrapper Team DO core
 
 Team Durable Object (`TeamDurableObject`) is the N1 authority: SQLite snapshot of membership, invites, and idempotency keys; mutations serialize on the DO. In-memory `TeamAuthority` remains the unit-test core and the DO's load/save engine. D1 `memberships` physical table rides N3/N4 outbox wiring; the projection shape is frozen here.
 
-Kernel User DO remains the credential/session authority (OD-16). N1 does not host a production password store. Miniflare tests exercise the kernel hash/token protocol (`createAccount` / `login` / `authenticate` / revoke) against a harness Durable Object that matches `user.ts` byte-for-byte.
+Kernel User DO remains the credential/session authority (OD-16). Miniflare workers tests import the pinned kernel `UserDurableObject` class (`cloudflare-os/packages/workshop-backend/src/user.ts`) and run `createAccount` / `login` / `authenticate` against it, then bind the session into `DurableTeamsApi`. D1 `memberships` and `/api` composition stay N3/N5.
 
 ## RPC/API contract
 

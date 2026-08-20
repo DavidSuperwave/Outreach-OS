@@ -10,7 +10,10 @@
     "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
-    "@gadgets/workshop-shared": "workspace:*"
+    "@gadgets/backend-utils": "workspace:*",
+    "@gadgets/typed-storage": "workspace:*",
+    "@gadgets/workshop-shared": "workspace:*",
+    "capnweb": "^0.8.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.20.1",

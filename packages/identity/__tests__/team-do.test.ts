@@ -51,8 +51,16 @@ describe("TeamDurableObject sqlite authority", () => {
     await api.acceptInvite(outsider, team.id, invite.id);
     await evictDurableObject(stub);
 
-    await expect(api.listMembers(member, team.id)).rejects.toThrow(/only members/);
-    await expect(api.acceptInvite(member, team.id, invite.id)).rejects.toThrow(/already used/);
+    const listDenied = api.listMembers(member, team.id).then(
+      () => "listed",
+      (error: Error) => error.message,
+    );
+    expect(await listDenied).toMatch(/only members/);
+    const replayDenied = api.acceptInvite(member, team.id, invite.id).then(
+      () => "accepted",
+      (error: Error) => error.message,
+    );
+    expect(await replayDenied).toMatch(/already used/);
     expect(await api.resolveEffectiveRole(outsider, team.id)).toBe("member");
     expect(await api.resolveEffectiveRole(member, team.id)).toBeNull();
   });
