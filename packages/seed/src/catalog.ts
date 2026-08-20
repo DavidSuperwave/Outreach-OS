@@ -57,4 +57,8 @@ export const REQUIRED_STORAGE_OWNERS = [
   "converter_jobs",
   "activity_facts",
   "notification_log",
+  "sync_service_docs",
+  "lexical_documents",
+  "edit_traces",
+  "folder_upload_jobs",
 ] as const;

@@ -29,6 +29,8 @@ export const FIXTURE_PAGES = [
   "activity",
   "notifications",
   "converter",
+  "onboarding",
+  "cutover",
 ] as const;
 export type FixturePage = (typeof FIXTURE_PAGES)[number];
 
@@ -378,6 +380,7 @@ export function FixtureApp() {
           folderComposeOpen
           draft="Weekly inspect notes"
           folderDraft="ICP"
+          folderUpload={{ jobId: "job_folder_1", progress: 50, state: "running" }}
         />
       ) : null}
       {page === "tasks" ? (
@@ -546,6 +549,15 @@ export function FixtureApp() {
             },
           ]}
         />
+      ) : null}
+      {page === "onboarding" ? <Shell path="/onboarding" panes={[{ type: "home", id: "_" }]} /> : null}
+      {page === "cutover" ? (
+        <Shell path="/" panes={[{ type: "home", id: "_" }]}>
+          <section data-surface="n21.cutover">
+            <p>Branch A cutover: no dual-run, no data migration. Rollback is previous worker + previous seed.</p>
+            <p>Human leftovers: fill deployment.jsonc, pnpm deploy with David’s go, production DNS, old-repo archive.</p>
+          </section>
+        </Shell>
       ) : null}
     </div>
   );

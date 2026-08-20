@@ -4,7 +4,41 @@ import { fixtureId } from "registry";
  * OD-1 Branch A migration fixture: identity-mapping dry run.
  * Never writes authorities. Postgres numeric rows map onto typed ids.
  */
-export type LegacyDocumentTable = "documents" | "projects" | "document_instance";
+export type LegacyDocumentTable =
+  | "documents"
+  | "projects"
+  | "document_instance"
+  | "document_content"
+  | "document_access"
+  | "document_shares"
+  | "document_versions"
+  | "project_members"
+  | "project_access"
+  | "docx_bom_parts"
+  | "converted_pdf"
+  | "sync_documents"
+  | "lexical_documents"
+  | "edit_traces"
+  | "folder_upload_jobs";
+
+/** Old 15-table document schema = design reference only (OD-1 / SUP-555). */
+export const DOCUMENT_TABLES: readonly LegacyDocumentTable[] = [
+  "documents",
+  "projects",
+  "document_instance",
+  "document_content",
+  "document_access",
+  "document_shares",
+  "document_versions",
+  "project_members",
+  "project_access",
+  "docx_bom_parts",
+  "converted_pdf",
+  "sync_documents",
+  "lexical_documents",
+  "edit_traces",
+  "folder_upload_jobs",
+];
 
 export interface LegacyDocumentRef {
   table: LegacyDocumentTable;

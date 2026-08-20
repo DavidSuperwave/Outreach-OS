@@ -48,7 +48,10 @@ this node).
 
 In-process document + folder maps (authority) + N3 outbox + N4
 `ProjectionPlane` (lists/search). N3 `STORAGE_OWNERS` rows:
-`document_authority`, `folder_edges`. Content is an in-memory handle (no R2).
+`document_authority`, `folder_edges`, `sync_service_docs`, `lexical_documents`,
+`edit_traces`, `folder_upload_jobs`. Content is an in-memory handle (no R2).
+Lifted workers keep in-process maps; live Loro / R2 / Cloudflare Workers are
+later.
 
 ## RPC/API contract
 
@@ -79,8 +82,10 @@ Soft-delete publishes `tombstoned: true`; restore republishes the live row.
 
 ## External providers
 
-None in N7. ConvertedPdf converter is N15. Sync-service (Loro) is the lift set,
-not this wrapper. Instantly is out of scope.
+None in N7. ConvertedPdf converter is N15. Instantly is out of scope. The three
+lifted workers (`sync-service`, `lexical-service`, `ai-editing-worker`) run
+in-process on `DocumentsSlice`. `SyncServiceWorker.updateCode()` throws —
+kernel Yjs stays untouched.
 
 ## Migration and reconciliation
 
@@ -90,11 +95,12 @@ are regenerable (do not migrate).
 
 ## Tests and parity fixtures
 
-`packages/documents/src/slice.test.tsx` — mapping dry run, row-5
-create/edit/version/move/restore + Soup update, five locations, ConvertedPdf
-stub does not invoke converter, live subscription, rebuild+poison, idempotency,
-SEC-1, 71-command freeze + parity set including `c`+`d`, SSR surface,
-STORAGE_OWNERS rows.
+`packages/documents/src/slice.test.tsx` — mapping dry run, 15-table freeze,
+row-5 create/edit/version/move/restore + Soup update, five locations,
+ConvertedPdf stub does not invoke converter, live subscription, rebuild+poison,
+idempotency, SEC-1, 71-command freeze + parity set including `c`+`d`, SSR
+surface, STORAGE_OWNERS rows, lifted workers (extractSync, lexical parse,
+propose/approve/apply, folder-upload 0/50/100, Yjs throw).
 
 ## Observability/SLOs
 
@@ -109,7 +115,7 @@ available SLO waits on R2 (N14).
 ## Open decisions
 
 - **OD-8 / N15** — ConvertedPdf production (LibreOffice container). Stub only.
-- **OD-13 / ADR-008** — Loro sync-service lift; two CRDT planes kept.
+- **OD-13 / ADR-008** — live Loro network / CRDT sync (in-process extract only).
 - Annotations PDF viewer build (G1 annotations row).
-- R2 live uploads + folder-upload jobs (N14 / later N7 lift).
+- R2 live uploads (folder-upload queue is in-process progress only).
 - Full 71 editor enablement (canvas/md/code viewers).

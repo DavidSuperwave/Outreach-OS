@@ -4,13 +4,15 @@ import { renderToString } from "react-dom/server";
 import { CalendarWorkspace } from "calendar";
 import { ChannelWorkspace } from "channels";
 import { CompanyWorkspace, STAGE_OPTION_IDS } from "crm";
+import { DocumentWorkspace } from "documents";
 import { FileWorkspace } from "files";
 import { MailboxWorkspace } from "mailbox";
 import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties";
+import { Shell } from "shell";
 import { FIXTURE_PAGES, FixtureApp } from "./FixtureApp.js";
 
 describe("UI fixtures gallery", () => {
-  it("names the N10/N6/N7/N8/N9/N11/N12/N13/N14/N15/N16/N17/N18 fixture pages", () => {
+  it("names the N10/N6/N7/N8/N9/N11/N12/N13/N14/N15/N16/N17/N18/N19/N21 fixture pages", () => {
     expect(FIXTURE_PAGES).toEqual([
       "home",
       "settings",
@@ -28,6 +30,8 @@ describe("UI fixtures gallery", () => {
       "activity",
       "notifications",
       "converter",
+      "onboarding",
+      "cutover",
     ]);
     const html = renderToString(createElement(FixtureApp));
     expect(html).toContain("data-fixtures=\"outreach-os\"");
@@ -43,6 +47,8 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-fixture-link=\"activity\"");
     expect(html).toContain("data-fixture-link=\"notifications\"");
     expect(html).toContain("data-fixture-link=\"converter\"");
+    expect(html).toContain("data-fixture-link=\"onboarding\"");
+    expect(html).toContain("data-fixture-link=\"cutover\"");
   });
 
   it("renders TaskGrid and KanbanBoard on Shell /tasks", () => {
@@ -70,6 +76,38 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-surface=\"soup.tasks.grid\"");
     expect(html).toContain("data-surface=\"soup.tasks.kanban\"");
     expect(html).toContain("Ship N10 settings tabs");
+  });
+
+  it("renders DocumentWorkspace lifted workers on Shell /documents", () => {
+    const html = renderToString(
+      createElement(DocumentWorkspace, {
+        items: [
+          {
+            entityId: "doc_fixture_1",
+            entityType: "document",
+            tenantId: "team_fixture",
+            title: "Playbook: Intraplex ICP",
+            body: "Inspect then ask.",
+            facet: null,
+            projectId: "proj_fixture_1",
+            updatedAt: 1,
+            createdAt: 1,
+            version: 1,
+            unread: false,
+            done: false,
+            tombstoned: false,
+          },
+        ],
+        composeOpen: true,
+        draft: "Weekly inspect notes",
+        folderUpload: { jobId: "job_folder_1", progress: 50, state: "running" },
+      }),
+    );
+    expect(html).toContain("data-split=\"documents\"");
+    expect(html).toContain("data-surface=\"documents.workers\"");
+    expect(html).toContain("data-worker=\"sync-service\"");
+    expect(html).toContain("data-surface=\"documents.folder-upload\"");
+    expect(html).toContain("job_folder_1");
   });
 
   it("renders ChannelWorkspace on Shell /channels", () => {
@@ -370,5 +408,20 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-surface=\"crm.company-view\"");
     expect(html).toContain("Intraplex");
     expect(html).toContain("Ada");
+  });
+
+  it("renders parked N19 onboarding and N21 cutover leftovers", () => {
+    const onboarding = renderToString(
+      createElement(Shell, { path: "/onboarding", panes: [{ type: "home", id: "_" }] }),
+    );
+    expect(onboarding).toContain("data-surface=\"n19.parked\"");
+    const cutover = renderToString(
+      createElement(Shell, {
+        path: "/",
+        panes: [{ type: "home", id: "_" }],
+        children: createElement("section", { "data-surface": "n21.cutover" }, "no dual-run"),
+      }),
+    );
+    expect(cutover).toContain("data-surface=\"n21.cutover\"");
   });
 });

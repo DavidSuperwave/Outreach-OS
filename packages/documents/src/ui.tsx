@@ -1,5 +1,6 @@
 import { Shell } from "shell";
 import type { SoupItem } from "soup/browser";
+import { LIFTED_WORKERS, type FolderUploadJob } from "./workers.js";
 
 export function DocumentComposePopover({ open, title }: { open: boolean; title: string }) {
   if (!open) return null;
@@ -44,6 +45,36 @@ export function DocumentList({ items }: { items: readonly SoupItem[] }) {
   );
 }
 
+export function LiftedWorkersPanel({
+  workers = LIFTED_WORKERS,
+  folderUpload,
+}: {
+  workers?: readonly string[];
+  folderUpload?: Pick<FolderUploadJob, "jobId" | "progress" | "state">;
+}) {
+  return (
+    <section data-surface="documents.workers" aria-label="Lifted document workers">
+      <ul>
+        {workers.map((id) => (
+          <li key={id} data-worker={id}>
+            {id}
+          </li>
+        ))}
+      </ul>
+      {folderUpload ? (
+        <p
+          data-surface="documents.folder-upload"
+          data-job-id={folderUpload.jobId}
+          data-progress={folderUpload.progress}
+          data-state={folderUpload.state}
+        >
+          {folderUpload.jobId} {folderUpload.progress}%
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function DocumentWorkspace({
   items,
   folders,
@@ -51,6 +82,7 @@ export function DocumentWorkspace({
   folderComposeOpen,
   draft,
   folderDraft,
+  folderUpload,
 }: {
   items: readonly SoupItem[];
   folders?: readonly SoupItem[];
@@ -58,12 +90,14 @@ export function DocumentWorkspace({
   folderComposeOpen?: boolean;
   draft: string;
   folderDraft?: string;
+  folderUpload?: Pick<FolderUploadJob, "jobId" | "progress" | "state">;
 }) {
   return (
     <div data-slice="documents">
       <Shell path="/documents" panes={[{ type: "documents", id: "_" }]} theme="outreach-dark">
         <DocumentComposePopover open={composeOpen} title={draft} />
         <FolderComposePopover open={folderComposeOpen ?? false} title={folderDraft ?? ""} />
+        <LiftedWorkersPanel folderUpload={folderUpload} />
         <DocumentList items={[...(folders ?? []), ...items]} />
       </Shell>
     </div>

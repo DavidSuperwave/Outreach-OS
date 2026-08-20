@@ -1,5 +1,12 @@
 // Browser-safe exports for UI fixtures
-export { DocumentComposePopover, FolderComposePopover, DocumentList, DocumentWorkspace } from "./ui.js";
+export {
+  DocumentComposePopover,
+  FolderComposePopover,
+  DocumentList,
+  DocumentWorkspace,
+  LiftedWorkersPanel,
+} from "./ui.js";
+export { LIFTED_WORKERS, KERNEL_YJS_PLANE } from "./workers.js";
 export {
   DOCUMENT_COMMAND_IDS,
   DOCUMENT_COMMAND_FREEZE,

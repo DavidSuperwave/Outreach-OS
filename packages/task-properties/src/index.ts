@@ -1,6 +1,6 @@
 export { TaskProperties, actorContext, requestContext } from "./slice.js";
 export type { PropertiesApi } from "./slice.js";
-export { dryRunIdentityMapping, mapLegacyPropertyId } from "./mapping.js";
+export { dryRunIdentityMapping, mapLegacyPropertyId, PROPERTY_TABLES } from "./mapping.js";
 export type { LegacyPropertyRef, IdentityMappingResult, LegacyPropertyTable } from "./mapping.js";
 export { PROPERTY_COMMAND_IDS, PROPERTY_COMMAND_COUNT, N8_PARITY_COMMAND_IDS } from "./commands.js";
 export type { PropertyCommandId, N8ParityCommandId } from "./commands.js";
