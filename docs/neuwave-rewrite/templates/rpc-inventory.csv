@@ -1,0 +1,1 @@
+interface,method,signature,source_pin,source_path,source_line,caller,state_owner,authorization,side_effects,ordering_idempotency,disposition,adapter,test,migration_dependency,notes

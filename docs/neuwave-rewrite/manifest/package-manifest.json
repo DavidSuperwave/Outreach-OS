@@ -1,0 +1,16 @@
+{
+  "name": "neuwave-codex-implementation-kickstart",
+  "version": "1.0.0",
+  "purpose": "Codex verification, plan falsification, compatibility inventory, architecture, and implementation kickstart package",
+  "implementation_status": "planning and execution control plane; no claim of completed product rewrite",
+  "recommended_install_path": "docs/neuwave-rewrite",
+  "first_work_packets": [
+    "WP-000",
+    "WP-010",
+    "WP-020",
+    "WP-030"
+  ],
+  "product_code_first_allowed_in": "WP-040 after owner approval",
+  "finalized_at": "2026-08-20T04:04:22.196655+00:00",
+  "qa_status": "PASS"
+}

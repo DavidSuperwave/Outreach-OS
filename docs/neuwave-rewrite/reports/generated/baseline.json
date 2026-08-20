@@ -1,0 +1,116 @@
+{
+  "implementation_repo": {
+    "path": "/Users/david/Projects/Outreach-OS/.claude/worktrees/neuwave-cloudflare-rewrite-3e5a28",
+    "is_dir": true,
+    "head": {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "returncode": 0,
+      "stdout": "dec12f2df3d205965838526076b910cdb8a845ce",
+      "stderr": ""
+    },
+    "branch_status": {
+      "command": [
+        "git",
+        "status",
+        "--short",
+        "--branch"
+      ],
+      "returncode": 0,
+      "stdout": "## claude/neuwave-cloudflare-rewrite-3e5a28\n?? AGENTS.neuwave-rewrite.md\n?? CODEX_START_HERE.md\n?? docs/neuwave-rewrite/",
+      "stderr": ""
+    },
+    "remotes": {
+      "command": [
+        "git",
+        "remote",
+        "-v"
+      ],
+      "returncode": 0,
+      "stdout": "origin\thttps://github.com/DavidSuperwave/Outreach-OS.git (fetch)\norigin\thttps://github.com/DavidSuperwave/Outreach-OS.git (push)",
+      "stderr": ""
+    },
+    "submodules": {
+      "command": [
+        "git",
+        "submodule",
+        "status",
+        "--recursive"
+      ],
+      "returncode": 0,
+      "stdout": "bf7f762d7fa73553284d731ab6a978d3ea17be24 cloudflare-os (bf7f762)",
+      "stderr": ""
+    },
+    "cloudflare_os_gitlink": {
+      "command": [
+        "git",
+        "ls-tree",
+        "HEAD",
+        "cloudflare-os"
+      ],
+      "returncode": 0,
+      "stdout": "160000 commit bf7f762d7fa73553284d731ab6a978d3ea17be24\tcloudflare-os",
+      "stderr": ""
+    }
+  },
+  "neuwave_reference": {
+    "path": "/Users/david/Projects/Neuwave",
+    "is_dir": true,
+    "head": {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "returncode": 0,
+      "stdout": "9f7a26bccb85e6f806a6e0c8d6c8e53f3a3541bf",
+      "stderr": ""
+    },
+    "branch_status": {
+      "command": [
+        "git",
+        "status",
+        "--short",
+        "--branch"
+      ],
+      "returncode": 0,
+      "stdout": "## HEAD (no branch)",
+      "stderr": ""
+    },
+    "remotes": {
+      "command": [
+        "git",
+        "remote",
+        "-v"
+      ],
+      "returncode": 0,
+      "stdout": "origin\thttps://github.com/DavidSuperwave/Neuwave.git (fetch)\norigin\thttps://github.com/DavidSuperwave/Neuwave.git (push)",
+      "stderr": ""
+    },
+    "submodules": {
+      "command": [
+        "git",
+        "submodule",
+        "status",
+        "--recursive"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "cloudflare_os_gitlink": {
+      "command": [
+        "git",
+        "ls-tree",
+        "HEAD",
+        "cloudflare-os"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  }
+}

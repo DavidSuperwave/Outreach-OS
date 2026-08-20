@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-08-19T00:00:00-06:00",
+  "observed_not_assumed": true,
+  "sources": {
+    "outreach_os_main": {
+      "repo": "DavidSuperwave/Outreach-OS",
+      "commit": "dec12f2df3d205965838526076b910cdb8a845ce",
+      "role": "baseline observation; re-verify before use"
+    },
+    "cloudflare_os_submodule": {
+      "repo": "cloudflare/cloudflare-os",
+      "commit": "bf7f762d7fa73553284d731ab6a978d3ea17be24",
+      "role": "kernel/platform pin observed in Outreach-OS main"
+    },
+    "neuwave_reference": {
+      "repo": "DavidSuperwave/Neuwave",
+      "commit": "9f7a26bccb85e6f806a6e0c8d6c8e53f3a3541bf",
+      "role": "old product behavior/UI/architecture reference"
+    },
+    "planning_branch": {
+      "repo": "DavidSuperwave/Outreach-OS",
+      "ref": "merge/nuewave-docs",
+      "commit_observed": "8c3cf7a4e3c25ada27bb89850964702d07a34988",
+      "role": "planning evidence only"
+    },
+    "research_branch": {
+      "repo": "DavidSuperwave/Outreach-OS",
+      "ref": "research/nuewave-longtail",
+      "commit_observed": "13c2847543326f8c2ce8485b26a1c1f0520cfa1b",
+      "role": "long-tail audit evidence only"
+    }
+  }
+}
