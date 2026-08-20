@@ -94,6 +94,27 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     rebuildSource: "entity outbox replay (property values)",
     checkpoint: "properties.index",
   },
+  {
+    name: "channel_message_log",
+    kind: "do",
+    owner: "channels.ChannelsSlice",
+    rebuildSource: "per-channel in-process append log (N9)",
+    checkpoint: "channels.outbox",
+  },
+  {
+    name: "channel_members",
+    kind: "d1",
+    owner: "channels-projector",
+    rebuildSource: "channels outbox replay (membership)",
+    checkpoint: "channels.members",
+  },
+  {
+    name: "channel_presence",
+    kind: "do",
+    owner: "channels.PresenceStore",
+    rebuildSource: "PresenceSubscriber init/add/remove (replaces /track)",
+    checkpoint: "channels.presence",
+  },
 ];
 
 export function ownerOf(name: string): StorageOwner {

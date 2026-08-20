@@ -93,6 +93,49 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
 
+  packages/channels:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      control-plane:
+        specifier: workspace:*
+        version: link:../control-plane
+      identity:
+        specifier: workspace:*
+        version: link:../identity
+      react:
+        specifier: ^19.1.1
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.1.1
+        version: 19.2.8(react@19.2.8)
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+      shell:
+        specifier: workspace:*
+        version: link:../shell
+      soup:
+        specifier: workspace:*
+        version: link:../soup
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.1.12
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.1.9
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+
   packages/connectivity:
     dependencies:
       authz:
@@ -451,6 +494,9 @@ importers:
 
   packages/ui-fixtures:
     dependencies:
+      channels:
+        specifier: workspace:*
+        version: link:../channels
       documents:
         specifier: workspace:*
         version: link:../documents

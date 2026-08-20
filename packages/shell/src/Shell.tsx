@@ -75,7 +75,9 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
               <p>Tasks (N8): properties, bulk edit, kanban/grid. One Task Database.</p>
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}
-            {pane.type === "channel" ? <p>Channels (N9) not wired yet.</p> : null}
+            {pane.type === "channel" ? (
+              <p>Channels (N9): messages, DMs, threads, presence. Ordered delivery + reconnect.</p>
+            ) : null}
           </section>
         ))}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}

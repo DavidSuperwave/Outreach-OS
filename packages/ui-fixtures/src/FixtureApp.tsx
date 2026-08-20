@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { ChannelWorkspace } from "channels";
 import { DocumentWorkspace } from "documents";
 import { Shell } from "shell";
 import { STATUS_OPTION_IDS, TaskPropertiesWorkspace } from "task-properties";
 
-export const FIXTURE_PAGES = ["home", "settings", "mcp", "bots", "documents", "tasks"] as const;
+export const FIXTURE_PAGES = ["home", "settings", "mcp", "bots", "documents", "tasks", "channels"] as const;
 export type FixturePage = (typeof FIXTURE_PAGES)[number];
 
 function pageFromHash(): FixturePage {
@@ -64,6 +65,57 @@ const TASK_KANBAN = [
   { optionId: STATUS_OPTION_IDS.inProgress, label: "In Progress", items: [] },
 ];
 
+const CHANNEL_ITEMS = [
+  {
+    entityId: "chn_fixture_1",
+    entityType: "channel" as const,
+    tenantId: "team_fixture",
+    title: "Outreach stand-up",
+    body: "first line",
+    facet: null,
+    projectId: null,
+    updatedAt: 1,
+    createdAt: 1,
+    version: 1,
+    unread: false,
+    done: false,
+    tombstoned: false,
+  },
+];
+
+const CHANNEL_MESSAGES = [
+  {
+    id: "msg_fixture_1",
+    channelId: "chn_fixture_1",
+    seq: 1,
+    senderId: "usr_fixture_1",
+    senderKind: "user" as const,
+    body: "first line",
+    parentId: null,
+    deleted: false,
+    edited: false,
+    version: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  },
+];
+
+const CHANNEL_PRESENCE = {
+  entityType: "channel",
+  entityId: "chn_fixture_1",
+  trackPath: "/track/channel/chn_fixture_1",
+  sessions: [
+    {
+      sessionId: "s1",
+      actorId: "usr_fixture_1",
+      entityType: "channel",
+      entityId: "chn_fixture_1",
+      action: "open" as const,
+      lastSeen: 1,
+    },
+  ],
+};
+
 export function FixtureApp() {
   const [page, setPage] = useState<FixturePage>(pageFromHash);
   useEffect(() => {
@@ -112,6 +164,16 @@ export function FixtureApp() {
           composeOpen
           draft="Verify settings connections tab"
           editorOpen
+        />
+      ) : null}
+      {page === "channels" ? (
+        <ChannelWorkspace
+          items={CHANNEL_ITEMS}
+          messages={CHANNEL_MESSAGES}
+          presence={CHANNEL_PRESENCE}
+          composeOpen
+          draft="Outreach stand-up"
+          findOpen
         />
       ) : null}
     </div>
