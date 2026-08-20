@@ -49,4 +49,5 @@ export { HARVESTED_OAUTH_STRATEGIES } from "./oauth.js";
 export { AI_FEATURES } from "./ai-usage.js";
 export type { AiFeature } from "./ai-usage.js";
 export { TeamConnectionStore, CONNECTOR_CATALOG } from "./connectors.js";
+export type { ConnectorCatalogEntry, ConnectorVendorId, ConnectionRecord } from "./connectors.js";
 export { SessionApprovalQueue } from "./session.js";

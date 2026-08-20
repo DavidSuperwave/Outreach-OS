@@ -230,4 +230,18 @@ describe("Shell boots", () => {
     const blocked = renderToString(createElement(Shell, { path: "/.well-known" }));
     expect(blocked).toContain("data-unserved");
   });
+
+  it("renders N10 settings connections, MCP harvest, and bots XOR copy", () => {
+    const connections = renderToString(createElement(Shell, { path: "/settings", theme: "outreach-dark" }));
+    expect(connections).toContain("data-command=\"settings.connections\"");
+    expect(connections).toContain("data-vendor=\"instantly\"");
+    expect(connections).toContain("reads only");
+    expect(connections).toContain("GATEKEEPER_GITHUB");
+    const mcp = renderToString(createElement(Shell, { path: "/mcp", theme: "outreach-dark" }));
+    expect(mcp).toContain("data-command=\"settings.mcp\"");
+    expect(mcp).toContain("authorization_code_pkce");
+    expect(mcp).toContain("data-mcp-server=\"on\"");
+    const bots = renderToString(createElement(Shell, { path: "/settings?tab=bots", theme: "outreach-dark" }));
+    expect(bots).toContain("user XOR bot");
+  });
 });

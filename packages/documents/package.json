@@ -1,5 +1,5 @@
 {
-  "name": "shell",
+  "name": "documents",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,9 +9,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "connectivity": "workspace:*",
+    "authz": "workspace:*",
+    "control-plane": "workspace:*",
+    "identity": "workspace:*",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "registry": "workspace:*",
+    "shell": "workspace:*",
+    "soup": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",

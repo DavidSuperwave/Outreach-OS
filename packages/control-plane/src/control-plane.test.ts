@@ -176,6 +176,8 @@ describe("OD-20 redis map, secrets, ownership", () => {
   it("every storage row has an owner", () => {
     expect(STORAGE_OWNERS.length).toBeGreaterThan(0);
     expect(ownerOf("entity_registry").owner).toBe("registry");
+    expect(ownerOf("document_authority").owner).toBe("documents.DocumentsSlice");
+    expect(ownerOf("folder_edges").kind).toBe("d1");
     expect(() => ownerOf("mystery")).toThrow(/unowned/);
   });
 });

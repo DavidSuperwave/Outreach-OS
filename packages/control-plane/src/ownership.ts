@@ -66,6 +66,34 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     rebuildSource: "User DO on-activity refresh (OD-28)",
     checkpoint: "memory.alarm",
   },
+  {
+    name: "document_authority",
+    kind: "do",
+    owner: "documents.DocumentsSlice",
+    rebuildSource: "per-document in-process map + immutable versions (N7)",
+    checkpoint: "documents.outbox",
+  },
+  {
+    name: "folder_edges",
+    kind: "d1",
+    owner: "documents-projector",
+    rebuildSource: "documents and projects outbox replay",
+    checkpoint: "documents.folders",
+  },
+  {
+    name: "property_schema",
+    kind: "do",
+    owner: "task-properties.TaskProperties",
+    rebuildSource: "team PropertySchema snapshot (definitions/options/tags)",
+    checkpoint: "properties.schema",
+  },
+  {
+    name: "entity_property_index",
+    kind: "d1",
+    owner: "task-properties-projector",
+    rebuildSource: "entity outbox replay (property values)",
+    checkpoint: "properties.index",
+  },
 ];
 
 export function ownerOf(name: string): StorageOwner {
