@@ -32,6 +32,16 @@ interface StoredTeam extends TeamRecord {
   idempotency: Map<string, string>;
 }
 
+/** Durable snapshot of one team's authority. TeamDurableObject persists this in SQLite. */
+export interface TeamSnapshot {
+  id: string;
+  name: string;
+  createdAt: number;
+  members: Array<{ userId: string; role: TeamRole }>;
+  invites: InviteRecord[];
+  idempotency: Array<[string, string]>;
+}
+
 /**
  * Team Durable Object core: serialized membership, role, and invite mutations.
  * One instance per team. Cross-team reads go through MembershipProjection.
@@ -190,5 +200,38 @@ export class TeamAuthority {
       throw new TeamAuthError("forbidden", "only members can list the team");
     }
     return this.projection.forTeam(this.id);
+  }
+
+  roleOf(userId: string): TeamRole | null {
+    return this.#roleOf(userId);
+  }
+
+  toSnapshot(): TeamSnapshot {
+    return {
+      id: this.team.id,
+      name: this.team.name,
+      createdAt: this.team.createdAt,
+      members: [...this.team.members.entries()].map(([userId, role]) => ({ userId, role })),
+      invites: [...this.team.invites.values()],
+      idempotency: [...this.team.idempotency.entries()],
+    };
+  }
+
+  static fromSnapshot(snapshot: TeamSnapshot, projection: MembershipProjection): TeamAuthority {
+    const team = new TeamAuthority(
+      { id: snapshot.id, name: snapshot.name, createdAt: snapshot.createdAt },
+      projection,
+    );
+    for (const [key, inviteId] of snapshot.idempotency) {
+      team.team.idempotency.set(key, inviteId);
+    }
+    for (const invite of snapshot.invites) {
+      team.team.invites.set(invite.id, invite);
+    }
+    for (const member of snapshot.members) {
+      team.team.members.set(member.userId, member.role);
+      team.#project(member.userId, member.role);
+    }
+    return team;
   }
 }

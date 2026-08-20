@@ -26,7 +26,9 @@ User DO (kernel) = credentials and sessions. TeamAuthority (wrapper Team DO core
 
 ## Storage and indexes
 
-In-memory TeamAuthority + membership projection in N1. D1 `memberships` physical table rides N3/N4 outbox wiring; the projection shape is frozen here.
+Team Durable Object (`TeamDurableObject`) is the N1 authority: SQLite snapshot of membership, invites, and idempotency keys; mutations serialize on the DO. In-memory `TeamAuthority` remains the unit-test core and the DO's load/save engine. D1 `memberships` physical table rides N3/N4 outbox wiring; the projection shape is frozen here.
+
+Kernel User DO remains the credential/session authority (OD-16). N1 does not host a production password store. Miniflare tests exercise the kernel hash/token protocol (`createAccount` / `login` / `authenticate` / revoke) against a harness Durable Object that matches `user.ts` byte-for-byte.
 
 ## RPC/API contract
 
@@ -58,7 +60,7 @@ None. Seed fixtures in `src/seed.ts`.
 
 ## Tests and parity fixtures
 
-`src/seed-parity.test.ts` (05-MAP row 1, isolation, invites). `src/kernel-auth-surface.test.ts` (28 rows + SERVICE_SALT).
+`src/seed-parity.test.ts` (05-MAP row 1, isolation, invites). `src/kernel-auth-surface.test.ts` (28 rows + SERVICE_SALT). `src/kernel-session-protocol.test.ts` + `__tests__/kernel-auth-lifecycle.test.ts` (login/authenticate/revoke + `LoginAttempt.wait` dispose-cancels). `__tests__/team-do.test.ts` (SQLite authority survives eviction).
 
 ## Observability/SLOs
 

@@ -37,3 +37,13 @@ export function nextId(type: EntityTypeTag): string {
 export function fixtureId(type: EntityTypeTag, n: number): string {
   return typedId(type, n.toString(16).padStart(32, "0"));
 }
+
+export function randomId(type: EntityTypeTag): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return typedId(type, bytesToHex(bytes));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
