@@ -112,7 +112,7 @@ source)`. Replay of webhook events is safe because of dedupe.
 | Provider | Posture |
 |---|---|
 | Instantly | Reads only. Session API proposed; no send/activate. |
-| GitHub | Reference connector. Inbound `/hooks/github/*`. Six events. |
+| GitHub | Reference connector. Wrapper Worker `packages/github-hooks` serves `POST /hooks/github/*`. Six events. HMAC `X-Hub-Signature-256`. |
 | MCP BYO / portal | Kernel `gatekeeper-mcp` / `gatekeeper-mcp-portal`. |
 | Linear / Notion / Slack | Import gather via hosted MCP URLs. |
 | OpenAI-compatible proxy | Governed `/chat/completions` (OD-2 entry 2a). |
@@ -125,7 +125,7 @@ migrated. Memory/projections regenerate, never ETL.
 
 ## Tests and parity fixtures
 
-`packages/connectivity/src/*.test.ts` — Instantly read-only + forbidden methods;
+`packages/connectivity/src/*.test.ts` plus `packages/github-hooks/src/*.test.ts` — Instantly read-only + forbidden methods;
 row 14 read-propose-approve-resume; row 15 duplicate webhook; HMAC; retry ladder;
 OD-6 blocked egress; GitHub six-event goldens; cron/DST; Notion 32-hex collapse;
 AiFeature tagging; on-activity memory; MCP harvest + kill switch; SEC-3

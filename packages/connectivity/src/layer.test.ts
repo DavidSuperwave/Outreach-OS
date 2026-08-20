@@ -19,6 +19,11 @@ import {
 } from "./webhooks.js";
 import { loopbackSafeFetch } from "./safe-fetch.js";
 import { GITHUB_INGRESS_EVENTS, GITHUB_PR_SOURCE } from "./github.js";
+import {
+  GITHUB_HOOKS_PATH,
+  handleGitHubWebhook,
+  signGitHubWebhook,
+} from "./github-http.js";
 import { AUTOMATION_ACTION_KIND, cronMatches, scheduledTickId, zonedParts } from "./automations.js";
 import { MEMORY_STALE_MS } from "./memory.js";
 import { COMPLETIONS_PATH, DEFAULT_MODEL_ALLOW_LIST } from "./completions.js";
@@ -228,6 +233,48 @@ describe("N10 agent connectivity (SUP-554)", () => {
     n10.github.ingest({ event: "gollum", deliveryId: "d3" });
     expect(n10.github.skipped).toEqual(["gollum"]);
     expect(n10.registry.resolve(first!.id, "foreign_entity").type).toBe("foreign_entity");
+  });
+
+  it("accepts GitHub HTTP webhooks at /hooks/github/* with HMAC and delivery dedupe", () => {
+    resetIdSequence();
+    const n10 = layer();
+    const secret = "hook-secret";
+    const body = JSON.stringify({
+      action: "opened",
+      pull_request: {
+        id: 11,
+        number: 11,
+        title: "hook pr",
+        html_url: "https://github.com/org/repo/pull/11",
+      },
+    });
+    const headers = {
+      pathname: `${GITHUB_HOOKS_PATH}/org`,
+      method: "POST",
+      event: "pull_request",
+      deliveryId: "deliv_1",
+      signature: signGitHubWebhook(secret, body),
+      secret,
+      rawBody: body,
+      connector: n10.github,
+    };
+    const first = handleGitHubWebhook(headers);
+    expect(first.status).toBe(204);
+    expect(first.mirror?.source).toBe(GITHUB_PR_SOURCE);
+    expect(first.mirror?.externalId).toBe("11");
+    const replay = handleGitHubWebhook(headers);
+    expect(replay.duplicate).toBe(true);
+    expect(n10.github.mirrors.size).toBe(1);
+    const forged = handleGitHubWebhook({ ...headers, deliveryId: "deliv_2", signature: "sha256=dead" });
+    expect(forged.status).toBe(401);
+    const unknown = handleGitHubWebhook({
+      ...headers,
+      deliveryId: "deliv_3",
+      event: "gollum",
+      signature: signGitHubWebhook(secret, body),
+    });
+    expect(unknown.status).toBe(204);
+    expect(n10.github.skipped).toContain("gollum");
   });
 
   it("runs automations as ActionKind Agent with cron + IANA timezone and DST-safe tick ids", () => {

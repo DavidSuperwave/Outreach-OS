@@ -14,6 +14,23 @@ export const GITHUB_INGRESS_EVENTS = [
 
 export type GitHubIngressEvent = (typeof GITHUB_INGRESS_EVENTS)[number];
 
+/** GitHub HTTP `X-GitHub-Event` names mapped onto the J5 inventory. */
+export const GITHUB_HTTP_EVENT_ALIASES: Record<string, GitHubIngressEvent> = {
+  pull_request: "PullRequest",
+  issue_comment: "IssueComment",
+  pull_request_review: "PullRequestReview",
+  pull_request_review_comment: "PullRequestReviewComment",
+  check_run: "CheckRun",
+  installation: "Installation",
+};
+
+export function normalizeGitHubEvent(event: string): GitHubIngressEvent | null {
+  if ((GITHUB_INGRESS_EVENTS as readonly string[]).includes(event)) {
+    return event as GitHubIngressEvent;
+  }
+  return GITHUB_HTTP_EVENT_ALIASES[event] ?? null;
+}
+
 export const GITHUB_PR_SOURCE = "github_pull_request";
 
 export interface GitHubIngressPayload {
@@ -43,6 +60,7 @@ export interface GitHubWriteProposal {
 export class GitHubConnector {
   readonly mirrors = new Map<string, ForeignEntityMirror>();
   readonly skipped: string[] = [];
+  readonly deliveries = new Set<string>();
   readonly applied = new Map<number, GitHubWriteProposal>();
   #actions = 0;
 
@@ -54,11 +72,14 @@ export class GitHubConnector {
   ) {}
 
   ingest(payload: GitHubIngressPayload, at = Date.now()): ForeignEntityMirror | null {
-    if (!(GITHUB_INGRESS_EVENTS as readonly string[]).includes(payload.event)) {
+    if (this.deliveries.has(payload.deliveryId)) return null;
+    this.deliveries.add(payload.deliveryId);
+    const event = normalizeGitHubEvent(payload.event);
+    if (!event) {
       this.skipped.push(payload.event);
       return null;
     }
-    if (payload.event === "Installation") return null;
+    if (event === "Installation") return null;
     const pr = payload.pullRequest;
     if (!pr) return null;
     const externalId = String(pr.id);

@@ -22,7 +22,24 @@ export {
   DOCUMENT_EVENTS_NOT_FORWARDED,
 } from "./webhooks.js";
 export { blockedSafeFetch, loopbackSafeFetch } from "./safe-fetch.js";
-export { GITHUB_INGRESS_EVENTS, GITHUB_PR_SOURCE, GitHubConnector } from "./github.js";
+export {
+  GITHUB_INGRESS_EVENTS,
+  GITHUB_PR_SOURCE,
+  GITHUB_HTTP_EVENT_ALIASES,
+  GitHubConnector,
+  normalizeGitHubEvent,
+} from "./github.js";
+export {
+  GITHUB_HOOKS_PATH,
+  GITHUB_EVENT_HEADER,
+  GITHUB_DELIVERY_HEADER,
+  GITHUB_SIGNATURE_HEADER,
+  githubHooksPathMatches,
+  signGitHubWebhook,
+  verifyGitHubSignature,
+  parseGitHubWebhookBody,
+  handleGitHubWebhook,
+} from "./github-http.js";
 export { AutomationStore, AUTOMATION_ACTION_KIND, cronMatches, parseCron, zonedParts, scheduledTickId } from "./automations.js";
 export { MemoryStore, MEMORY_STALE_MS } from "./memory.js";
 export { CompletionsGateway, COMPLETIONS_PATH, DEFAULT_MODEL_ALLOW_LIST } from "./completions.js";

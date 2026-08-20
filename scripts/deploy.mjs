@@ -12,6 +12,7 @@ const generatedPaths = {
   workshop: join(root, "cloudflare-os/packages/workshop-backend", generatedName),
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
   customGatekeeper: join(root, "packages/custom-gatekeeper", generatedName),
+  githubHooks: join(root, "packages/github-hooks", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
 };
 const defaultContextArtifactsNamespace = "gatekeeper-context-collections";
@@ -21,6 +22,7 @@ const requiredPaths = [
   "workers.workshop.name",
   "workers.context.name",
   "workers.customGatekeeper.name",
+  "workers.githubHooks.name",
   "access.issuer",
   "access.audience",
   "access.admins",
@@ -122,7 +124,7 @@ export function validateConfig(config) {
     .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
     .map(([, worker]) => worker.name);
   if (new Set(workerNames).size !== workerNames.length) {
-    throw new Error("Workshop, Context, and custom Gatekeeper Worker names must be unique.");
+    throw new Error("Workshop, Context, custom Gatekeeper, and GitHub hooks Worker names must be unique.");
   }
   if (!workerNames.every((name) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))) {
     throw new Error("Worker names must use lowercase letters, numbers, and hyphens.");
@@ -253,6 +255,7 @@ export function generateConfigs(config, bases) {
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
   const customGatekeeper = structuredClone(bases.customGatekeeper);
+  const githubHooks = structuredClone(bases.githubHooks);
   const errorReporter = config.errorReporting.enabled
     ? structuredClone(bases.errorReporter)
     : undefined;
@@ -342,11 +345,21 @@ export function generateConfigs(config, bases) {
     CUSTOM_MESSAGE: config.customGatekeeper.message,
   };
 
+  setCommon(githubHooks, config, config.workers.githubHooks.name);
+  githubHooks.workers_dev = true;
+  githubHooks.secrets = {
+    ...githubHooks.secrets,
+    required: [...new Set([
+      ...(githubHooks.secrets?.required ?? []),
+      "GITHUB_WEBHOOK_SECRET",
+    ])],
+  };
+
   if (errorReporter) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);
   }
 
-  return { workshop, context, customGatekeeper, ...(errorReporter && { errorReporter }) };
+  return { workshop, context, customGatekeeper, githubHooks, ...(errorReporter && { errorReporter }) };
 }
 
 async function readJsonc(path) {
@@ -387,6 +400,7 @@ function requireSubmodule() {
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
   run(["--dir", "packages/custom-gatekeeper", "run", "build"]);
+  run(["--dir", "packages/github-hooks", "run", "build"]);
   if (config.errorReporting.enabled) {
     run(["--dir", "packages/error-reporter", "run", "build"]);
   }
@@ -404,6 +418,7 @@ async function main() {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
     customGatekeeper: await readJsonc(join(root, "packages/custom-gatekeeper/wrangler.jsonc")),
+    githubHooks: await readJsonc(join(root, "packages/github-hooks/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   });
 
@@ -423,6 +438,8 @@ async function main() {
       join(root, "cloudflare-os/packages/gatekeeper-context"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "packages/custom-gatekeeper"));
+    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
+      join(root, "packages/github-hooks"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "cloudflare-os/packages/workshop-backend"));
   } finally {

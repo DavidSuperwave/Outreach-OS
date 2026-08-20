@@ -190,6 +190,34 @@ importers:
         specifier: ^4.115.0
         version: 4.118.0(@cloudflare/workers-types@4.20260702.1)
 
+  packages/github-hooks:
+    dependencies:
+      authz:
+        specifier: workspace:*
+        version: link:../authz
+      connectivity:
+        specifier: workspace:*
+        version: link:../connectivity
+      registry:
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260702.1
+        version: 4.20260702.1
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1))
+      wrangler:
+        specifier: ^4.115.0
+        version: 4.118.0(@cloudflare/workers-types@4.20260702.1)
+
   packages/identity:
     dependencies:
       '@gadgets/backend-utils':
