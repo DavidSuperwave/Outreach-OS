@@ -31,6 +31,20 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     rebuildSource: "Team DO snapshot",
     checkpoint: "team.outbox",
   },
+  {
+    name: "soup_list_index",
+    kind: "d1",
+    owner: "soup-projector",
+    rebuildSource: "domain outbox replay (lists schema family)",
+    checkpoint: "soup.lists",
+  },
+  {
+    name: "soup_search_index",
+    kind: "d1",
+    owner: "soup-projector",
+    rebuildSource: "domain outbox replay (search schema family)",
+    checkpoint: "soup.search",
+  },
 ];
 
 export function ownerOf(name: string): StorageOwner {

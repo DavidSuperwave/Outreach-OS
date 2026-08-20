@@ -1,4 +1,4 @@
-import type { DocumentFacet, EntityType } from "registry";
+import type { EntityType } from "registry";
 
 /**
  * Soup has no Task item type (OD-7). Tasks ride Document with a subtype marker.
@@ -24,12 +24,32 @@ export interface SoupItem {
   entityId: string;
   tenantId: string;
   title: string;
+  body: string;
   updatedAt: number;
+  createdAt: number;
   version: number;
-  facet: DocumentFacet | null;
+  facet: import("registry").DocumentFacet | null;
+  projectId: string | null;
+  unread: boolean;
+  done: boolean;
   tombstoned: boolean;
 }
 
 export function soupItemType(type: EntityType): SoupItemType | null {
   return (SOUP_ITEM_TYPES as readonly string[]).includes(type) ? (type as SoupItemType) : null;
+}
+
+export function payloadString(payload: Record<string, unknown>, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+export function payloadBool(payload: Record<string, unknown>, key: string): boolean | undefined {
+  const value = payload[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
+export function payloadNumber(payload: Record<string, unknown>, key: string): number | undefined {
+  const value = payload[key];
+  return typeof value === "number" ? value : undefined;
 }
