@@ -12,11 +12,11 @@ the command ledger (`03-command-hotkey-ledger.csv`) plus live shell tests.
 |---|---|---|---|---|---|---|
 | `/login` `/signup` | ledger PublicApi chrome; kernel `passwordHash.ts` argon2id | `LoginPane` + hydrate `/api` | shell 18; kernel-password unit; live Chromium signup | Chromium `/signup` → `/tasks` | Kernel stock screens are transitional (OD-11). No Macro trade dress. | partial |
 | `/tasks` compose | `create-menu.task` / `c` then `t` (ledger L8) | compose popover `data-scope=task-compose-popover` | slice command test; chrome `c`+`t` opens compose without navigating; hydrate focuses title after open | Chromium `c` then `t` opens popover | Live hydrate focuses compose (does not auto-create). In-process `bindSliceCommands` still creates. | partial |
-| Soup task list | next-soup list + entity property commands | table `data-surface=soup.tasks` + tabs 1/2/3; focused-row editors; title text until `r` | shell SSR; Soup status/priority projection; live create/mark-done | wrangler Chromium | No kanban/grid (N8). No Macro icons. OKLCH tokens, not extracted CSS dump. | partial |
-| Status / priority / assignee | `soup-entity.status` shift+cmd+s, `priority` shift+cmd+p, `assignee` shift+cmd+a, `properties` shift+cmd+o | cells + `chordFromEvent` → CommandRegistry | slice 15-identity dispatch; shell chord builder | Chromium selects persist (status/priority) | Tags field is read-only until N8 `setTags`. | partial |
+| Soup task list | next-soup list + entity property commands | table `data-surface=soup.tasks` + tabs 1/2/3; focused-row highlight; title text until `r`; property chips until status/priority/assignee/tags command | shell SSR chips (no default `<select>`); Soup status/priority projection; live create/mark-done | wrangler Chromium + CDP `g` overlay | No kanban/grid (N8). No Macro icons. OKLCH tokens, not extracted CSS dump. | partial |
+| Status / priority / assignee | `soup-entity.status` shift+cmd+s, `priority` shift+cmd+p, `assignee` shift+cmd+a, `properties` shift+cmd+o | chips until command/click opens the cell editor | slice 15-identity dispatch; shell SSR chips | Chromium chip → select on command | Tags editor is read-only until N8 `setTags`. | partial |
 | Subscribe reconnect | WP-040 live update/reconnect | `/subscribe` replay from cursor; hydrate `attachTaskSubscribe` | workers Keep v2; unit drop → replayFrom → reopen | n/a | Query-token subscribe is browser-only (WS cannot set Authorization). | in-slice |
 | Left sidebar | Neuwave `AppSidebar` + go-to links | `aside[data-chrome=sidebar]` + ledger rows; `g` arms `data-leader=g` hints (2s) | shell SSR layout/collapse/full-cover + leader overlays | wrangler Chromium | No Macro icons. Search/markdown-docs hiddenFromSidebar. | partial |
-| Theme variants | OKLCH token layer (07-UI-UX); Change theme nested palette | `tokenVars` for all 12 `THEME_IDS`; hydrate restores any stored id | shell token map + SSR `data-theme=ember` | wrangler Chromium | Outreach-named palettes, not extracted Macro CSS. Gate 7 vs Neuwave pin still blocked. | partial |
+| Theme variants | OKLCH token layer (07-UI-UX); Change theme nested palette | `tokenVars` for all 12 `THEME_IDS`; hydrate restores any stored id | shell token map + SSR `data-theme=ember` | wrangler Chromium: Ember (warm) and Paper (cream) apply + persist across reload | Outreach-named palettes, not extracted Macro CSS. Gate 7 vs Neuwave pin still blocked. | partial |
 | Visual regression | 07 §Visual parity process | none yet | blocked | blocked | Reference screenshots cannot be captured without Neuwave @ 9f7a26b. | blocked |
 
 ## Keyboard (gate 6) — slice identities
@@ -58,10 +58,12 @@ Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. Pressing `g` sets `data-leader=g` on the
 sidebar, shows `data-surface=go-to-hints`, and arms go-to kbd hints
 (`data-goto-hint`); they auto-reset after `LEADER_HINT_RESET_MS` (2s). Live
-wrangler Chromium: hints appear from empty pane and from a soup title field;
-they hide after 2s. Stray non-goto keys jettison the leader and are swallowed
-in hydrate (interceptor). Soup table inputs are split focus for `g`/`o`/`c`
-(`chromeInputFocused`) so those leaders can arm on `/tasks`. `o` shows
+CDP on wrangler (`Input.dispatchKeyEvent` within 200ms): `data-armed-leader=g`,
+`data-surface=go-to-hints`, filled kbd hints while signed in as `navgate`.
+computerUse screenshots often miss the overlay because they arrive after the
+2s reset. Stray non-goto keys jettison the leader and are swallowed in hydrate.
+Soup property chips are not input-gated; remaining soup/compose fields still
+use `chromeInputFocused` so `g`/`o`/`c` can arm on `/tasks`. `o` shows
 `data-surface=open-category-hints` until a category chord or the same 2s reset;
 `o` then `t` opens the command menu on Tasks. `c` then `t` stays on
 `command-scope-create-menu`

@@ -128,13 +128,17 @@ function handleLiveSliceHotkey(
       return clickInFocusedRow("button[data-command='soup-entity.rename']");
     case "soup-entity.status":
     case "soup-entity.properties":
-      return focusInFocusedRow("[data-command='soup-entity.status'], select[aria-label='Status']");
+      if (focusInFocusedRow("select[aria-label='Status']")) return true;
+      return clickInFocusedRow("[data-command='soup-entity.status']");
     case "soup-entity.priority":
-      return focusInFocusedRow("[data-command='soup-entity.priority'], select[aria-label='Priority']");
+      if (focusInFocusedRow("select[aria-label='Priority']")) return true;
+      return clickInFocusedRow("[data-command='soup-entity.priority']");
     case "soup-entity.assignee":
-      return focusInFocusedRow("input[data-command='soup-entity.assignee']");
+      if (focusInFocusedRow("input[data-command='soup-entity.assignee']")) return true;
+      return clickInFocusedRow("button[data-command='soup-entity.assignee']");
     case "soup-entity.tags":
-      return focusInFocusedRow("input[data-command='soup-entity.tags']");
+      if (focusInFocusedRow("input[data-command='soup-entity.tags']")) return true;
+      return clickInFocusedRow("button[data-command='soup-entity.tags']");
     case "soup-nav.down-j":
     case "soup-nav.down-arrow":
       return clickSliceCommand("soup-nav.down-j");

@@ -86,6 +86,7 @@ export function TaskPane({
   const [focusedId, setFocusedId] = useState<string | null>(items[0]?.entityId ?? null);
   const [openedId, setOpenedId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<"status" | "priority" | "assignee" | "tags" | null>(null);
   const visible = useMemo(() => {
     if (tab === "open") return items.filter((item) => !item.done);
     if (tab === "done") return items.filter((item) => item.done);
@@ -100,6 +101,7 @@ export function TaskPane({
     if (next) {
       setFocusedId(next.entityId);
       setRenamingId(null);
+      setEditingField(null);
     }
   };
 
@@ -111,6 +113,17 @@ export function TaskPane({
     input?.focus();
     input?.select();
   }, [renamingId]);
+
+  useEffect(() => {
+    if (!editingField || !focusedId) return;
+    const node = document.querySelector<HTMLElement>(
+      `[data-entity-id="${focusedId}"] [data-command='soup-entity.${editingField}']`,
+    );
+    if (node instanceof HTMLSelectElement || node instanceof HTMLInputElement) {
+      node.focus();
+      if (node instanceof HTMLInputElement) node.select();
+    }
+  }, [editingField, focusedId]);
 
   return (
     <div
@@ -282,10 +295,16 @@ export function TaskPane({
                   data-done={item.done ? "true" : "false"}
                   data-focused={isFocused ? "true" : "false"}
                   data-opened={openedId === item.entityId ? "true" : "false"}
-                  data-editing={renaming ? "true" : "false"}
+                  data-editing={renaming || editingField ? "true" : "false"}
                   data-command-scope="soup-entity"
                   aria-selected={isFocused}
-                  onClick={() => setFocusedId(item.entityId)}
+                  onClick={() => {
+                    setFocusedId(item.entityId);
+                    if (item.entityId !== focusedId) {
+                      setRenamingId(null);
+                      setEditingField(null);
+                    }
+                  }}
                   style={{
                     background: isFocused ? "var(--outreach-popover)" : "transparent",
                     outline: isFocused ? "1px solid var(--outreach-border)" : "none",
@@ -361,12 +380,15 @@ export function TaskPane({
                     )}
                   </td>
                   <td data-command="soup-entity.properties" data-surface="task.properties" style={{ padding: "0.4rem 0.45rem" }}>
-                    {isFocused ? (
+                    {isFocused && editingField === "status" ? (
                       <select
                         aria-label="Status"
                         data-command="soup-entity.status"
                         value={item.status ?? "todo"}
-                        onChange={(event) => onSetStatus?.(item.entityId, event.currentTarget.value)}
+                        onChange={(event) => {
+                          onSetStatus?.(item.entityId, event.currentTarget.value);
+                          setEditingField(null);
+                        }}
                         style={{ ...chip, cursor: "pointer" }}
                       >
                         {TASK_STATUS_OPTIONS.map((status) => (
@@ -376,18 +398,31 @@ export function TaskPane({
                         ))}
                       </select>
                     ) : (
-                      <span aria-label="Status" data-command="soup-entity.status" style={chip}>
+                      <button
+                        type="button"
+                        aria-label="Status"
+                        data-command="soup-entity.status"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setFocusedId(item.entityId);
+                          setEditingField("status");
+                        }}
+                        style={{ ...chip, cursor: "pointer" }}
+                      >
                         {item.status ?? "todo"}
-                      </span>
+                      </button>
                     )}
                   </td>
                   <td style={{ padding: "0.4rem 0.45rem" }}>
-                    {isFocused ? (
+                    {isFocused && editingField === "priority" ? (
                       <select
                         aria-label="Priority"
                         data-command="soup-entity.priority"
                         value={item.priority ?? "none"}
-                        onChange={(event) => onSetPriority?.(item.entityId, event.currentTarget.value)}
+                        onChange={(event) => {
+                          onSetPriority?.(item.entityId, event.currentTarget.value);
+                          setEditingField(null);
+                        }}
                         style={{ ...chip, cursor: "pointer" }}
                       >
                         {TASK_PRIORITY_OPTIONS.map((priority) => (
@@ -397,18 +432,29 @@ export function TaskPane({
                         ))}
                       </select>
                     ) : (
-                      <span aria-label="Priority" data-command="soup-entity.priority" style={chip}>
+                      <button
+                        type="button"
+                        aria-label="Priority"
+                        data-command="soup-entity.priority"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setFocusedId(item.entityId);
+                          setEditingField("priority");
+                        }}
+                        style={{ ...chip, cursor: "pointer" }}
+                      >
                         {item.priority ?? "none"}
-                      </span>
+                      </button>
                     )}
                   </td>
                   <td data-command="soup-entity.assignee" style={{ padding: "0.4rem 0.45rem" }}>
-                    {isFocused && onSetAssignee ? (
+                    {isFocused && editingField === "assignee" && onSetAssignee ? (
                       <form
                         onSubmit={(event) => {
                           event.preventDefault();
                           const assigneeId = String(new FormData(event.currentTarget).get("assignee") ?? "").trim();
                           if (assigneeId) onSetAssignee(item.entityId, assigneeId);
+                          setEditingField(null);
                         }}
                       >
                         <input
@@ -417,14 +463,32 @@ export function TaskPane({
                           aria-label="Assignee"
                           data-command="soup-entity.assignee"
                           style={field}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.stopPropagation();
+                              setEditingField(null);
+                            }
+                          }}
                         />
                       </form>
                     ) : (
-                      <span aria-label="Assignee">{item.assigneeIds?.[0] ?? ""}</span>
+                      <button
+                        type="button"
+                        aria-label="Assignee"
+                        data-command="soup-entity.assignee"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setFocusedId(item.entityId);
+                          setEditingField("assignee");
+                        }}
+                        style={{ ...chip, cursor: "pointer", minWidth: "4rem" }}
+                      >
+                        {item.assigneeIds?.[0] ?? "—"}
+                      </button>
                     )}
                   </td>
                   <td data-command="soup-entity.tags" style={{ padding: "0.4rem 0.45rem" }}>
-                    {isFocused ? (
+                    {isFocused && editingField === "tags" ? (
                       <input
                         name="tags"
                         defaultValue={(item.tags ?? []).join(", ")}
@@ -432,9 +496,27 @@ export function TaskPane({
                         data-command="soup-entity.tags"
                         readOnly
                         style={field}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.stopPropagation();
+                            setEditingField(null);
+                          }
+                        }}
                       />
                     ) : (
-                      <span aria-label="Tags">{(item.tags ?? []).join(", ")}</span>
+                      <button
+                        type="button"
+                        aria-label="Tags"
+                        data-command="soup-entity.tags"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setFocusedId(item.entityId);
+                          setEditingField("tags");
+                        }}
+                        style={{ ...chip, cursor: "pointer", minWidth: "4rem" }}
+                      >
+                        {(item.tags ?? []).join(", ") || "—"}
+                      </button>
                     )}
                   </td>
                 </tr>

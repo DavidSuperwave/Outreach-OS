@@ -750,6 +750,33 @@ describe("Shell boots", () => {
     expect(chromeInputFocused(true, true, "e")).toBe(true);
   });
 
+  it("keeps soup property cells as chips until a property command opens an editor", () => {
+    const html = renderToString(
+      createElement(Shell, {
+        path: "/tasks",
+        theme: "outreach-dark",
+        taskItems: [
+          {
+            entityId: "doc_chip_1",
+            title: "Chip row",
+            status: "todo",
+            priority: "none",
+            done: false,
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("data-surface=\"soup.tasks\"");
+    expect(html).toContain("data-focused=\"true\"");
+    expect(html).toContain("Chip row");
+    expect(html).toContain("data-command=\"soup-entity.status\"");
+    expect(html).toContain("data-command=\"soup-entity.priority\"");
+    expect(html).not.toContain("<select");
+    expect(html).toContain("aria-label=\"Assignee\"");
+    expect(html).toContain(">todo</button>");
+    expect(html).toContain(">none</button>");
+  });
+
   it("cycles command-menu categories with tab / shift+tab while the palette is open", () => {
     expect(nextCommandMenuCategory("all", 1)).toBe("commands");
     expect(nextCommandMenuCategory("dms", 1)).toBe("all");
