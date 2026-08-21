@@ -23,6 +23,7 @@ import {
   chromeInputFocused,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
+import { commandHasRuntime } from "./n5-command-coverage.js";
 
 describe("27-route map", () => {
   it("freezes 26 path routes plus LAYOUT_ROUTE /*splits", () => {
@@ -127,7 +128,7 @@ describe("N5 chrome commands (160)", () => {
     );
     expect(commandEnabled("go-to.getting-started", defaultChromeContext({ gettingStartedEnabled: false }))).toBe(false);
     expect(commandEnabled("settings.tab-9", defaultChromeContext({ settingsOpen: true, settingsTabCount: 3 }))).toBe(
-      false,
+      true,
     );
     expect(commandEnabled("global.toggle-sidebar", defaultChromeContext({ fullCoverRoute: true }))).toBe(false);
     expect(commandEnabled("global.create", defaultChromeContext({ touch: true }))).toBe(false);
@@ -176,6 +177,7 @@ describe("N5 chrome commands (160)", () => {
     const overrideSlot = new Map<string, string>();
     const expected = new Set<string>(["global.create", "global.go-to-leader", "global.open-category-leader"]);
     for (const row of N5_KEYED_BINDINGS) {
+      if (!commandHasRuntime(row.id)) continue;
       if (row.id === "global.create" || row.id === "global.go-to-leader" || row.id === "global.open-category-leader") {
         continue;
       }

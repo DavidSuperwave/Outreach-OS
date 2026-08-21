@@ -75,3 +75,25 @@ Gate 7 visual parity remains blocked because the pinned Neuwave source/screens
 are inaccessible to the cloud principal. Real Workshop binding remains open.
 Downstream-gated commands require their owning domains to expose authorized
 runtime callbacks; this pass does not cross those ownership boundaries.
+
+The N6 hydrate currently imports the shell registrar but does not bind N5 split
+state. Per the task-slice ownership boundary, this pass does not edit it. The
+exact shell callback interface it must supply in a separate integration change
+is:
+
+```ts
+{
+  closeSplit(): boolean;
+  toggleSplitSpotlight(): boolean;
+  splitHistory(delta: -1 | 1): boolean;
+  focusSplit(delta: -1 | 1): boolean;
+  toggleSplitPreview(): boolean;
+  closeSplitDrawer(): boolean;
+  closePopoverSplit(): boolean;
+}
+```
+
+`registerChromeHotkeys` detects missing callbacks and omits those registrations,
+so the present hydrate has no accidental capturing no-op. The handler contract
+and every effect are executable in shell tests; real Workshop integration stays
+an explicit blocker rather than being simulated in `packages/task-slice/**`.

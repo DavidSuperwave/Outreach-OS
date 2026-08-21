@@ -15,7 +15,7 @@ import {
   defaultChromeHotkeyHandle,
   registerChromeHotkeys,
 } from "./n5-hotkeys.js";
-import { commandEnabled, defaultChromeContext } from "./commands.js";
+import { defaultChromeContext } from "./commands.js";
 import { CommandRegistry } from "./registry.js";
 
 afterEach(cleanup);
@@ -110,7 +110,9 @@ describe("generated N5 command acceptance", () => {
   });
 
   it("dispatches every in-scope keyed identity through CommandRegistry to its specified effect", () => {
-    const keyed = new Map(N5_KEYED_BINDINGS.map((row) => [row.id, row] as const));
+    const keyed = new Map<string, (typeof N5_KEYED_BINDINGS)[number]>(
+      N5_KEYED_BINDINGS.map((row) => [row.id, row]),
+    );
     for (const coverage of N5_COMMAND_COVERAGE) {
       const row = keyed.get(coverage.id);
       if (!row || coverage.disposition !== "functional") continue;
@@ -137,7 +139,7 @@ describe("generated N5 command acceptance", () => {
     const registered = new Set(registry.handlers().map((row) => row.id));
     for (const row of N5_COMMAND_COVERAGE) {
       if (row.disposition !== "downstream-gated" && row.disposition !== "owner-gated") continue;
-      expect(commandEnabled(row.id, defaultChromeContext()), row.id).toBe(false);
+      expect(effectHarness().handle.supports?.(row.id), row.id).toBe(false);
       expect(registered.has(row.id), row.id).toBe(false);
     }
   });

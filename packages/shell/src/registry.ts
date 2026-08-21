@@ -51,7 +51,8 @@ const PARENT: Record<ScopeId, ScopeId | null> = {
   "command-menu": null,
   settings: null,
   "popover-split": null,
-  detached: null,
+  // Compatibility alias for N6 callers compiled before modal scopes were split.
+  detached: "settings",
 };
 
 const MODIFIER_CODES = new Set([

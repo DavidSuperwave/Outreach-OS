@@ -57,7 +57,7 @@ const CREATE_OR_LAUNCH: Record<string, string> = {
   "launcher.task-new-split": "/tasks",
 };
 
-export const CREATE_MENU_ITEMS: readonly { id: N5CommandId; label: string; chord: string; disabledReason?: string }[] = [
+const CREATE_MENU_SOURCE: readonly { id: N5CommandId; label: string; chord: string }[] = [
   { id: "create-menu.task", label: "Create task", chord: "t" },
   { id: "create-menu.md", label: "Create document", chord: "d" },
   { id: "create-menu.email", label: "Create email", chord: "e" },
@@ -70,7 +70,14 @@ export const CREATE_MENU_ITEMS: readonly { id: N5CommandId; label: string; chord
   { id: "create-menu.automation", label: "Create automation", chord: "u" },
   { id: "create-menu.skill", label: "Create skill", chord: "k" },
   { id: "create-menu.snippet", label: "Create snippet", chord: "s" },
-].map((item) => {
+];
+
+export const CREATE_MENU_ITEMS: readonly {
+  id: N5CommandId;
+  label: string;
+  chord: string;
+  disabledReason?: string;
+}[] = CREATE_MENU_SOURCE.map((item) => {
   const coverage = N5_COMMAND_COVERAGE_BY_ID.get(item.id)!;
   return coverage.disposition === "downstream-gated"
     ? { ...item, disabledReason: coverage.reason }
@@ -99,6 +106,7 @@ export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] =
   { id: "global.change-theme", label: "Change theme" },
   { id: "global.set-default-light-theme", label: "Set default light theme" },
   { id: "global.set-default-dark-theme", label: "Set default dark theme" },
+  { id: "global.auto-detect-color-scheme", label: "Auto-detect color scheme" },
   { id: "global.logout", label: "Log out" },
 ];
 
@@ -236,7 +244,7 @@ export function chromeNavigatePath(id: string, path = "/"): string | null {
   if (GO_TO_PATH[id]) return GO_TO_PATH[id];
   if (CREATE_OR_LAUNCH[id]) return CREATE_OR_LAUNCH[id];
   if (id === "global.toggle-settings") return path === "/settings" || path.startsWith("/settings") ? "/" : "/settings";
-  if (id === "global.account" || id === "global.instructions") return "/settings";
+  if (id === "global.account") return "/settings?tab=account";
   if (id === "global.mcp-setup") return "/mcp";
   if (id === "global.logout") return "/login";
   if (id === "settings.close") return "/";
@@ -255,6 +263,7 @@ export function chromeNavigatePath(id: string, path = "/"): string | null {
 
 export interface ChromeHotkeyHandle {
   (id: string): boolean;
+  supports?: (id: N5CommandId) => boolean;
 }
 
 export function defaultChromeHotkeyHandle(
@@ -287,7 +296,7 @@ export function defaultChromeHotkeyHandle(
     enabled?: ChromeCommandContext | (() => ChromeCommandContext);
   } = {},
 ): ChromeHotkeyHandle {
-  return (id) => {
+  const handle: ChromeHotkeyHandle = (id) => {
     const ctx = typeof extras.enabled === "function" ? extras.enabled() : (extras.enabled ?? defaultChromeContext());
     const current =
       typeof extras.currentPath === "function" ? extras.currentPath() : (extras.currentPath ?? "/");
@@ -317,7 +326,18 @@ export function defaultChromeHotkeyHandle(
     }
     if (id === "global.logout") return extras.logout?.() ?? (navigate("/login"), true);
     if (id === "global.toggle-sidebar") return extras.toggleSidebar?.() ?? false;
-    if (id === "global.auto-detect-color-scheme") return extras.toggleAutoColorScheme?.() ?? false;
+    if (id === "global.auto-detect-color-scheme") {
+      if (extras.toggleAutoColorScheme) return extras.toggleAutoColorScheme();
+      if (!extras.applyTheme || typeof localStorage === "undefined") return false;
+      const system = localStorage.getItem(STORAGE_KEYS.themeMode) !== "system";
+      localStorage.setItem(STORAGE_KEYS.themeMode, system ? "system" : "pinned");
+      if (system) {
+        const dark =
+          typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)").matches : true;
+        extras.applyTheme(dark ? "outreach-dark" : "outreach-light", "visible");
+      }
+      return true;
+    }
     if (id === "split.spotlight") return extras.toggleSplitSpotlight?.() ?? false;
     if (id === "split.back") return extras.splitHistory?.(-1) ?? false;
     if (id === "split.forward") return extras.splitHistory?.(1) ?? false;
@@ -387,6 +407,43 @@ export function defaultChromeHotkeyHandle(
     }
     return false;
   };
+  handle.supports = (id) => {
+    if (!commandHasRuntime(id)) return false;
+    if (LEADER_IDS.has(id)) return true;
+    if (chromeNavigatePath(id, typeof extras.currentPath === "string" ? extras.currentPath : "/")) return true;
+    if (id === "global.command-menu") return Boolean(extras.toggleCommandMenu);
+    if (id === "global.create") return Boolean(extras.toggleCreateMenu);
+    if (id === "home.focus-chat-input") return Boolean(extras.focusHomeChat);
+    if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
+      return Boolean(extras.openTaskCompose);
+    }
+    if (COMMAND_MENU_NESTED_LEADERS[id]) return Boolean(extras.openCommandScope);
+    if (id === "command-menu.backspace-back") return Boolean(extras.backCommandScope);
+    if (["create-menu.close", "launcher.close-c", "launcher.exit"].includes(id)) return Boolean(extras.closeMenus);
+    if (id === "command-menu.escape") return Boolean(extras.backCommandScope || extras.closeMenus);
+    if (id === "global.logout") return Boolean(extras.logout);
+    if (id === "global.toggle-sidebar") return Boolean(extras.toggleSidebar);
+    if (id === "global.auto-detect-color-scheme") return Boolean(extras.toggleAutoColorScheme || extras.applyTheme);
+    if (id === "split.spotlight") return Boolean(extras.toggleSplitSpotlight);
+    if (id === "split.back" || id === "split.forward") return Boolean(extras.splitHistory);
+    if (id === "split.focus-right" || id === "split.focus-left") return Boolean(extras.focusSplit);
+    if (id === "split.toggle-preview") return Boolean(extras.toggleSplitPreview);
+    if (id === "split.close-drawer") return Boolean(extras.closeSplitDrawer);
+    if (id === "popover-split.close") return Boolean(extras.closePopoverSplit);
+    if (id === "theme.system-preference" || id.startsWith("theme.")) return Boolean(extras.applyTheme);
+    if (id.startsWith("command-menu.open-category.")) return Boolean(extras.openCommandCategory);
+    if (id === "command-menu.next-category" || id === "command-menu.prev-category") {
+      return Boolean(extras.cycleCommandCategory);
+    }
+    if (id === "command-menu.nav-down" || id === "command-menu.nav-up" || id === "launcher.nav-down" || id === "launcher.nav-up") {
+      return Boolean(extras.moveCommandSelection);
+    }
+    if (id === "command-menu.confirm" || id === "command-menu.confirm-new-split" || id === "launcher.confirm" || id === "launcher.open-new-split") {
+      return Boolean(extras.confirmCommandSelection);
+    }
+    return false;
+  };
+  return handle;
 }
 
 /**
@@ -412,6 +469,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   for (const row of N5_KEYED_BINDINGS) {
     if (LEADER_IDS.has(row.id)) continue;
     if (!commandHasRuntime(row.id)) continue;
+    if (handle.supports?.(row.id) === false) continue;
     registry.register({
       id: row.id,
       scope: row.scope,

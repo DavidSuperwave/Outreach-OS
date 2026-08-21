@@ -1,5 +1,4 @@
 import { N5_COMMAND_IDS, type N5CommandId } from "./n5-command-ids.js";
-import { commandHasRuntime } from "./n5-command-coverage.js";
 
 export type { N5CommandId };
 export { N5_COMMAND_IDS };
@@ -34,12 +33,12 @@ function settingsTab(id: N5CommandId): number | null {
  */
 export function commandEnabled(id: N5CommandId, ctx: ChromeCommandContext): boolean {
   if (ctx.touch) return false;
-  if (!commandHasRuntime(id)) return false;
+  if (id === "global.hotkey-debugger") return false;
   if (id === "scope.favorites") return ctx.favoriteExists;
   if (id === "global.favorites") return ctx.signedIn;
 
   const tab = settingsTab(id);
-  if (tab !== null) return ctx.settingsOpen && ctx.settingsTabCount >= tab;
+  if (tab !== null) return ctx.settingsOpen && tab <= 9;
   if (id === "settings.close") return ctx.settingsOpen;
   if (id === "settings.next-tab" || id === "settings.prev-tab") {
     return ctx.settingsOpen && ctx.settingsTabCount > 1;

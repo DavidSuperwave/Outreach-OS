@@ -126,9 +126,9 @@ export function Shell({
     if (event.key !== "Tab" || event.defaultPrevented) return;
     const dialog = commandDialogRef.current;
     if (!dialog) return;
-    const focusable = [...dialog.querySelectorAll<HTMLElement>(
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-    )].filter((node) => !node.hasAttribute("hidden"));
+    )).filter((node) => !node.hasAttribute("hidden"));
     if (focusable.length === 0) {
       event.preventDefault();
       dialog.focus();

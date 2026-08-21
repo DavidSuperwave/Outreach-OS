@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   theme: "outreach-theme",
   defaultLight: "outreach-default-light",
   defaultDark: "outreach-default-dark",
+  themeMode: "outreach-theme-mode",
   sidebarCollapsed: "outreach-sidebar-collapsed",
 } as const;
 
