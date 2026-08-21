@@ -10,7 +10,7 @@ import {
   filterCommandMenuItems,
   commandMenuCategoryFromId,
   COMMAND_MENU_NESTED_LEADERS,
-  LEADER_HINT_RESET_MS,
+  LEADER_HINT_RESET_MS, // wrangler rebuilds when this hydrate entry changes
   nextCommandMenuCategory,
   isFullCoverRoute,
   persistTheme,

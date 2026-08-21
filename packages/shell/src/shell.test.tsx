@@ -699,6 +699,7 @@ describe("Shell boots", () => {
     expect(LEADER_HINT_RESET_MS).toBe(2000);
     const idle = renderToString(createElement(Shell, { path: "/tasks", theme: "outreach-dark" }));
     expect(idle).not.toContain("data-leader=\"g\"");
+    expect(idle).not.toContain("data-surface=\"go-to-hints\"");
     expect(idle).not.toContain("data-surface=\"open-category-hints\"");
     expect(idle).toContain("data-armed=\"false\"");
     const goTo = renderToString(
@@ -707,6 +708,7 @@ describe("Shell boots", () => {
     expect(goTo).toContain("data-armed-leader=\"g\"");
     expect(goTo).toContain("data-chrome=\"sidebar\"");
     expect(goTo).toContain("data-leader=\"g\"");
+    expect(goTo).toContain("data-surface=\"go-to-hints\"");
     expect(goTo).toContain("data-goto-hint");
     expect(goTo).toContain("data-armed=\"true\"");
     expect(goTo).not.toContain("data-surface=\"open-category-hints\"");

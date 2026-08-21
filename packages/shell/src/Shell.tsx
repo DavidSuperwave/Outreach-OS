@@ -135,13 +135,15 @@ export function Shell({
   const sidebarWidth = sidebarCollapsed ? "3.75rem" : "15.5rem";
   const goToHintsVisible = armedLeader === "g";
   const goToHintKbd: CSSProperties = {
-    color: goToHintsVisible ? "var(--outreach-accent)" : "var(--outreach-muted)",
+    color: goToHintsVisible ? "var(--outreach-surface)" : "var(--outreach-muted)",
+    background: goToHintsVisible ? "var(--outreach-accent)" : "transparent",
     opacity: goToHintsVisible ? 1 : 0,
     outline: goToHintsVisible ? "1px solid var(--outreach-accent)" : "none",
     borderRadius: "0.25rem",
-    padding: "0 0.2rem",
-    minWidth: "1.1rem",
+    padding: "0 0.28rem",
+    minWidth: "1.15rem",
     textAlign: "center",
+    fontWeight: 600,
   };
   const collapsedGoToHint: CSSProperties = goToHintsVisible
     ? {
@@ -230,6 +232,23 @@ export function Shell({
             <span>{sidebarCollapsed ? "⌘" : "Command menu"}</span>
             {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>⌘K</kbd>}
           </button>
+          {goToHintsVisible ? (
+            <p
+              data-surface="go-to-hints"
+              role="status"
+              aria-label="Go to"
+              style={{
+                margin: 0,
+                padding: "0.35rem 0.55rem",
+                color: "var(--outreach-accent)",
+                border: "1px solid var(--outreach-accent)",
+                borderRadius: "0.4rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              {sidebarCollapsed ? "g" : "Go to"}
+            </p>
+          ) : null}
           <nav
             aria-label="Primary"
             style={{ display: "flex", flexDirection: "column", gap: "0.15rem", flex: 1, minHeight: 0 }}
@@ -360,13 +379,14 @@ export function Shell({
               position: "fixed",
               left: sidebarCollapsed ? "4.25rem" : "16.25rem",
               top: "4.5rem",
-              zIndex: 19,
+              zIndex: 30,
               ...popover,
-              minWidth: "14rem",
+              minWidth: "16rem",
               width: "auto",
+              border: "2px solid var(--outreach-accent)",
             }}
           >
-            <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Open category</p>
+            <p style={{ color: "var(--outreach-text)", margin: "0 0 0.75rem", fontWeight: 600 }}>Open category</p>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {COMMAND_MENU_CATEGORIES.map((row) => (
                 <li
@@ -380,7 +400,18 @@ export function Shell({
                   }}
                 >
                   <span>{row.label}</span>
-                  <kbd style={{ color: "var(--outreach-muted)" }}>{row.hint}</kbd>
+                  <kbd
+                    style={{
+                      color: "var(--outreach-surface)",
+                      background: "var(--outreach-accent)",
+                      borderRadius: "0.25rem",
+                      padding: "0 0.28rem",
+                      minWidth: "1.15rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    {row.hint}
+                  </kbd>
                 </li>
               ))}
             </ul>
