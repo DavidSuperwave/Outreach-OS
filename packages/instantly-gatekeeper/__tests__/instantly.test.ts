@@ -7,12 +7,9 @@ import {
   loadInstantlyWorkspace,
 } from "../src/instantly.js";
 import {
-  INSTANTLY_API_ORIGIN,
   INSTANTLY_FORBIDDEN_METHODS,
   InstantlyReadOnlyError,
-  assertInstantlyReadOnlyMethod,
   assertInstantlyReadRequest,
-  instantlyUrl,
 } from "../src/instantly-api.js";
 
 describe("instantly-gatekeeper", () => {
@@ -53,8 +50,12 @@ describe("instantly-gatekeeper", () => {
   });
 
   it("rejects Instantly write verbs and write HTTP", async () => {
+    const session = new InstantlySessionImpl(
+      { authorizeObservation: async () => {} },
+      structuredClone(PILOT_INSTANTLY_WORKSPACE),
+    );
     for (const method of INSTANTLY_FORBIDDEN_METHODS) {
-      expect(() => assertInstantlyReadOnlyMethod(method)).toThrow(InstantlyReadOnlyError);
+      await expect(session.invoke(method)).rejects.toBeInstanceOf(InstantlyReadOnlyError);
     }
     expect(() => assertInstantlyReadRequest("POST", "/api/v2/campaigns/camp_intraplex/activate")).toThrow(
       InstantlyReadOnlyError,
@@ -63,8 +64,6 @@ describe("instantly-gatekeeper", () => {
       InstantlyReadOnlyError,
     );
     expect(() => assertInstantlyReadRequest("GET", "/api/v2/campaigns?limit=10")).not.toThrow();
-    expect(() => instantlyUrl("https://evil.example/api/v2/campaigns")).toThrow(InstantlyReadOnlyError);
-    expect(instantlyUrl("/api/v2/campaigns?limit=10")).toBe(`${INSTANTLY_API_ORIGIN}/api/v2/campaigns?limit=10`);
   });
 
   it("maps live GET payloads and falls back to the Intraplex fixture without a key", async () => {

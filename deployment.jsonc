@@ -21,6 +21,7 @@
     "customGatekeeper": { "name": "<CUSTOM_GATEKEEPER_WORKER_NAME>" },
     // Read-only Instantly Session API (OS pilot). Writes stay closed.
     "instantlyGatekeeper": { "name": "<INSTANTLY_GATEKEEPER_WORKER_NAME>" },
+    "instantlyGatekeeper": { "name": "<INSTANTLY_GATEKEEPER_WORKER_NAME>" },
     "githubHooks": { "name": "<GITHUB_HOOKS_WORKER_NAME>" },
     "errorReporter": { "name": "<ERROR_REPORTER_WORKER_NAME>" }
   },
