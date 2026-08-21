@@ -173,7 +173,7 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(api.listTasks([receipt])[0]?.title).toBe("Keep me");
   });
 
-  it("duplicate create with the same idempotency key is a no-op", () => {
+  it("duplicate creates and mutations with the same idempotency key are no-ops", () => {
     resetIdSequence();
     const slice = new TaskSlice();
     const api = slice.openApi();
@@ -182,6 +182,15 @@ describe("N6 task vertical slice (11 gates)", () => {
     const second = api.createTask("Once", requestContext(ownerActor(), { idempotencyKey: "task-once", correlationId: "id2" }));
     expect(second.task.id).toBe(first.task.id);
     expect(api.listTasks([first.receipt])).toHaveLength(1);
+    const edit = requestContext(ownerActor(), {
+      receipt: first.receipt,
+      idempotencyKey: "edit-once",
+      correlationId: "edit-1",
+    });
+    expect(api.setStatus("in_progress", edit).version).toBe(2);
+    expect(api.setStatus("in_progress", edit).version).toBe(2);
+    expect(slice.get(first.task.id)?.version).toBe(2);
+    expect(slice.activity.list()).toHaveLength(2);
   });
 
   it("cross-tenant and missing receipts deny; share+revoke hides the row (SEC-1)", () => {

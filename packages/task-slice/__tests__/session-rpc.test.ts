@@ -65,7 +65,7 @@ async function rejection(value: PromiseLike<unknown>): Promise<Error> {
 }
 
 describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
-  it("creates and lists a task after kernel authenticate + openTenant", async () => {
+  it("deduplicates every Cap'n Web mutation by stable operation id", async () => {
     const token = await kernelToken("admin", adminPassword);
     const teams = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
     teams.registerKernelUser(SEED_ADMIN);
@@ -75,17 +75,29 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     using authed = await domain.authenticate(token) as RpcStub<TaskAuthenticatedApi>;
     using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
     const created = await session.createTask("From session", "s1");
+    const duplicateCreate = await session.createTask("From session", "s1");
     expect(created.task.title).toBe("From session");
     expect(created.task.tenantId).toBe(team.id);
+    expect(duplicateCreate.task.id).toBe(created.task.id);
 
     const items = await session.listTasks();
     expect(items.map((item) => item.title)).toEqual(["From session"]);
 
     const renamed = await session.updateTitle(created.task.id, "Renamed", "s2");
+    const duplicateRename = await session.updateTitle(created.task.id, "Renamed", "s2");
     expect(renamed.title).toBe("Renamed");
+    expect(duplicateRename.version).toBe(2);
+    expect((await session.setStatus(created.task.id, "in_progress", "s3")).version).toBe(3);
+    expect((await session.setStatus(created.task.id, "in_progress", "s3")).version).toBe(3);
+    expect((await session.setPriority(created.task.id, "high", "s4")).version).toBe(4);
+    expect((await session.setPriority(created.task.id, "high", "s4")).version).toBe(4);
+    expect((await session.setAssignee(created.task.id, "admin", "s5")).version).toBe(5);
+    expect((await session.setAssignee(created.task.id, "admin", "s5")).version).toBe(5);
+    expect((await session.markDone(created.task.id, true, "s6")).version).toBe(6);
+    expect((await session.markDone(created.task.id, true, "s6")).version).toBe(6);
 
     const facts = await session.listActivity();
-    expect(facts.map((fact) => fact.action).sort()).toEqual(["created", "edited"]);
+    expect(facts).toHaveLength(6);
     expect(await session.listAlerts()).toEqual([]);
   });
 
@@ -100,6 +112,7 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
     const created = await session.createTask("Live", "live-1");
     const cursor = await session.seq();
+    const { ticket } = await session.createSubscribeTicket();
 
     const denied = await handleOutreachFetch(
       new Request("https://task-slice/subscribe?cursor=0", { headers: { Upgrade: "websocket" } }),
@@ -108,16 +121,19 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(denied.status).toBe(401);
 
     const sub = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
-        headers: {
-          Upgrade: "websocket",
-          authorization: `Bearer ${token}`,
-          "x-neuwave-tenant": team.id,
-        },
+      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${ticket}&tenant=${team.id}`, {
+        headers: { Upgrade: "websocket" },
       }),
       testEnv,
     );
     expect(sub.status).toBe(101);
+    const replay = await handleOutreachFetch(
+      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${ticket}&tenant=${team.id}`, {
+        headers: { Upgrade: "websocket" },
+      }),
+      testEnv,
+    );
+    expect(replay.status).toBe(401);
     const ws = sub.webSocket;
     if (!ws) throw new TypeError("Expected a subscribe WebSocket.");
     const messages: Array<{ type: string; deltas?: Array<{ item: { title: string } }> }> = [];
@@ -363,8 +379,9 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(listed[0]?.priority).toBe("high");
     expect(listed[0]?.assigneeIds).toEqual(["admin"]);
 
+    const { ticket } = await session.createSubscribeTicket();
     const sub = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=0&token=${encodeURIComponent(token)}&tenant=${tenantId}`, {
+      new Request(`https://task-slice/subscribe?cursor=0&ticket=${ticket}&tenant=${tenantId}`, {
         headers: { Upgrade: "websocket" },
       }),
       env,
@@ -383,14 +400,11 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
     const created = await session.createTask("Keep", "rc-1");
     const cursor = await session.seq();
+    const firstTicket = await session.createSubscribeTicket();
 
     const first = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
-        headers: {
-          Upgrade: "websocket",
-          authorization: `Bearer ${token}`,
-          "x-neuwave-tenant": team.id,
-        },
+      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${firstTicket.ticket}&tenant=${team.id}`, {
+        headers: { Upgrade: "websocket" },
       }),
       testEnv,
     );
@@ -405,13 +419,10 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(missed.map((delta) => delta.item.title)).toContain("Keep v2");
 
     const replayed: string[] = [];
+    const secondTicket = await session.createSubscribeTicket();
     const second = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
-        headers: {
-          Upgrade: "websocket",
-          authorization: `Bearer ${token}`,
-          "x-neuwave-tenant": team.id,
-        },
+      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${secondTicket.ticket}&tenant=${team.id}`, {
+        headers: { Upgrade: "websocket" },
       }),
       testEnv,
     );

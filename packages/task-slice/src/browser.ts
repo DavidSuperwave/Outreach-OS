@@ -7,6 +7,7 @@ export {
   createAccountViaKernelPublicApi,
   loginViaKernelPublicApi,
   loadTaskSurface,
+  newTaskOperationId,
   submitTaskCompose,
   attachTaskSubscribe,
   taskSubscribeUrl,

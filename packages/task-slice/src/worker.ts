@@ -14,7 +14,10 @@ export default {
   async fetch(request: Request, env: TaskWorkerEnv): Promise<Response> {
     return handleOutreachFetch(request, env);
   },
-  async queue(batch: { messages: Array<{ body: TaskOutboxMessage; ack(): void }> }, env: TaskWorkerEnv): Promise<void> {
+  async queue(
+    batch: { messages: Array<{ body: TaskOutboxMessage; ack(): void; retry(): void }> },
+    env: TaskWorkerEnv,
+  ): Promise<void> {
     await handleTaskOutboxBatch(batch, env);
   },
 };

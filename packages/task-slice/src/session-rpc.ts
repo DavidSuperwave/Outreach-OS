@@ -63,6 +63,7 @@ interface DurableObjectStubLike {
   ): Promise<{ ok: true; receipt: import("authz").Receipt } | { ok: false; message: string }>;
   createTask(title: string, ctx: import("control-plane").RequestContext): Promise<unknown>;
   updateTitle(title: string, ctx: import("control-plane").RequestContext): Promise<unknown>;
+  createSubscribeTicket(actor: ActorContext): Promise<import("./domain-api.js").SubscribeTicket>;
   drainOutbox(): Promise<{ pending: number }>;
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
@@ -151,17 +152,26 @@ export class TaskSessionTarget extends RpcTarget implements TaskSessionApi {
   async #mutate<T>(
     entityId: string,
     need: "edit" | "owner",
-    correlationId: string | undefined,
+    operation: "title" | "status" | "priority" | "assignee" | "done",
+    operationId: string,
     run: (api: DurableTaskApi, ctx: import("control-plane").RequestContext) => Promise<T>,
   ): Promise<T> {
+    if (!operationId) throw new Error("operationId required");
     const minted = await this.#stub().mintView(this.actor, entityId, need);
     if (!minted.ok) throw new Error(minted.message);
-    return run(this.#api(), requestContext(this.actor, { receipt: minted.receipt, correlationId }));
+    return run(this.#api(), requestContext(this.actor, {
+      receipt: minted.receipt,
+      correlationId: operationId,
+      idempotencyKey: `${this.actor.actor.id}:${operation}:${entityId}:${operationId}`,
+    }));
   }
 
-  async createTask(title: string, correlationId?: string) {
-    if (!title) throw new Error("title required");
-    return this.#api().createTask(title, requestContext(this.actor, { correlationId }));
+  async createTask(title: string, operationId: string) {
+    if (!title || !operationId) throw new Error("title and operationId required");
+    return this.#api().createTask(title, requestContext(this.actor, {
+      correlationId: operationId,
+      idempotencyKey: `${this.actor.actor.id}:create:${operationId}`,
+    }));
   }
 
   async listTasks() {
@@ -176,25 +186,29 @@ export class TaskSessionTarget extends RpcTarget implements TaskSessionApi {
     return this.#api().listAlerts(this.actor);
   }
 
-  async updateTitle(entityId: string, title: string, correlationId?: string) {
+  async updateTitle(entityId: string, title: string, operationId: string) {
     if (!entityId || !title) throw new Error("entityId and title required");
-    return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.updateTitle(title, ctx));
+    return this.#mutate(entityId, "edit", "title", operationId, (api, ctx) => api.updateTitle(title, ctx));
   }
 
-  async setStatus(entityId: string, status: string, correlationId?: string) {
-    return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.setStatus(status, ctx));
+  async setStatus(entityId: string, status: string, operationId: string) {
+    return this.#mutate(entityId, "edit", "status", operationId, (api, ctx) => api.setStatus(status, ctx));
   }
 
-  async setPriority(entityId: string, priority: string, correlationId?: string) {
-    return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.setPriority(priority, ctx));
+  async setPriority(entityId: string, priority: string, operationId: string) {
+    return this.#mutate(entityId, "edit", "priority", operationId, (api, ctx) => api.setPriority(priority, ctx));
   }
 
-  async setAssignee(entityId: string, assigneeId: string, correlationId?: string) {
-    return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.setAssignee(assigneeId, ctx));
+  async setAssignee(entityId: string, assigneeId: string, operationId: string) {
+    return this.#mutate(entityId, "edit", "assignee", operationId, (api, ctx) => api.setAssignee(assigneeId, ctx));
   }
 
-  async markDone(entityId: string, done: boolean, correlationId?: string) {
-    return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.markDone(done, ctx));
+  async markDone(entityId: string, done: boolean, operationId: string) {
+    return this.#mutate(entityId, "edit", "done", operationId, (api, ctx) => api.markDone(done, ctx));
+  }
+
+  async createSubscribeTicket() {
+    return this.#api().createSubscribeTicket(this.actor);
   }
 
   async seq() {
@@ -265,22 +279,16 @@ export class TaskDomainTarget extends RpcTarget implements TaskDomainPublicApi {
 
 async function subscribeFromSession(request: Request, env: TaskWorkerEnv): Promise<Response> {
   const url = new URL(request.url);
-  const token = bearerToken(request) ?? url.searchParams.get("token");
-  const tenantId = request.headers.get("x-neuwave-tenant") ?? url.searchParams.get("tenant");
-  if (!token || !tenantId) {
-    return new Response("session required", { status: 401 });
-  }
-  let actor: ActorContext;
-  try {
-    actor = await actorFromSession(env, token, tenantId);
-  } catch (error) {
-    if (error instanceof SessionBindError) {
-      return new Response(error.message, { status: error.status });
-    }
-    return new Response(error instanceof Error ? error.message : "session failed", { status: 401 });
+  const ticket = url.searchParams.get("ticket");
+  const tenantId = url.searchParams.get("tenant");
+  if (!ticket || !tenantId) {
+    return new Response("subscribe ticket required", { status: 401 });
   }
   const cursor = Number(url.searchParams.get("cursor") ?? "0");
-  return new DurableTaskApi(env.TASK_SLICE as never, tenantId).subscribe(cursor, actor);
+  return new DurableTaskApi(env.TASK_SLICE as never, tenantId).subscribe(
+    Number.isFinite(cursor) ? cursor : 0,
+    ticket,
+  );
 }
 
 async function serveOutreachShell(request: Request, env: TaskWorkerEnv): Promise<Response> {

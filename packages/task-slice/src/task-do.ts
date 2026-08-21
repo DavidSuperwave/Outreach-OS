@@ -12,17 +12,20 @@ import {
   type TaskSliceSnapshot,
   type TaskView,
 } from "./slice.js";
+import { projectAfterRedrive } from "./outbox-queue.js";
 
 export interface TaskSliceEnv {
   SOUP: SoupD1;
-  /** Optional Queues producer — durable outbox re-drive after a write (ADR-005). */
-  TASK_OUTBOX?: { send(message: { tenantId: string }): Promise<unknown> };
+  /** Queues producer — durable outbox re-drive after a write (ADR-005). */
+  TASK_OUTBOX: { send(message: { tenantId: string }): Promise<unknown> };
 }
 
 interface SubscribeAttachment {
   cursor: number;
   actor: ActorContext;
 }
+
+export const SUBSCRIBE_TICKET_TTL_MS = 30_000;
 
 /**
  * Authoritative task store (OD-7 document + facet task) on SQLite DO storage.
@@ -42,6 +45,13 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       CREATE TABLE IF NOT EXISTS meta (
         k TEXT PRIMARY KEY,
         v TEXT NOT NULL
+      )
+    `);
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS subscribe_ticket (
+        ticket TEXT PRIMARY KEY,
+        actor_json TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
       )
     `);
   }
@@ -93,11 +103,17 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return slice.plane.lists.replayFrom(fromSeq).filter((delta) => filterVisible([delta.item], receipts).length > 0);
   }
 
-  #parseActor(request: Request): ActorContext | null {
-    const raw = request.headers.get("x-neuwave-actor");
-    if (!raw) return null;
+  #consumeSubscribeTicket(ticket: string): ActorContext | null {
+    if (!ticket) return null;
+    const row = this.ctx.storage.sql
+      .exec<{ actor_json: string; expires_at: number }>(
+        "DELETE FROM subscribe_ticket WHERE ticket = ? RETURNING actor_json, expires_at",
+        ticket,
+      )
+      .toArray()[0];
+    if (!row || row.expires_at <= Date.now()) return null;
     try {
-      return JSON.parse(raw) as ActorContext;
+      return JSON.parse(row.actor_json) as ActorContext;
     } catch {
       return null;
     }
@@ -112,11 +128,18 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     if (tenantId) {
       this.ctx.storage.sql.exec("INSERT OR REPLACE INTO meta (k, v) VALUES ('tenant_id', ?)", tenantId);
     }
-    await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
-    this.#broadcast(slice);
-    if (opts.enqueue !== false && tenantId && this.env.TASK_OUTBOX) {
-      await this.env.TASK_OUTBOX.send({ tenantId });
+    const project = () => projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
+    if (opts.enqueue !== false && tenantId) {
+      // Establish durable re-drive before the synchronous D1 projection. If D1
+      // fails after the authority commit, this message can rebuild it.
+      await projectAfterRedrive(
+        () => this.env.TASK_OUTBOX.send({ tenantId }),
+        project,
+      );
+    } else {
+      await project();
     }
+    this.#broadcast(slice);
   }
 
   /** Queue consumer entry — re-drains the outbox and rebuilds the D1 projection. */
@@ -144,8 +167,8 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/subscribe") {
-      const actor = this.#parseActor(request);
-      if (!actor) return new Response("actor required", { status: 401 });
+      const actor = this.#consumeSubscribeTicket(url.searchParams.get("ticket") ?? "");
+      if (!actor) return new Response("invalid or spent subscribe ticket", { status: 401 });
       const slice = this.#load();
       try {
         this.#assertTenant(actor, slice);
@@ -179,6 +202,21 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     const view = slice.createTask(title, ctx);
     await this.#save(slice);
     return view;
+  }
+
+  async createSubscribeTicket(actor: ActorContext): Promise<import("./domain-api.js").SubscribeTicket> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    const ticket = crypto.randomUUID();
+    const expiresAt = Date.now() + SUBSCRIBE_TICKET_TTL_MS;
+    this.ctx.storage.sql.exec("DELETE FROM subscribe_ticket WHERE expires_at <= ?", Date.now());
+    this.ctx.storage.sql.exec(
+      "INSERT INTO subscribe_ticket (ticket, actor_json, expires_at) VALUES (?, ?, ?)",
+      ticket,
+      JSON.stringify(actor),
+      expiresAt,
+    );
+    return { ticket, expiresAt };
   }
 
   async updateTitle(title: string, ctx: RequestContext): Promise<TaskRecord> {

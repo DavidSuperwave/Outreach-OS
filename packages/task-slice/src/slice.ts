@@ -191,12 +191,16 @@ export class TaskSlice {
     const receipt = ctx.receipt;
     if (!receipt) throw new Error("task mutation requires a receipt");
     requireReceipt(receipt, need, receipt.entityId);
-    const current = this.#docs.get(receipt.entityId);
-    if (!current) throw new Error(`unknown task ${receipt.entityId}`);
-    const next = { ...patch(current), version: current.version + 1 };
-    this.#docs.set(next.id, next);
-    this.#publish(next, ctx, action);
-    return next;
+    const run = () => {
+      const current = this.#docs.get(receipt.entityId);
+      if (!current) throw new Error(`unknown task ${receipt.entityId}`);
+      const next = { ...patch(current), version: current.version + 1 };
+      this.#docs.set(next.id, next);
+      this.#publish(next, ctx, action);
+      return next;
+    };
+    if (ctx.idempotencyKey) return runOnce(this.idempotency, ctx.idempotencyKey, run);
+    return run();
   }
 
   #publish(task: TaskRecord, ctx: RequestContext, action: "created" | "edited" | "property_changed"): void {

@@ -105,7 +105,8 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const { receipt } = await api.createTask("Wired", requestContext(ownerActor(), { correlationId: "ws1" }));
     const cursor = await api.seq();
-    const res = await api.subscribe(cursor, ownerActor());
+    const { ticket } = await api.createSubscribeTicket(ownerActor());
+    const res = await api.subscribe(cursor, ticket);
     expect(res.status).toBe(101);
     const ws = res.webSocket;
     expect(ws).toBeTruthy();
@@ -142,6 +143,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const { receipt } = await api.createTask("Queued", requestContext(ownerActor(), { correlationId: "q1" }));
     await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
     const acked: string[] = [];
+    const retried: string[] = [];
     await handleTaskOutboxBatch(
       {
         messages: [
@@ -150,14 +152,44 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
             ack: () => {
               acked.push(tenant);
             },
+            retry: () => {
+              retried.push(tenant);
+            },
           },
         ],
       },
       testEnv,
     );
     expect(acked).toEqual([tenant]);
+    expect(retried).toEqual([]);
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Queued");
     expect(await api.drainOutbox()).toEqual({ pending: 0 });
+  });
+
+  it("retries rather than ACKing transient queue failures", async () => {
+    const acked: string[] = [];
+    const retried: string[] = [];
+    await handleTaskOutboxBatch(
+      {
+        messages: [{
+          body: { tenantId: tenant },
+          ack: () => acked.push(tenant),
+          retry: () => retried.push(tenant),
+        }],
+      },
+      {
+        TASK_SLICE: {
+          idFromName: (name) => ({ toString: () => name }),
+          get: () => ({
+            drainOutbox: async () => {
+              throw new Error("D1 unavailable");
+            },
+          }),
+        },
+      },
+    );
+    expect(acked).toEqual([]);
+    expect(retried).toEqual([tenant]);
   });
 
   it("poisons failing publishes on the DO and skips them on rebuild", async () => {
@@ -184,6 +216,15 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     );
     expect(second.task.id).toBe(first.task.id);
     expect(await api.listTasks([first.receipt])).toHaveLength(1);
+    const edit = requestContext(ownerActor(), {
+      receipt: first.receipt,
+      idempotencyKey: "edit-once",
+      correlationId: "edit-once",
+    });
+    expect((await api.setStatus("in_progress", edit)).version).toBe(2);
+    await evictDurableObject(stub);
+    expect((await api.setStatus("in_progress", edit)).version).toBe(2);
+    expect((await stub.get(first.task.id, ownerActor()))?.version).toBe(2);
   });
 
   it("share then revoke hides the D1 row (SEC-1); non-owners cannot overwrite ACL", async () => {
@@ -241,11 +282,13 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
 
     const { task, receipt } = await api.createTask("Secret", requestContext(ownerActor(), { correlationId: "ws-sec" }));
     await stub.shareState(task.id, grantShare(emptyAccess(ownerId, tenant), teammateId, "comment"), ownerActor());
-    const shared = await api.subscribe(0, teammateActor());
+    const sharedTicket = await api.createSubscribeTicket(teammateActor());
+    const shared = await api.subscribe(0, sharedTicket.ticket);
     expect(shared.status).toBe(101);
     shared.webSocket?.accept();
     await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
-    const revoked = await api.subscribe(0, teammateActor());
+    const revokedTicket = await api.createSubscribeTicket(teammateActor());
+    const revoked = await api.subscribe(0, revokedTicket.ticket);
     expect(revoked.status).toBe(101);
     const ws = revoked.webSocket;
     if (!ws) throw new Error("expected websocket");

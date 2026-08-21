@@ -21,6 +21,7 @@ interface DurableObjectStub<T> {
   setPriority(priority: string, ctx: RequestContext): Promise<TaskRecord>;
   setAssignee(assigneeId: string, ctx: RequestContext): Promise<TaskRecord>;
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
+  createSubscribeTicket(actor: ActorContext): Promise<import("./domain-api.js").SubscribeTicket>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   listVisible(actor: ActorContext): Promise<SoupItem[]>;
   listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
@@ -121,12 +122,16 @@ export class DurableTaskApi implements TaskRpc {
     return this.#stub().shareState(entityId, state, actor);
   }
 
-  subscribe(cursor = 0, actor: ActorContext): Promise<Response> {
-    return this.#stub().fetch(`https://task-slice/subscribe?cursor=${cursor}`, {
-      headers: {
-        Upgrade: "websocket",
-        "x-neuwave-actor": JSON.stringify(actor),
+  createSubscribeTicket(actor: ActorContext): Promise<import("./domain-api.js").SubscribeTicket> {
+    return this.#stub().createSubscribeTicket(actor);
+  }
+
+  subscribe(cursor: number, ticket: string): Promise<Response> {
+    return this.#stub().fetch(
+      `https://task-slice/subscribe?cursor=${cursor}&ticket=${encodeURIComponent(ticket)}`,
+      {
+        headers: { Upgrade: "websocket" },
       },
-    });
+    );
   }
 }

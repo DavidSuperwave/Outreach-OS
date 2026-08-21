@@ -12,21 +12,32 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
   const mutate = async (
     entityId: string,
     need: "edit" | "owner",
-    correlationId: string | undefined,
+    operation: "title" | "status" | "priority" | "assignee" | "done",
+    operationId: string,
     run: (ctx: RequestContext) => TaskRecord,
   ): Promise<TaskRecord> => {
+    if (!operationId) throw new Error("operationId required");
     const receipt = slice.engine.mint({
       actor,
       entityType: "document",
       entityId,
       need,
     });
-    return run(requestContext(actor, { receipt, correlationId }));
+    return run(requestContext(actor, {
+      receipt,
+      correlationId: operationId,
+      idempotencyKey: `${actor.actor.id}:${operation}:${entityId}:${operationId}`,
+    }));
   };
 
   return {
-    createTask: async (title, correlationId) =>
-      slice.createTask(title, requestContext(actor, { correlationId })),
+    createTask: async (title, operationId) => {
+      if (!operationId) throw new Error("operationId required");
+      return slice.createTask(title, requestContext(actor, {
+        correlationId: operationId,
+        idempotencyKey: `${actor.actor.id}:create:${operationId}`,
+      }));
+    },
     listTasks: async () => slice.listTasks(viewReceipts(slice, actor)),
     listActivity: async () => {
       const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
@@ -36,16 +47,20 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
       const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
       return operatorAlertsFromPoison(slice.outbox.poison(), visible);
     },
-    updateTitle: (entityId, title, correlationId) =>
-      mutate(entityId, "edit", correlationId, (ctx) => slice.updateTitle(title, ctx)),
-    setStatus: (entityId, status, correlationId) =>
-      mutate(entityId, "edit", correlationId, (ctx) => slice.setStatus(status, ctx)),
-    setPriority: (entityId, priority, correlationId) =>
-      mutate(entityId, "edit", correlationId, (ctx) => slice.setPriority(priority, ctx)),
-    setAssignee: (entityId, assigneeId, correlationId) =>
-      mutate(entityId, "edit", correlationId, (ctx) => slice.setAssignee(assigneeId, ctx)),
-    markDone: (entityId, done, correlationId) =>
-      mutate(entityId, "edit", correlationId, (ctx) => slice.markDone(done, ctx)),
+    updateTitle: (entityId, title, operationId) =>
+      mutate(entityId, "edit", "title", operationId, (ctx) => slice.updateTitle(title, ctx)),
+    setStatus: (entityId, status, operationId) =>
+      mutate(entityId, "edit", "status", operationId, (ctx) => slice.setStatus(status, ctx)),
+    setPriority: (entityId, priority, operationId) =>
+      mutate(entityId, "edit", "priority", operationId, (ctx) => slice.setPriority(priority, ctx)),
+    setAssignee: (entityId, assigneeId, operationId) =>
+      mutate(entityId, "edit", "assignee", operationId, (ctx) => slice.setAssignee(assigneeId, ctx)),
+    markDone: (entityId, done, operationId) =>
+      mutate(entityId, "edit", "done", operationId, (ctx) => slice.markDone(done, ctx)),
+    createSubscribeTicket: async () => ({
+      ticket: crypto.randomUUID(),
+      expiresAt: Date.now() + 30_000,
+    }),
     seq: async () => slice.plane.lists.seq,
     replayFrom: async (seq) => {
       const receipts = viewReceipts(slice, actor);

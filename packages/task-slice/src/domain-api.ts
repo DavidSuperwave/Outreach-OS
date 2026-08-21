@@ -5,6 +5,11 @@ import type { TaskRecord, TaskView } from "./slice.js";
 
 export type { OperatorAlert } from "./operator-alerts.js";
 
+export interface SubscribeTicket {
+  ticket: string;
+  expiresAt: number;
+}
+
 /**
  * Wrapper-owned Cap'n Web entry (ADR-002). Same authenticate-then-mint pattern as
  * kernel PublicApi, but not added to api.ts. Holding the returned stub is the authority.
@@ -25,15 +30,17 @@ export interface TaskAuthenticatedApi {
  * ActorContext, receipts, or x-neuwave-actor.
  */
 export interface TaskSessionApi {
-  createTask(title: string, correlationId?: string): Promise<TaskView>;
+  createTask(title: string, operationId: string): Promise<TaskView>;
   listTasks(): Promise<SoupItem[]>;
   listActivity(): Promise<ActivityFact[]>;
   listAlerts(): Promise<OperatorAlert[]>;
-  updateTitle(entityId: string, title: string, correlationId?: string): Promise<TaskRecord>;
-  setStatus(entityId: string, status: string, correlationId?: string): Promise<TaskRecord>;
-  setPriority(entityId: string, priority: string, correlationId?: string): Promise<TaskRecord>;
-  setAssignee(entityId: string, assigneeId: string, correlationId?: string): Promise<TaskRecord>;
-  markDone(entityId: string, done: boolean, correlationId?: string): Promise<TaskRecord>;
+  updateTitle(entityId: string, title: string, operationId: string): Promise<TaskRecord>;
+  setStatus(entityId: string, status: string, operationId: string): Promise<TaskRecord>;
+  setPriority(entityId: string, priority: string, operationId: string): Promise<TaskRecord>;
+  setAssignee(entityId: string, assigneeId: string, operationId: string): Promise<TaskRecord>;
+  markDone(entityId: string, done: boolean, operationId: string): Promise<TaskRecord>;
+  /** Short-lived, single-use bearer for the browser-only WebSocket upgrade. */
+  createSubscribeTicket(): Promise<SubscribeTicket>;
   seq(): Promise<number>;
   replayFrom(seq: number): Promise<SoupDelta[]>;
   rebuildProjection(): Promise<void>;

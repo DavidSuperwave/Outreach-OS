@@ -28,10 +28,13 @@ async function until(predicate: () => boolean, label: string): Promise<void> {
 }
 
 describe("task subscribe reconnect", () => {
-  it("encodes cursor, token, and tenant on the browser WebSocket URL", () => {
-    expect(taskSubscribeUrl("ws://host/subscribe", 4, "bob:secret", "team_1")).toBe(
-      "ws://host/subscribe?cursor=4&token=bob%3Asecret&tenant=team_1",
+  it("encodes cursor, one-use ticket, and tenant without the kernel token", () => {
+    const url = taskSubscribeUrl("ws://host/subscribe", 4, "ticket-1", "team_1");
+    expect(url).toBe(
+      "ws://host/subscribe?cursor=4&ticket=ticket-1&tenant=team_1",
     );
+    expect(url).not.toContain("bob%3Asecret");
+    expect(url).not.toContain("token=");
   });
 
   it("replays missed deltas then reopens after the socket drops", async () => {
@@ -40,6 +43,10 @@ describe("task subscribe reconnect", () => {
     let deltas = 0;
     const session = {
       seq: async () => 3,
+      createSubscribeTicket: async () => ({
+        ticket: `ticket-${sockets.length + 1}`,
+        expiresAt: Date.now() + 30_000,
+      }),
       replayFrom: async (from: number) => {
         replayed.push(from);
         return from < 4 ? [{ seq: 4 }] : [];
@@ -48,14 +55,14 @@ describe("task subscribe reconnect", () => {
     const sub = attachTaskSubscribe({
       open: (url) => {
         expect(url).toContain("cursor=3");
-        expect(url).toContain("token=t");
+        expect(url).toContain(`ticket=ticket-${sockets.length + 1}`);
         expect(url).toContain("tenant=team_1");
+        expect(url).not.toContain("token=");
         const socket = new FakeSocket();
         sockets.push(socket);
         return socket;
       },
       subscribePath: "ws://example/subscribe",
-      token: "t",
       tenant: "team_1",
       session,
       onDelta: () => {

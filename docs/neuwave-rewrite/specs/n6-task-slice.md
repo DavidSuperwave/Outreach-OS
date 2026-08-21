@@ -24,7 +24,9 @@ Duplicate idempotency keys are no-ops. Poison publishes are marked-and-skipped.
 Authoritative document map on `TaskSliceDurableObject` SQLite (survives eviction).
 N3 outbox lives in the same snapshot. N4 lists family is projected to D1 `entity_row`
 (OD-27), tenant-scoped (never unfiltered DELETE). Live subscribers attach via DO
-hibernation WebSockets on `/subscribe` plus cursor replay. Command identities invoke
+hibernation WebSockets on `/subscribe` plus cursor replay, using short-lived,
+single-use tickets minted by the authenticated `TaskSessionApi` (never the kernel
+session token in the URL). Command identities invoke
 `TaskApi` mutations through `runSliceCommand` / `bindSliceCommands`. Poison publishes
 are marked-and-skipped on the DO outbox. In-process maps remain the unit-test core.
 
@@ -33,6 +35,8 @@ are marked-and-skipped on the DO outbox. In-process maps remain the unit-test co
 
 Typed `TaskApi` / `TaskSessionApi` capability (ADR-002). Not added to kernel `api.ts`.
 No Instantly send/activate methods.
+Every browser mutation carries a stable operation id, mapped server-side to
+`RequestContext.idempotencyKey`; create and edit retries are no-ops.
 
 Kernel `PublicApi` stays on Workshop `/api` (unpatched). The wrapper origin composes beside it:
 the custom React shell as HTML for the 27-route map, Cap'n Web `TaskDomainApi` on `/domain`
@@ -65,3 +69,5 @@ cursor reconnect, D1 rebuild, idempotency, SEC-1.
 ## Failure modes and rollback
 
 `AuthzError` / missing receipt. Projection rollback = drop + `rebuildProjection()`.
+The authority snapshot queues durable re-drive before synchronous D1 projection;
+transient queue-consumer DO/D1 failures retry instead of ACKing.

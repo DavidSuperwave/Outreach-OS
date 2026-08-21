@@ -109,20 +109,24 @@ export async function loadTaskSurface(session: TaskSessionApi): Promise<{
 export async function submitTaskCompose(
   session: TaskSessionApi,
   title: string,
-  correlationId?: string,
+  operationId: string,
 ): Promise<Awaited<ReturnType<typeof loadTaskSurface>>> {
-  await session.createTask(title, correlationId);
+  await session.createTask(title, operationId);
   return loadTaskSurface(session);
+}
+
+export function newTaskOperationId(): string {
+  return crypto.randomUUID();
 }
 
 export function taskSubscribeUrl(
   subscribePath: string,
   cursor: number,
-  token: string,
+  ticket: string,
   tenant: string,
 ): string {
   const sep = subscribePath.includes("?") ? "&" : "?";
-  return `${subscribePath}${sep}cursor=${cursor}&token=${encodeURIComponent(token)}&tenant=${encodeURIComponent(tenant)}`;
+  return `${subscribePath}${sep}cursor=${cursor}&ticket=${encodeURIComponent(ticket)}&tenant=${encodeURIComponent(tenant)}`;
 }
 
 export interface TaskSubscribeSocket {
@@ -131,15 +135,14 @@ export interface TaskSubscribeSocket {
 }
 
 /**
- * Browser /subscribe: replay from cursor on drop, then reopen. Query token is
- * required because a browser WebSocket cannot set Authorization.
+ * Browser /subscribe: mint a one-use ticket, replay from cursor on drop, then
+ * reopen with a fresh ticket. The long-lived kernel token never enters the URL.
  */
 export function attachTaskSubscribe(opts: {
   open: (url: string) => TaskSubscribeSocket;
   subscribePath: string;
-  token: string;
   tenant: string;
-  session: Pick<TaskSessionApi, "seq" | "replayFrom">;
+  session: Pick<TaskSessionApi, "createSubscribeTicket" | "seq" | "replayFrom">;
   onDelta: () => void;
   onError?: (error: unknown) => void;
 }): { close(): void } {
@@ -157,7 +160,15 @@ export function attachTaskSubscribe(opts: {
       return;
     }
     if (closed) return;
-    socket = opts.open(taskSubscribeUrl(opts.subscribePath, cursor, opts.token, opts.tenant));
+    let ticket: string;
+    try {
+      ({ ticket } = await opts.session.createSubscribeTicket());
+    } catch (error) {
+      opts.onError?.(error);
+      return;
+    }
+    if (closed) return;
+    socket = opts.open(taskSubscribeUrl(opts.subscribePath, cursor, ticket, opts.tenant));
     socket.addEventListener("message", (event) => {
       try {
         const payload = JSON.parse(String(event.data)) as { seq?: number };

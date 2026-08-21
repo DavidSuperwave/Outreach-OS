@@ -36,6 +36,7 @@ import {
   loadTaskSurface,
   loginViaKernelPublicApi,
   createAccountViaKernelPublicApi,
+  newTaskOperationId,
   ORIGIN_MOUNTS,
   submitTaskCompose,
   TASK_TENANT_STORAGE_KEY,
@@ -404,7 +405,6 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       const sub = attachTaskSubscribe({
         open: (url) => new WebSocket(url),
         subscribePath: wsUrl(boot.subscribe),
-        token,
         tenant: nextTenant,
         session: live,
         onDelta: () => {
@@ -633,7 +633,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      const surface = await submitTaskCompose(session, title);
+      const surface = await submitTaskCompose(session, title, newTaskOperationId());
       setItems(surfaceItems(surface.items));
       setActivity(surface.activity);
       setAlerts(surface.alerts);
@@ -651,7 +651,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.markDone(entityId, done);
+      await session.markDone(entityId, done, newTaskOperationId());
       await applySurface(session);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "update failed");
@@ -665,7 +665,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.updateTitle(entityId, title);
+      await session.updateTitle(entityId, title, newTaskOperationId());
       await applySurface(session);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "rename failed");
@@ -679,7 +679,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setStatus(entityId, status);
+      await session.setStatus(entityId, status, newTaskOperationId());
       await applySurface(session);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "status failed");
@@ -693,7 +693,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setPriority(entityId, priority === "none" ? "none" : priority);
+      await session.setPriority(entityId, priority === "none" ? "none" : priority, newTaskOperationId());
       await applySurface(session);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "priority failed");
@@ -707,7 +707,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setAssignee(entityId, assigneeId);
+      await session.setAssignee(entityId, assigneeId, newTaskOperationId());
       await applySurface(session);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "assignee failed");

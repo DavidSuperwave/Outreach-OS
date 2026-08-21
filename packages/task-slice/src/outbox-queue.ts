@@ -9,9 +9,18 @@ interface OutboxQueueEnv {
   };
 }
 
+/** A synchronous projection may start only after its durable re-drive exists. */
+export async function projectAfterRedrive(
+  enqueue: () => Promise<unknown>,
+  project: () => Promise<void>,
+): Promise<void> {
+  await enqueue();
+  await project();
+}
+
 /** Durable fan-out: each tenant message re-drives TaskSliceDurableObject.drainOutbox. */
 export async function handleTaskOutboxBatch(
-  batch: { messages: Array<{ body: TaskOutboxMessage; ack(): void }> },
+  batch: { messages: Array<{ body: TaskOutboxMessage; ack(): void; retry(): void }> },
   env: OutboxQueueEnv,
 ): Promise<void> {
   for (const message of batch.messages) {
@@ -19,7 +28,9 @@ export async function handleTaskOutboxBatch(
       const stub = env.TASK_SLICE.get(env.TASK_SLICE.idFromName(message.body.tenantId));
       await stub.drainOutbox();
     } catch {
-      // Tenant DO may already be gone (test reset / eviction). Ack to stop retries.
+      // DO/D1 failures are transient by default. Keep the durable message alive.
+      message.retry();
+      continue;
     }
     message.ack();
   }
