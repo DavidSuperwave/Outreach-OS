@@ -31,9 +31,6 @@ const DOWNSTREAM_GATED = new Map<N5CommandId, string>([
   ["create-menu.canvas", "N7 owns canvas creation."],
   ["create-menu.project", "N7 owns folder creation."],
   ["create-menu.code", "N7 owns code-document creation."],
-  ["theme.set-visible.<user-theme>", "Dynamic user-theme creation/storage is not built at the N5 boundary."],
-  ["theme.default-light.<user-theme>", "Dynamic user-theme creation/storage is not built at the N5 boundary."],
-  ["theme.default-dark.<user-theme>", "Dynamic user-theme creation/storage is not built at the N5 boundary."],
   ["global.instructions", "N7 owns the instructions document."],
   ["global.upload-files", "N14 owns the upload pipeline and picker."],
   ["global.upload-folders", "N14 owns folder walking and upload."],
@@ -64,10 +61,9 @@ const DOWNSTREAM_GATED = new Map<N5CommandId, string>([
   ["block.share", "N2 owns share receipts and the share dialog authority."],
 ]);
 
-const UNKEYED = new Set<N5CommandId>([
+const COMMAND_MENU_ONLY = new Set<N5CommandId>([
   "global.account",
   "global.logout",
-  "global.instructions",
   "global.mcp-setup",
   "global.change-theme",
   "theme.system-preference",
@@ -113,36 +109,142 @@ const UNKEYED = new Set<N5CommandId>([
   "theme.default-dark.decepticon",
   "theme.default-dark.<user-theme>",
   "global.auto-detect-color-scheme",
-  "global.upload-files",
-  "global.hotkey-debugger",
-  "global.upload-folders",
-  "scope.favorites",
-  "global.favorites",
-  "global.invite-team",
   "scope.command-scope-go-to",
   "scope.command-scope-command-menu-category",
   "scope.command-scope-create-menu",
 ]);
+
+const FUNCTIONAL = new Map<N5CommandId, string>();
+
+function functional(ids: readonly N5CommandId[], reason: string): void {
+  for (const id of ids) {
+    if (FUNCTIONAL.has(id)) throw new Error(`Duplicate functional N5 classification: ${id}`);
+    FUNCTIONAL.set(id, reason);
+  }
+}
+
+functional(
+  ["global.create", "create-menu.task", "create-menu.close"],
+  "N5/N6 create runtime opens/closes the ruled launcher or task compose surface.",
+);
+functional(
+  [
+    "global.command-menu",
+    "global.open-category-leader",
+    "command-menu.open-category.all",
+    "command-menu.open-category.commands",
+    "command-menu.open-category.chats",
+    "command-menu.open-category.documents",
+    "command-menu.open-category.tasks",
+    "command-menu.open-category.channels",
+    "command-menu.open-category.dms",
+  ],
+  "N5 command-menu runtime opens the dialog or changes its concrete category state.",
+);
+functional(
+  ["global.new-split.cmd", "global.new-split.bare", "global.toggle-settings"],
+  "N5 route/split runtime produces a concrete URL transition through the route codec.",
+);
+functional(
+  [
+    "launcher.task",
+    "launcher.task-new-split",
+    "launcher.close-c",
+    "launcher.nav-up",
+    "launcher.nav-down",
+    "launcher.exit",
+    "launcher.open-new-split",
+    "launcher.confirm",
+  ],
+  "N5 launcher runtime changes selection, closes, confirms, or opens task compose with split preference.",
+);
+functional(
+  [
+    "command-menu.nav-down",
+    "command-menu.nav-up",
+    "command-menu.confirm",
+    "command-menu.confirm-new-split",
+    "command-menu.escape",
+    "command-menu.backspace-back",
+    "command-menu.next-category",
+    "command-menu.prev-category",
+  ],
+  "N5 command-menu runtime changes selection/category/scope or confirms the selected command.",
+);
+functional(
+  [
+    "global.toggle-sidebar",
+    "global.go-to-leader",
+    "go-to.home",
+    "go-to.getting-started",
+    "go-to.inbox",
+    "go-to.activity",
+    "go-to.reminders",
+    "go-to.search",
+    "go-to.agents",
+    "go-to.mail",
+    "go-to.documents",
+    "go-to.markdown-documents",
+    "go-to.tasks",
+    "go-to.calendar",
+    "go-to.channels",
+    "go-to.calls",
+    "go-to.companies",
+  ],
+  "N5 chrome runtime changes sidebar state, leader scope, or the active route.",
+);
+functional(
+  [
+    "split.close-or-home",
+    "split.spotlight",
+    "split.back",
+    "split.forward",
+    "split.focus-right",
+    "split.focus-left",
+    "popover-split.close",
+    "split.toggle-preview",
+    "split.close-drawer",
+    "home.focus-chat-input",
+  ],
+  "N5 hydrate runtime changes actual split URL/history/focus/spotlight/preview/drawer/popover or DOM focus state.",
+);
+functional(
+  [
+    "settings.close",
+    "settings.next-tab",
+    "settings.prev-tab",
+    "settings.tab-1",
+    "settings.tab-2",
+    "settings.tab-3",
+    "settings.tab-4",
+    "settings.tab-5",
+    "settings.tab-6",
+    "settings.tab-7",
+    "settings.tab-8",
+    "settings.tab-9",
+  ],
+  "N5 settings runtime transitions among the nine commandable settings routes.",
+);
 
 function coverageFor(id: N5CommandId): N5CommandCoverage {
   const ownerReason = OWNER_GATED.get(id);
   if (ownerReason) return { id, disposition: "owner-gated", reason: ownerReason };
   const downstreamReason = DOWNSTREAM_GATED.get(id);
   if (downstreamReason) return { id, disposition: "downstream-gated", reason: downstreamReason };
-  if (UNKEYED.has(id)) {
+  if (COMMAND_MENU_ONLY.has(id)) {
     return {
       id,
       disposition: "command-menu-only",
       reason: id.startsWith("scope.")
         ? "Structural scope-registration row; it has no keyboard handler."
+        : id.includes("<user-theme>")
+          ? "Runtime marker; executable child commands are generated from Outreach user themes in local storage."
         : "The ledger intentionally assigns no chord; dispatch is available from the command menu.",
     };
   }
-  return {
-    id,
-    disposition: "functional",
-    reason: "Implemented at the N5 shell boundary with an observable route, modal, theme, settings, or split effect.",
-  };
+  const functionalReason = FUNCTIONAL.get(id);
+  if (functionalReason) return { id, disposition: "functional", reason: functionalReason };
+  throw new Error(`Unclassified N5 command row: ${id}`);
 }
 
 /** Generated one-for-one from the frozen 160-id N5 registry/chrome set. */

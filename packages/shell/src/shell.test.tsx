@@ -3,8 +3,8 @@ import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute, isAuthCoverPath, POST_AUTH_PATH } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
-import { PATH_SPLIT, panesFromPath, pathFromPanes, appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
-import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, isThemeId, assertNoMacroBrand } from "./theme.js";
+import { PATH_SPLIT, panesFromPath, pathFromPanes, appendInboxSplitPath, appendTaskSplitPath, closeFocusedSplitPath, closeSplitAtPath } from "./path-panes.js";
+import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, tokenVarsForTheme, readUserThemes, isThemeId, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 import { CommandRegistry, chordFromEvent } from "./registry.js";
@@ -107,6 +107,27 @@ describe("OD-24 brand tripwire", () => {
     expect(ember).toContain("data-theme=\"ember\"");
     expect(ember).toContain(tokenVars("ember")["--outreach-surface"]);
     expect(N5_COMMAND_IDS.join("\n")).not.toMatch(/macro/i);
+  });
+
+  it("loads and applies Outreach user-theme tokens from local storage", () => {
+    const tokens = {
+      surface: "oklch(0.2 0.1 20)",
+      text: "oklch(0.9 0.1 20)",
+      border: "oklch(0.4 0.1 20)",
+      accent: "oklch(0.7 0.2 20)",
+      status: "oklch(0.7 0.2 140)",
+      muted: "oklch(0.6 0.1 20)",
+      overlay: "oklch(0.1 0.1 20 / 0.7)",
+      popover: "oklch(0.3 0.1 20)",
+    };
+    const themes = readUserThemes({
+      getItem: () => JSON.stringify([{ id: "sunset", label: "Sunset", tokens }]),
+    });
+    expect(themes).toHaveLength(1);
+    expect(tokenVarsForTheme("sunset", themes)["--outreach-surface"]).toBe(tokens.surface);
+    const html = renderToString(createElement(Shell, { path: "/", theme: "sunset", userThemes: themes }));
+    expect(html).toContain('data-theme="sunset"');
+    expect(html).toContain('data-theme-label="Sunset"');
   });
 });
 
@@ -419,6 +440,9 @@ describe("path → split layout", () => {
     expect(closeFocusedSplitPath("/")).toBe("/");
     expect(closeFocusedSplitPath("/home/_/inbox/_")).toBe("/");
     expect(closeFocusedSplitPath("/tasks/_/inbox/_")).toBe("/tasks");
+    expect(closeSplitAtPath("/home/_/tasks/_/inbox/_", 1)).toBe("/home/_/inbox/_");
+    expect(appendTaskSplitPath("/")).toBe("/home/_/tasks/_");
+    expect(appendTaskSplitPath("/tasks")).toBe("/tasks/_/tasks/_");
   });
 
   it("dispatches global.new-split on \\ and cmd+\\; bare is gated while typing", () => {

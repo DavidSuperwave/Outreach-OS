@@ -5,7 +5,14 @@ import { commandEnabled, defaultChromeContext, type ChromeCommandContext } from 
 import { appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
 import type { CommandRegistry, LeaderKey, ScopeId } from "./registry.js";
 import { SETTINGS_TABS, settingsTabPath as settingsPathForTab } from "./settings.js";
-import { STORAGE_KEYS, THEME_IDS, THEME_LABELS, type ThemeId } from "./theme.js";
+import {
+  STORAGE_KEYS,
+  THEME_IDS,
+  THEME_LABELS,
+  readUserThemes,
+  type ThemeId,
+  type UserTheme,
+} from "./theme.js";
 
 const LEADER_IDS = new Set(["global.create", "global.go-to-leader", "global.open-category-leader"]);
 
@@ -169,10 +176,21 @@ function themePrefix(scope: Exclude<CommandMenuScope, "root">): "theme.set-visib
   return "theme.default-dark.";
 }
 
-export function commandMenuItemsForScope(scope: CommandMenuScope = "root"): readonly { id: N5CommandId; label: string }[] {
+export interface CommandMenuItem {
+  id: string;
+  label: string;
+}
+
+export function commandMenuItemsForScope(
+  scope: CommandMenuScope = "root",
+  userThemes: readonly UserTheme[] = readUserThemes(),
+): readonly CommandMenuItem[] {
   if (scope === "root") return COMMAND_MENU_ITEMS;
   const prefix = themePrefix(scope);
-  const themes = THEME_IDS.map((id) => ({ id: `${prefix}${id}` as N5CommandId, label: THEME_LABELS[id] }));
+  const themes: CommandMenuItem[] = [
+    ...THEME_IDS.map((id) => ({ id: `${prefix}${id}`, label: THEME_LABELS[id] })),
+    ...userThemes.map((theme) => ({ id: `${prefix}${theme.id}`, label: theme.label })),
+  ];
   if (scope === "change-theme") {
     return [{ id: "theme.system-preference", label: "System preference" }, ...themes];
   }
@@ -199,9 +217,10 @@ export function filterCommandMenuItems(
   query = "",
   category: CommandMenuCategory = "all",
   scope: CommandMenuScope = "root",
-): readonly { id: N5CommandId; label: string }[] {
+  userThemes: readonly UserTheme[] = readUserThemes(),
+): readonly CommandMenuItem[] {
   const needle = query.trim().toLowerCase();
-  return commandMenuItemsForScope(scope).filter((item) => {
+  return commandMenuItemsForScope(scope, userThemes).filter((item) => {
     if (scope === "root") {
       const cat = commandMenuItemCategory(item.id);
       if (category !== "all" && cat !== category) return false;
@@ -239,6 +258,14 @@ export function themeIdFromCommand(id: string): ThemeId | null {
   return (THEME_IDS as readonly string[]).includes(name) ? (name as ThemeId) : null;
 }
 
+export function userThemeIdFromCommand(id: string, userThemes: readonly UserTheme[]): string | null {
+  const visible = /^theme\.set-visible\.(.+)$/.exec(id);
+  const light = /^theme\.default-light\.(.+)$/.exec(id);
+  const dark = /^theme\.default-dark\.(.+)$/.exec(id);
+  const name = visible?.[1] ?? light?.[1] ?? dark?.[1];
+  return name && userThemes.some((theme) => theme.id === name) ? name : null;
+}
+
 /** Path the chrome handler would assign, or null when the row is in-place / no-op. */
 export function chromeNavigatePath(id: string, path = "/"): string | null {
   if (GO_TO_PATH[id]) return GO_TO_PATH[id];
@@ -271,7 +298,7 @@ export function defaultChromeHotkeyHandle(
   extras: {
     toggleCommandMenu?: () => boolean;
     toggleCreateMenu?: () => boolean;
-    openTaskCompose?: () => boolean;
+    openTaskCompose?: (preferNewSplit?: boolean) => boolean;
     openCommandCategory?: (id: string) => boolean;
     cycleCommandCategory?: (delta: number) => boolean;
     moveCommandSelection?: (delta: number) => boolean;
@@ -280,7 +307,8 @@ export function defaultChromeHotkeyHandle(
     openCommandScope?: (id: string) => boolean;
     backCommandScope?: () => boolean;
     commandQueryEmpty?: () => boolean;
-    applyTheme?: (theme: ThemeId, kind?: "visible" | "light" | "dark") => boolean;
+    applyTheme?: (theme: string, kind?: "visible" | "light" | "dark") => boolean;
+    userThemes?: readonly UserTheme[];
     logout?: () => boolean;
     toggleSidebar?: () => boolean;
     focusHomeChat?: () => boolean;
@@ -300,12 +328,13 @@ export function defaultChromeHotkeyHandle(
     const ctx = typeof extras.enabled === "function" ? extras.enabled() : (extras.enabled ?? defaultChromeContext());
     const current =
       typeof extras.currentPath === "function" ? extras.currentPath() : (extras.currentPath ?? "/");
-    if (!commandHasRuntime(id as N5CommandId)) return false;
-    if (!commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
+    const dynamicUserTheme = userThemeIdFromCommand(id, extras.userThemes ?? readUserThemes());
+    if (!dynamicUserTheme && !commandHasRuntime(id as N5CommandId)) return false;
+    if (!dynamicUserTheme && !commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
     if (id === "global.create") return extras.toggleCreateMenu?.() ?? false;
     if (id === "home.focus-chat-input") return extras.focusHomeChat?.() ?? false;
     if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
-      return extras.openTaskCompose?.() ?? (navigate("/tasks"), extras.closeMenus?.(), true);
+      return extras.openTaskCompose?.(id === "launcher.task-new-split") ?? (navigate("/tasks"), extras.closeMenus?.(), true);
     }
     if (id === "global.command-menu") return extras.toggleCommandMenu?.() ?? false;
     if (COMMAND_MENU_NESTED_LEADERS[id]) return extras.openCommandScope?.(id) ?? false;
@@ -355,7 +384,7 @@ export function defaultChromeHotkeyHandle(
       return true;
     }
     if (id.startsWith("theme.set-visible.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
       if (!extras.applyTheme) return false;
       extras.applyTheme(theme, "visible");
@@ -363,7 +392,7 @@ export function defaultChromeHotkeyHandle(
       return true;
     }
     if (id.startsWith("theme.default-light.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
       if (!extras.applyTheme) return false;
       extras.applyTheme(theme, "light");
@@ -371,7 +400,7 @@ export function defaultChromeHotkeyHandle(
       return true;
     }
     if (id.startsWith("theme.default-dark.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
       if (!extras.applyTheme) return false;
       extras.applyTheme(theme, "dark");
@@ -518,7 +547,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   });
 }
 
-export function persistTheme(theme: ThemeId, kind: "visible" | "light" | "dark" = "visible"): void {
+export function persistTheme(theme: string, kind: "visible" | "light" | "dark" = "visible"): void {
   if (typeof localStorage === "undefined") return;
   if (kind === "light") localStorage.setItem(STORAGE_KEYS.defaultLight, theme);
   else if (kind === "dark") localStorage.setItem(STORAGE_KEYS.defaultDark, theme);

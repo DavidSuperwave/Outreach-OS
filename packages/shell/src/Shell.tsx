@@ -6,7 +6,7 @@ import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { HomePane } from "./home-pane.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
-import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
+import { themeLabel, tokenVarsForTheme, type UserTheme } from "./theme.js";
 import type { LeaderKey } from "./registry.js";
 import {
   COMMAND_MENU_CATEGORIES,
@@ -21,7 +21,8 @@ import {
 export interface ShellProps {
   path: string;
   panes?: readonly SplitPane[];
-  theme?: ThemeId;
+  theme?: string;
+  userThemes?: readonly UserTheme[];
   username?: string;
   children?: ReactNode;
   taskItems?: readonly TaskPaneItem[];
@@ -48,6 +49,10 @@ export interface ShellProps {
   onCommandMenuSelect?: (id: string) => void;
   onCreateMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
+  focusedSplitIndex?: number;
+  spotlightSplitIndex?: number | null;
+  previewOpen?: boolean;
+  drawerOpen?: boolean;
   armedLeader?: LeaderKey | null;
   onToggleCommandMenu?: () => void;
   onToggleCreateMenu?: () => void;
@@ -68,6 +73,7 @@ export function Shell({
   path,
   panes,
   theme = "outreach-dark",
+  userThemes = [],
   username = "admin",
   children,
   taskItems = [],
@@ -94,6 +100,10 @@ export function Shell({
   onCommandMenuSelect,
   onCreateMenuSelect,
   sidebarCollapsed = false,
+  focusedSplitIndex = 0,
+  spotlightSplitIndex = null,
+  previewOpen = false,
+  drawerOpen = false,
   armedLeader = null,
   onToggleCommandMenu,
   onToggleCreateMenu,
@@ -151,7 +161,7 @@ export function Shell({
   const layout = panes ?? panesFromPath(path);
   const pathname = pathnameOf(path);
   const multiSplit = layout.length > 1;
-  const vars = tokenVars(theme);
+  const vars = tokenVarsForTheme(theme, userThemes);
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
   const authPath = path === "/login" || path === "/signup";
   const chromeButton: CSSProperties = {
@@ -181,7 +191,7 @@ export function Shell({
     padding: "0.85rem 1rem",
     boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
   };
-  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope);
+  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope, userThemes);
   const selectedIndex =
     paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
   const fullCover = isFullCoverRoute(path);
@@ -223,11 +233,13 @@ export function Shell({
     <div
       data-shell="outreach-os"
       data-theme={theme}
-      data-theme-label={THEME_LABELS[theme] ?? theme}
+      data-theme-label={themeLabel(theme, userThemes)}
       data-path={encodeSplits(layout)}
       data-session-ready={sessionReady ? "true" : "false"}
       data-layout={fullCover ? "full-cover" : "app"}
       data-armed-leader={armedLeader ?? undefined}
+      data-focused-split={String(focusedSplitIndex)}
+      data-spotlight-split={spotlightSplitIndex === null ? undefined : String(spotlightSplitIndex)}
       style={
         {
           ...vars,
@@ -384,6 +396,11 @@ export function Shell({
             key={`${pane.type}:${pane.id}:${index}`}
             data-split={pane.type}
             data-split-id={pane.id}
+            data-split-index={String(index)}
+            data-focused={index === focusedSplitIndex ? "true" : "false"}
+            data-spotlight={index === spotlightSplitIndex ? "true" : "false"}
+            hidden={spotlightSplitIndex !== null && index !== spotlightSplitIndex}
+            tabIndex={-1}
             style={
               multiSplit
                 ? {
@@ -455,6 +472,16 @@ export function Shell({
           </section>
         ))}
         </div>
+        {previewOpen ? (
+          <aside data-surface="split.preview" aria-label="Split preview">
+            Preview
+          </aside>
+        ) : null}
+        {drawerOpen ? (
+          <aside data-surface="split.drawer" aria-label="References drawer">
+            References
+          </aside>
+        ) : null}
         {children}
         {path === "/onboarding" || path === "/getting-started" ? (
           <section data-surface="n19.parked" data-spec="needed" data-path={path}>
@@ -515,13 +542,15 @@ export function Shell({
             <div style={popover}>
               <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Create</p>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {CREATE_MENU_ITEMS.map((item) => (
+                {CREATE_MENU_ITEMS.map((item, index) => (
                   <li key={item.id}>
                     <button
                       type="button"
                       data-command={item.id}
                       disabled={Boolean(item.disabledReason)}
                       aria-disabled={item.disabledReason ? "true" : undefined}
+                      aria-current={index === commandSelectedIndex ? "true" : undefined}
+                      data-selected={index === commandSelectedIndex ? "true" : "false"}
                       title={item.disabledReason}
                       onClick={() => onCreateMenuSelect?.(item.id)}
                       style={{
@@ -571,8 +600,6 @@ export function Shell({
                 ref={commandSearchRef}
                 name="command-query"
                 aria-label="Command search"
-                aria-controls="command-menu-results"
-                aria-activedescendant={paletteItems[selectedIndex] ? `command-option-${selectedIndex}` : undefined}
                 value={commandQuery}
                 onChange={(event) => onCommandQueryChange?.(event.currentTarget.value)}
                 placeholder="Search"
@@ -610,29 +637,30 @@ export function Shell({
                 ))}
               </div>
               ) : null}
-              <ul id="command-menu-results" role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
+              <div id="command-menu-results" role="group" aria-label="Command results" style={{ margin: "0.75rem 0 0", padding: 0 }}>
                 {paletteItems.map((item, index) => (
-                  <li id={`command-option-${index}`} key={item.id} role="option" aria-selected={index === selectedIndex}>
-                    <button
-                      type="button"
-                      data-command={item.id}
-                      data-selected={index === selectedIndex ? "true" : "false"}
-                      onClick={() => onCommandMenuSelect?.(item.id)}
-                      style={{
-                        ...chromeButton,
-                        display: "block",
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.45rem 0.35rem",
-                        background: index === selectedIndex ? "var(--outreach-surface)" : "none",
-                        borderRadius: "0.35rem",
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  </li>
+                  <button
+                    id={`command-option-${index}`}
+                    key={item.id}
+                    type="button"
+                    data-command={item.id}
+                    data-selected={index === selectedIndex ? "true" : "false"}
+                    aria-current={index === selectedIndex ? "true" : undefined}
+                    onClick={() => onCommandMenuSelect?.(item.id)}
+                    style={{
+                      ...chromeButton,
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.45rem 0.35rem",
+                      background: index === selectedIndex ? "var(--outreach-surface)" : "none",
+                      borderRadius: "0.35rem",
+                    }}
+                  >
+                    {item.label}
+                  </button>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
         ) : null}
