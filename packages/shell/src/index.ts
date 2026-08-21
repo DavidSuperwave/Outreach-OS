@@ -22,6 +22,13 @@ export type { KeyEvent, CommandHandler, ScopeId, LeaderKey } from "./registry.js
 export { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 export type { N5CommandId, ChromeCommandContext } from "./commands.js";
 export {
+  N5_COMMAND_COVERAGE,
+  N5_COMMAND_COVERAGE_BY_ID,
+  commandDisposition,
+  commandHasRuntime,
+} from "./n5-command-coverage.js";
+export type { N5CommandCoverage, N5CommandDisposition } from "./n5-command-coverage.js";
+export {
   registerChromeHotkeys,
   defaultChromeHotkeyHandle,
   chromeActiveScope,
@@ -49,5 +56,5 @@ export { Shell } from "./Shell.js";
 export type { ShellProps } from "./Shell.js";
 export { TaskPane, SOUP_TASK_TABS, TASK_STATUS_OPTIONS, TASK_PRIORITY_OPTIONS } from "./task-pane.js";
 export type { TaskPaneItem, TaskPaneActivity, TaskPaneAlert } from "./task-pane.js";
-export { SettingsChrome, SETTINGS_TABS, settingsTabFromPath, SETTINGS_TAB_COMMAND } from "./settings.js";
+export { SettingsChrome, SETTINGS_TABS, settingsTabFromPath, settingsTabPath, SETTINGS_TAB_COMMAND } from "./settings.js";
 export type { SettingsTab } from "./settings.js";

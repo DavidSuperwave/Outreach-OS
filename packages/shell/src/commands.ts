@@ -1,4 +1,5 @@
 import { N5_COMMAND_IDS, type N5CommandId } from "./n5-command-ids.js";
+import { commandHasRuntime } from "./n5-command-coverage.js";
 
 export type { N5CommandId };
 export { N5_COMMAND_IDS };
@@ -33,7 +34,7 @@ function settingsTab(id: N5CommandId): number | null {
  */
 export function commandEnabled(id: N5CommandId, ctx: ChromeCommandContext): boolean {
   if (ctx.touch) return false;
-  if (id === "global.hotkey-debugger") return false;
+  if (!commandHasRuntime(id)) return false;
   if (id === "scope.favorites") return ctx.favoriteExists;
   if (id === "global.favorites") return ctx.signedIn;
 
@@ -50,9 +51,10 @@ export function commandEnabled(id: N5CommandId, ctx: ChromeCommandContext): bool
   if (id === "go-to.getting-started") return ctx.signedIn && ctx.gettingStartedEnabled;
   if (id === "global.toggle-sidebar") return ctx.sidebarMounted && !ctx.fullCoverRoute;
   if (id === "global.new-split.cmd" || id === "global.new-split.bare") return ctx.signedIn && ctx.canAppendSplit;
-  if (id === "split.toggle-preview") return ctx.splitCount > 0 && ctx.previewOpen;
+  if (id === "split.toggle-preview") return ctx.splitCount > 0;
   if (id === "split.close-drawer") return ctx.drawerOpen;
   if (id === "popover-split.close") return ctx.splitCount > 0;
+  if (id === "split.focus-right" || id === "split.focus-left") return ctx.splitCount > 1;
   if (id.startsWith("split.")) return ctx.splitCount > 0;
   if (id.startsWith("launcher.")) return ctx.createMenuOpen;
   if (id.startsWith("create-menu.")) return ctx.createMenuOpen || ctx.leader === "c";
@@ -73,7 +75,7 @@ export function defaultChromeContext(overrides: Partial<ChromeCommandContext> = 
     createMenuOpen: false,
     commandMenuOpen: false,
     settingsOpen: false,
-    settingsTabCount: 12,
+    settingsTabCount: 9,
     splitCount: 1,
     canAppendSplit: true,
     snippetsEnabled: true,

@@ -217,287 +217,287 @@ export const N5_KEYED_BINDINGS = [
   },
   {
     "id": "launcher.email",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "e",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.email-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+e",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.chat",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "a",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.chat-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+a",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.automation",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "u",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.skill",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "k",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.md",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "d",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.md-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+d",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.task",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "t",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.task-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+t",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.snippet",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "s",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.snippet-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+s",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.channel-message",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "m",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.channel-new-split-message",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+m",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.channel",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "g",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.canvas",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "n",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.canvas-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+n",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.project",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "f",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.project-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+f",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.code",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "o",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.code-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+o",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.close-c",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "c",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-up",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "arrowup",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-up",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "ctrl+k",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-up",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+tab",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-down",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "arrowdown",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-down",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "ctrl+j",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.nav-down",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "tab",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.exit",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "escape",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "launcher.open-new-split",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "shift+enter",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "launcher.confirm",
-    "scope": "detached",
+    "scope": "launcher",
     "chord": "enter",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.nav-down",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "arrowdown",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.nav-down",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "ctrl+j",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.nav-up",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "arrowup",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.nav-up",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "ctrl+k",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.confirm",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "enter",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.confirm-new-split",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "shift+enter",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.escape",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "escape",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.backspace-back",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "backspace",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.next-category",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "tab",
     "runWithInputFocused": true,
     "registrationType": "override"
   },
   {
     "id": "command-menu.prev-category",
-    "scope": "detached",
+    "scope": "command-menu",
     "chord": "shift+tab",
     "runWithInputFocused": true,
     "registrationType": "override"
@@ -686,7 +686,7 @@ export const N5_KEYED_BINDINGS = [
   },
   {
     "id": "popover-split.close",
-    "scope": "detached",
+    "scope": "popover-split",
     "chord": "escape",
     "runWithInputFocused": false,
     "registrationType": "override"
@@ -714,84 +714,84 @@ export const N5_KEYED_BINDINGS = [
   },
   {
     "id": "settings.close",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "escape",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.next-tab",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "tab",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.prev-tab",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "shift+tab",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-1",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "1",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-2",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "2",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-3",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "3",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-4",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "4",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-5",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "5",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-6",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "6",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-7",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "7",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-8",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "8",
     "runWithInputFocused": false,
     "registrationType": "override"
   },
   {
     "id": "settings.tab-9",
-    "scope": "detached",
+    "scope": "settings",
     "chord": "9",
     "runWithInputFocused": false,
     "registrationType": "override"

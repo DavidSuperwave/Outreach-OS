@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
 import { panesFromPath, pathnameOf, PATH_SPLIT } from "./path-panes.js";
@@ -99,6 +99,52 @@ export function Shell({
   onToggleCreateMenu,
   onToggleSidebar,
 }: ShellProps) {
+  const commandDialogRef = useRef<HTMLDivElement>(null);
+  const commandSearchRef = useRef<HTMLInputElement>(null);
+  const restoreCommandFocusRef = useRef<HTMLElement | null>(null);
+  const commandWasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (commandMenuOpen && !commandWasOpenRef.current) {
+      restoreCommandFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      commandSearchRef.current?.focus();
+    } else if (!commandMenuOpen && commandWasOpenRef.current) {
+      const target = restoreCommandFocusRef.current;
+      if (target?.isConnected) target.focus();
+      restoreCommandFocusRef.current = null;
+    }
+    commandWasOpenRef.current = commandMenuOpen;
+    return () => {
+      if (commandWasOpenRef.current && restoreCommandFocusRef.current?.isConnected) {
+        restoreCommandFocusRef.current.focus();
+      }
+    };
+  }, [commandMenuOpen]);
+
+  const trapCommandFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab" || event.defaultPrevented) return;
+    const dialog = commandDialogRef.current;
+    if (!dialog) return;
+    const focusable = [...dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    )].filter((node) => !node.hasAttribute("hidden"));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
@@ -465,7 +511,7 @@ export function Shell({
           </div>
         ) : null}
         {createMenuOpen ? (
-          <div data-surface="create-menu" role="dialog" aria-label="Create" style={overlay}>
+          <div data-surface="create-menu" role="dialog" aria-modal="true" aria-label="Create" style={overlay}>
             <div style={popover}>
               <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Create</p>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -474,6 +520,9 @@ export function Shell({
                     <button
                       type="button"
                       data-command={item.id}
+                      disabled={Boolean(item.disabledReason)}
+                      aria-disabled={item.disabledReason ? "true" : undefined}
+                      title={item.disabledReason}
                       onClick={() => onCreateMenuSelect?.(item.id)}
                       style={{
                         ...chromeButton,
@@ -493,9 +542,21 @@ export function Shell({
           </div>
         ) : null}
         {commandMenuOpen ? (
-          <div data-surface="command-menu" data-command-scope={commandScope} role="dialog" aria-label="Command menu" style={overlay}>
+          <div
+            ref={commandDialogRef}
+            data-surface="command-menu"
+            data-command-scope={commandScope}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="command-menu-title"
+            tabIndex={-1}
+            onKeyDown={trapCommandFocus}
+            style={overlay}
+          >
             <div style={{ ...popover, maxWidth: "32rem" }}>
-              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>{commandMenuScopeLabel(commandScope)}</p>
+              <h2 id="command-menu-title" style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem", fontSize: "1rem" }}>
+                {commandMenuScopeLabel(commandScope)}
+              </h2>
               {commandScope !== "root" ? (
                 <button
                   type="button"
@@ -507,8 +568,11 @@ export function Shell({
                 </button>
               ) : null}
               <input
+                ref={commandSearchRef}
                 name="command-query"
                 aria-label="Command search"
+                aria-controls="command-menu-results"
+                aria-activedescendant={paletteItems[selectedIndex] ? `command-option-${selectedIndex}` : undefined}
                 value={commandQuery}
                 onChange={(event) => onCommandQueryChange?.(event.currentTarget.value)}
                 placeholder="Search"
@@ -546,9 +610,9 @@ export function Shell({
                 ))}
               </div>
               ) : null}
-              <ul role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
+              <ul id="command-menu-results" role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
                 {paletteItems.map((item, index) => (
-                  <li key={item.id} role="option" aria-selected={index === selectedIndex}>
+                  <li id={`command-option-${index}`} key={item.id} role="option" aria-selected={index === selectedIndex}>
                     <button
                       type="button"
                       data-command={item.id}

@@ -1,19 +1,43 @@
-import { CONNECTOR_CATALOG, HARVESTED_OAUTH_STRATEGIES, N10_COMMAND_IDS } from "connectivity/browser";
+import { CONNECTOR_CATALOG, HARVESTED_OAUTH_STRATEGIES } from "connectivity/browser";
 import type { ConnectorCatalogEntry } from "connectivity/browser";
 
-export const SETTINGS_TABS = ["connections", "mcp", "bots"] as const;
+/** The ledger exposes direct keys 1–9. Billing and other parked tabs remain outside this commandable set. */
+export const SETTINGS_TABS = [
+  "connections",
+  "mcp",
+  "bots",
+  "account",
+  "appearance",
+  "people",
+  "notifications",
+  "security",
+  "advanced",
+] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
-export const SETTINGS_TAB_COMMAND: Record<SettingsTab, (typeof N10_COMMAND_IDS)[number]> = {
+export const SETTINGS_TAB_COMMAND: Record<SettingsTab, string> = {
   connections: "settings.connections",
   mcp: "settings.mcp",
   bots: "settings.bots",
+  account: "settings.tab-4",
+  appearance: "settings.tab-5",
+  people: "settings.tab-6",
+  notifications: "settings.tab-7",
+  security: "settings.tab-8",
+  advanced: "settings.tab-9",
 };
 
 export function settingsTabFromPath(path: string): SettingsTab {
   if (path === "/mcp") return "mcp";
-  if (path.includes("bots")) return "bots";
+  const tab = new URL(path, "https://outreach.invalid").searchParams.get("tab");
+  if (tab && (SETTINGS_TABS as readonly string[]).includes(tab)) return tab as SettingsTab;
   return "connections";
+}
+
+export function settingsTabPath(tab: SettingsTab): string {
+  if (tab === "connections") return "/settings";
+  if (tab === "mcp") return "/mcp";
+  return `/settings?tab=${tab}`;
 }
 
 export function SettingsChrome({
@@ -38,12 +62,12 @@ export function SettingsChrome({
         {SETTINGS_TABS.map((id) => (
           <a
             key={id}
-            href={id === "mcp" ? "/mcp" : id === "bots" ? "/settings?tab=bots" : "/settings"}
+            href={settingsTabPath(id)}
             data-tab={id}
             data-command={SETTINGS_TAB_COMMAND[id]}
             data-active={id === tab ? "true" : "false"}
           >
-            {id === "connections" ? "Connections" : id === "mcp" ? "MCP" : "Bots"}
+            {id === "mcp" ? "MCP" : id[0]!.toUpperCase() + id.slice(1)}
           </a>
         ))}
       </nav>
@@ -85,6 +109,11 @@ export function SettingsChrome({
       ) : null}
       {tab === "bots" ? (
         <p data-bot-owner="xor">Webhook owner is user XOR bot. Channel bots wait on N9.</p>
+      ) : null}
+      {!["connections", "mcp", "bots"].includes(tab) ? (
+        <p data-settings-boundary={tab}>
+          {tab[0]!.toUpperCase() + tab.slice(1)} settings are routed by N5; their owning domain is not built in this shell pass.
+        </p>
       ) : null}
     </section>
   );

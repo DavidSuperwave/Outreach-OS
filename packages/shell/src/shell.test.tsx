@@ -147,9 +147,12 @@ describe("N5 chrome commands (160)", () => {
     expect(chromeNavigatePath("global.new-split.cmd", "/tasks")).toBe("/tasks/_/inbox/_");
     expect(chromeNavigatePath("split.close-or-home", "/home/_/inbox/_")).toBe("/");
     expect(chromeActiveScope("/tasks")).toBe("split");
-    expect(chromeActiveScope("/settings")).toBe("detached");
-    expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
-    expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("command-scope-create-menu");
+    expect(chromeActiveScope("/settings")).toBe("settings");
+    expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("command-menu");
+    expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("launcher");
+    expect(chromeActiveScope("/tasks", { createMenuOpen: true, createMenuViaLeader: true })).toBe(
+      "command-scope-create-menu",
+    );
     expect(isFullCoverRoute("/login")).toBe(true);
     expect(isFullCoverRoute("/settings")).toBe(true);
     expect(isFullCoverRoute("/tasks")).toBe(false);
@@ -162,7 +165,7 @@ describe("N5 chrome commands (160)", () => {
     expect(SIDEBAR_NAV.find((row) => row.id === "go-to.documents")?.label).toBe("Files");
   });
 
-  it("registers keyed chrome chords; settings 1/2/3 stay off the soup split", () => {
+  it("registers keyed chrome chords; settings 1–9 stay off the soup split", () => {
     const registry = new CommandRegistry();
     const hits: string[] = [];
     registerChromeHotkeys(registry, (id) => {
@@ -222,9 +225,10 @@ describe("N5 chrome commands (160)", () => {
         platform: "mac",
       }),
     ).toBe("global.toggle-sidebar");
-    registry.setActive("detached");
+    registry.setActive("settings");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-1");
     expect(registry.dispatch({ chord: "2", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-2");
+    expect(registry.dispatch({ chord: "9", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-9");
     expect(hits).toContain("global.command-menu");
     expect(COMMAND_MENU_ITEMS.some((item) => item.id === "go-to.tasks")).toBe(true);
   });
@@ -665,7 +669,7 @@ describe("Shell boots", () => {
     );
     expect(category).toBe("tasks");
     expect(paths).toEqual([]);
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(registry.dispatch({ chord: "arrowdown", inputFocused: true, touch: false, platform: "mac" })).toBe(
       "command-menu.nav-down",
     );
@@ -714,7 +718,7 @@ describe("Shell boots", () => {
         enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
       }),
     );
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(defaultChromeHotkeyHandle(() => undefined, {
       openCommandScope: (id) => {
         scope = id === "global.change-theme" ? "change-theme" : scope;
@@ -890,7 +894,7 @@ describe("Shell boots", () => {
         enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
       }),
     );
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(registry.dispatch({ chord: "tab", inputFocused: true, touch: false, platform: "mac" })).toBe(
       "command-menu.next-category",
     );
