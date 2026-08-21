@@ -46,6 +46,10 @@ after `registerChromeHotkeys` (slice overrides win):
 steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu` (search + 7 category tabs).
 `o` then `t` opens that palette on the Tasks category (ledger L22), it does not
 navigate. Arrow keys move `data-selected`; Enter confirms the highlight.
+Tab / Shift+Tab cycle the 7 category tabs while the palette is on the root
+scope (priority 10 on detached so they beat settings.next-tab). `cmd+k` is
+dispatched in the capture phase so the registry can preempt the browser find
+bar when the event reaches the page.
 `global.change-theme` pushes a nested palette scope listing THEME_IDS;
 Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. `c` then `t` stays on `command-scope-create-menu`

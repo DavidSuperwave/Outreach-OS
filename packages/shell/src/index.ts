@@ -31,6 +31,7 @@ export {
   commandMenuItemsForScope,
   commandMenuScopeLabel,
   COMMAND_MENU_NESTED_LEADERS,
+  nextCommandMenuCategory,
   GO_TO_PATH,
   SIDEBAR_NAV,
   persistTheme,

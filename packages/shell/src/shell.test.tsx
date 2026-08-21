@@ -18,6 +18,7 @@ import {
   CREATE_MENU_ITEMS,
   filterCommandMenuItems,
   SIDEBAR_NAV,
+  nextCommandMenuCategory,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -690,5 +691,37 @@ describe("Shell boots", () => {
     );
     expect(compose).toBe(true);
     expect(paths).toEqual([]);
+  });
+
+  it("cycles command-menu categories with tab / shift+tab while the palette is open", () => {
+    expect(nextCommandMenuCategory("all", 1)).toBe("commands");
+    expect(nextCommandMenuCategory("dms", 1)).toBe("all");
+    expect(nextCommandMenuCategory("all", -1)).toBe("dms");
+    let category = "all";
+    let nested = false;
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle(() => undefined, {
+        cycleCommandCategory: (delta) => {
+          if (nested) return false;
+          category = nextCommandMenuCategory(category as "all", delta);
+          return true;
+        },
+        enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
+      }),
+    );
+    registry.setActive("detached");
+    expect(registry.dispatch({ chord: "tab", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "command-menu.next-category",
+    );
+    expect(category).toBe("commands");
+    expect(registry.dispatch({ chord: "shift+tab", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "command-menu.prev-category",
+    );
+    expect(category).toBe("all");
+    nested = true;
+    expect(registry.dispatch({ chord: "tab", inputFocused: true, touch: false, platform: "mac" })).toBeNull();
+    expect(category).toBe("all");
   });
 });

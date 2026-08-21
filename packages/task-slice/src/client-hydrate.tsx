@@ -10,6 +10,7 @@ import {
   filterCommandMenuItems,
   commandMenuCategoryFromId,
   COMMAND_MENU_NESTED_LEADERS,
+  nextCommandMenuCategory,
   isFullCoverRoute,
   persistTheme,
   registerChromeHotkeys,
@@ -318,6 +319,16 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     return true;
   }, []);
 
+  const cycleCommandCategory = useCallback((delta: number) => {
+    if (!commandMenuOpenRef.current || commandScopeRef.current !== "root") return false;
+    const next = nextCommandMenuCategory(commandCategoryRef.current, delta);
+    setCommandCategory(next);
+    commandCategoryRef.current = next;
+    setCommandSelectedIndex(0);
+    commandSelectedIndexRef.current = 0;
+    return true;
+  }, []);
+
   const openTaskCompose = useCallback(() => {
     try {
       sessionStorage.removeItem(OPEN_TASK_COMPOSE_KEY);
@@ -432,6 +443,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         return true;
       },
       openCommandCategory,
+      cycleCommandCategory,
       openCommandScope,
       backCommandScope,
       commandQueryEmpty: () => commandQueryRef.current.trim() === "",
@@ -489,6 +501,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       });
       if (id) {
         event.preventDefault();
+        event.stopPropagation();
         return;
       }
       if (
@@ -499,9 +512,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         event.preventDefault();
       }
     };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       if (registryRef.current === registry) registryRef.current = null;
     };
   }, [
@@ -513,6 +526,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     confirmCommandSelection,
     moveCommandSelection,
     openCommandCategory,
+    cycleCommandCategory,
     openCommandScope,
     backCommandScope,
     openTaskCompose,
@@ -703,6 +717,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         toggleCreateMenu,
         toggleCommandMenu,
         openCommandCategory,
+        cycleCommandCategory,
         openCommandScope,
         backCommandScope,
         commandQueryEmpty: () => commandQueryRef.current.trim() === "",

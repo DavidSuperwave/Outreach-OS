@@ -137,6 +137,12 @@ export const COMMAND_MENU_CATEGORIES = [
 
 export type CommandMenuCategory = (typeof COMMAND_MENU_CATEGORIES)[number]["id"];
 
+export function nextCommandMenuCategory(current: CommandMenuCategory, delta: number): CommandMenuCategory {
+  const ids = COMMAND_MENU_CATEGORIES.map((row) => row.id);
+  const index = Math.max(0, ids.indexOf(current));
+  return ids[(index + delta + ids.length) % ids.length]!;
+}
+
 export type CommandMenuScope = "root" | "change-theme" | "default-light" | "default-dark";
 
 export const COMMAND_MENU_NESTED_LEADERS: Record<string, CommandMenuScope> = {
@@ -290,6 +296,7 @@ export function defaultChromeHotkeyHandle(
     toggleCreateMenu?: () => boolean;
     openTaskCompose?: () => boolean;
     openCommandCategory?: (id: string) => boolean;
+    cycleCommandCategory?: (delta: number) => boolean;
     moveCommandSelection?: (delta: number) => boolean;
     confirmCommandSelection?: () => boolean;
     closeMenus?: () => boolean;
@@ -359,6 +366,8 @@ export function defaultChromeHotkeyHandle(
     if (id.startsWith("command-menu.open-category.")) {
       return extras.openCommandCategory?.(id) ?? (chromeNavigatePath(id) ? (navigate(chromeNavigatePath(id)!), true) : true);
     }
+    if (id === "command-menu.next-category") return extras.cycleCommandCategory?.(1) ?? true;
+    if (id === "command-menu.prev-category") return extras.cycleCommandCategory?.(-1) ?? true;
     if (id === "command-menu.nav-down" || id === "launcher.nav-down") {
       return extras.moveCommandSelection?.(1) ?? Boolean(extras.toggleCommandMenu);
     }
@@ -431,6 +440,24 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
     registrationType: "add",
     runWithInputFocused: true,
     handle: () => handle("command-menu.escape"),
+  });
+  registry.register({
+    id: "command-menu.next-category",
+    scope: "detached",
+    chord: "tab",
+    priority: 10,
+    registrationType: "add",
+    runWithInputFocused: true,
+    handle: () => handle("command-menu.next-category"),
+  });
+  registry.register({
+    id: "command-menu.prev-category",
+    scope: "detached",
+    chord: "shift+tab",
+    priority: 10,
+    registrationType: "add",
+    runWithInputFocused: true,
+    handle: () => handle("command-menu.prev-category"),
   });
 }
 
