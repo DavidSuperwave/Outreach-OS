@@ -500,8 +500,24 @@ describe("Shell boots", () => {
     expect(html).toContain("data-command=\"command-menu.open-category.tasks\"");
     expect(html).toContain("data-command=\"go-to.tasks\"");
     expect(html).toContain("data-command=\"global.logout\"");
+    expect(html).toContain("data-command=\"global.change-theme\"");
+    expect(html).toContain("data-command-scope=\"root\"");
     expect(html).toContain("data-selected=\"true\"");
     expect(html).not.toMatch(/macro/i);
+    const nested = renderToString(
+      createElement(Shell, {
+        path: "/tasks",
+        theme: "outreach-dark",
+        commandMenuOpen: true,
+        commandScope: "change-theme",
+      }),
+    );
+    expect(nested).toContain("data-command-scope=\"change-theme\"");
+    expect(nested).toContain("data-command=\"theme.set-visible.outreach-dark\"");
+    expect(nested).toContain("data-command=\"theme.system-preference\"");
+    expect(nested).toContain("data-command=\"command-menu.backspace-back\"");
+    expect(nested).not.toContain("data-command=\"global.logout\"");
+    expect(nested).not.toContain("data-surface=\"command-menu.categories\"");
     const tasks = renderToString(
       createElement(Shell, {
         path: "/tasks",
@@ -563,6 +579,74 @@ describe("Shell boots", () => {
       "command-menu.confirm",
     );
     expect(hits).toEqual(["create-menu.task"]);
+    expect(paths).toEqual([]);
+  });
+
+  it("opens Change theme as a nested palette scope and Escape goes back", () => {
+    expect(filterCommandMenuItems("", "all", "change-theme").map((item) => item.id)).toContain(
+      "theme.set-visible.outreach-dark",
+    );
+    expect(filterCommandMenuItems("", "all", "change-theme").some((item) => item.id === "go-to.tasks")).toBe(false);
+    const paths: string[] = [];
+    const themes: string[] = [];
+    let scope: "root" | "change-theme" = "root";
+    let closed = false;
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle((path) => paths.push(path), {
+        openCommandScope: (id) => {
+          if (id === "global.change-theme") {
+            scope = "change-theme";
+            return true;
+          }
+          return false;
+        },
+        backCommandScope: () => {
+          if (scope === "root") return false;
+          scope = "root";
+          return true;
+        },
+        applyTheme: (theme) => {
+          themes.push(theme);
+          return true;
+        },
+        closeMenus: () => {
+          closed = true;
+          scope = "root";
+          return true;
+        },
+        enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
+      }),
+    );
+    registry.setActive("detached");
+    expect(defaultChromeHotkeyHandle(() => undefined, {
+      openCommandScope: (id) => {
+        scope = id === "global.change-theme" ? "change-theme" : scope;
+        return true;
+      },
+    })("global.change-theme")).toBe(true);
+    expect(scope).toBe("change-theme");
+    expect(paths).toEqual([]);
+    expect(registry.dispatch({ chord: "escape", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "command-menu.escape",
+    );
+    expect(scope).toBe("root");
+    expect(closed).toBe(false);
+    expect(
+      defaultChromeHotkeyHandle(() => undefined, {
+        applyTheme: (theme) => {
+          themes.push(theme);
+          return true;
+        },
+        closeMenus: () => {
+          closed = true;
+          return true;
+        },
+      })("theme.set-visible.outreach-light"),
+    ).toBe(true);
+    expect(themes).toEqual(["outreach-light"]);
+    expect(closed).toBe(true);
     expect(paths).toEqual([]);
   });
 

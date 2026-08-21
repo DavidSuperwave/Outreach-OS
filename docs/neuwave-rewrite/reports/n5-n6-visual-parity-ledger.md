@@ -46,6 +46,8 @@ after `registerChromeHotkeys` (slice overrides win):
 steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu` (search + 7 category tabs).
 `o` then `t` opens that palette on the Tasks category (ledger L22), it does not
 navigate. Arrow keys move `data-selected`; Enter confirms the highlight.
+`global.change-theme` pushes a nested palette scope listing THEME_IDS;
+Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. `c` then `t` stays on `command-scope-create-menu`
 (`chromeActiveScope` does not flip the launcher to `detached`). Slice
 registration still wins on `/tasks`. Compose starts closed; `c` opens

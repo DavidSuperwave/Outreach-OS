@@ -9,11 +9,13 @@ import {
   defaultChromeHotkeyHandle,
   filterCommandMenuItems,
   commandMenuCategoryFromId,
+  COMMAND_MENU_NESTED_LEADERS,
   isFullCoverRoute,
   persistTheme,
   registerChromeHotkeys,
   STORAGE_KEYS,
   type CommandMenuCategory,
+  type CommandMenuScope,
   type ThemeId,
 } from "shell";
 import { registerSliceHotkeys } from "./slice-hotkeys.js";
@@ -165,6 +167,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [commandQuery, setCommandQuery] = useState("");
   const [commandCategory, setCommandCategory] = useState<CommandMenuCategory>("all");
   const [commandSelectedIndex, setCommandSelectedIndex] = useState(0);
+  const [commandScope, setCommandScope] = useState<CommandMenuScope>("root");
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [taskComposeOpen, setTaskComposeOpen] = useState(() => {
     try {
@@ -192,6 +195,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const commandQueryRef = useRef(commandQuery);
   const commandCategoryRef = useRef(commandCategory);
   const commandSelectedIndexRef = useRef(commandSelectedIndex);
+  const commandScopeRef = useRef(commandScope);
   const createMenuOpenRef = useRef(createMenuOpen);
   const taskComposeOpenRef = useRef(taskComposeOpen);
   const selectCommandRef = useRef<(id: string) => void>(() => undefined);
@@ -199,6 +203,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   commandQueryRef.current = commandQuery;
   commandCategoryRef.current = commandCategory;
   commandSelectedIndexRef.current = commandSelectedIndex;
+  commandScopeRef.current = commandScope;
   createMenuOpenRef.current = createMenuOpen;
   taskComposeOpenRef.current = taskComposeOpen;
 
@@ -209,6 +214,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     commandCategoryRef.current = category;
     setCommandSelectedIndex(0);
     commandSelectedIndexRef.current = 0;
+    setCommandScope("root");
+    commandScopeRef.current = "root";
   };
 
   const closeMenus = useCallback(() => {
@@ -249,6 +256,33 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     return true;
   }, []);
 
+  const openCommandScope = useCallback((id: string) => {
+    const nested = COMMAND_MENU_NESTED_LEADERS[id];
+    if (!nested) return false;
+    setCommandScope(nested);
+    commandScopeRef.current = nested;
+    setCommandQuery("");
+    commandQueryRef.current = "";
+    setCommandSelectedIndex(0);
+    commandSelectedIndexRef.current = 0;
+    setCommandMenuOpen(true);
+    commandMenuOpenRef.current = true;
+    setCreateMenuOpen(false);
+    createMenuOpenRef.current = false;
+    return true;
+  }, []);
+
+  const backCommandScope = useCallback(() => {
+    if (commandScopeRef.current === "root") return false;
+    setCommandScope("root");
+    commandScopeRef.current = "root";
+    setCommandQuery("");
+    commandQueryRef.current = "";
+    setCommandSelectedIndex(0);
+    commandSelectedIndexRef.current = 0;
+    return true;
+  }, []);
+
   const openCommandCategory = useCallback((id: string) => {
     const category = commandMenuCategoryFromId(id) ?? "all";
     resetPalette(category);
@@ -261,7 +295,11 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   }, []);
 
   const moveCommandSelection = useCallback((delta: number) => {
-    const items = filterCommandMenuItems(commandQueryRef.current, commandCategoryRef.current);
+    const items = filterCommandMenuItems(
+      commandQueryRef.current,
+      commandCategoryRef.current,
+      commandScopeRef.current,
+    );
     if (items.length === 0) return true;
     const next = (commandSelectedIndexRef.current + delta + items.length) % items.length;
     commandSelectedIndexRef.current = next;
@@ -270,7 +308,11 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   }, []);
 
   const confirmCommandSelection = useCallback(() => {
-    const items = filterCommandMenuItems(commandQueryRef.current, commandCategoryRef.current);
+    const items = filterCommandMenuItems(
+      commandQueryRef.current,
+      commandCategoryRef.current,
+      commandScopeRef.current,
+    );
     const item = items[commandSelectedIndexRef.current] ?? items[0];
     if (item) selectCommandRef.current(item.id);
     return true;
@@ -390,6 +432,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         return true;
       },
       openCommandCategory,
+      openCommandScope,
+      backCommandScope,
+      commandQueryEmpty: () => commandQueryRef.current.trim() === "",
       moveCommandSelection,
       confirmCommandSelection,
       closeMenus,
@@ -401,7 +446,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       },
       applyTheme: (next, kind = "visible") => {
         persistTheme(next, kind);
-        if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
+        if (kind === "visible") setTheme(next);
         return true;
       },
       toggleSidebar: () => {
@@ -468,6 +513,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     confirmCommandSelection,
     moveCommandSelection,
     openCommandCategory,
+    openCommandScope,
+    backCommandScope,
     openTaskCompose,
     toggleCommandMenu,
     toggleCreateMenu,
@@ -592,6 +639,20 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       openCommandCategory(id);
       return;
     }
+    if (COMMAND_MENU_NESTED_LEADERS[id] || id === "command-menu.backspace-back") {
+      defaultChromeHotkeyHandle(() => undefined, {
+        openCommandScope,
+        backCommandScope,
+        commandQueryEmpty: () => commandQueryRef.current.trim() === "",
+        closeMenus,
+        enabled: () =>
+          defaultChromeContext({
+            signedIn: Boolean(token),
+            commandMenuOpen: true,
+          }),
+      })(id);
+      return;
+    }
     if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
       if (isTaskPath(boot.path)) {
         openTaskCompose();
@@ -625,7 +686,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         },
         applyTheme: (next, kind = "visible") => {
           persistTheme(next, kind);
-          if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
+          if (kind === "visible") setTheme(next);
           return true;
         },
         closeMenus,
@@ -642,6 +703,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         toggleCreateMenu,
         toggleCommandMenu,
         openCommandCategory,
+        openCommandScope,
+        backCommandScope,
+        commandQueryEmpty: () => commandQueryRef.current.trim() === "",
         moveCommandSelection,
         confirmCommandSelection,
       },
@@ -664,6 +728,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     commandQuery,
     commandCategory,
     commandSelectedIndex,
+    commandScope,
     sidebarCollapsed,
     onToggleCommandMenu: toggleCommandMenu,
     onToggleCreateMenu: toggleCreateMenu,

@@ -10,8 +10,10 @@ import {
   COMMAND_MENU_CATEGORIES,
   CREATE_MENU_ITEMS,
   SIDEBAR_NAV,
+  commandMenuScopeLabel,
   filterCommandMenuItems,
   type CommandMenuCategory,
+  type CommandMenuScope,
 } from "./n5-hotkeys.js";
 
 export interface ShellProps {
@@ -39,6 +41,7 @@ export interface ShellProps {
   commandQuery?: string;
   commandCategory?: CommandMenuCategory;
   commandSelectedIndex?: number;
+  commandScope?: CommandMenuScope;
   onCommandQueryChange?: (query: string) => void;
   onCommandMenuSelect?: (id: string) => void;
   onCreateMenuSelect?: (id: string) => void;
@@ -79,6 +82,7 @@ export function Shell({
   commandQuery = "",
   commandCategory = "all",
   commandSelectedIndex = 0,
+  commandScope = "root",
   onCommandQueryChange,
   onCommandMenuSelect,
   onCreateMenuSelect,
@@ -121,7 +125,7 @@ export function Shell({
     padding: "0.85rem 1rem",
     boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
   };
-  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory);
+  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope);
   const selectedIndex =
     paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
   const fullCover = isFullCoverRoute(path);
@@ -346,9 +350,19 @@ export function Shell({
           </div>
         ) : null}
         {commandMenuOpen ? (
-          <div data-surface="command-menu" role="dialog" aria-label="Command menu" style={overlay}>
+          <div data-surface="command-menu" data-command-scope={commandScope} role="dialog" aria-label="Command menu" style={overlay}>
             <div style={{ ...popover, maxWidth: "32rem" }}>
-              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Command menu</p>
+              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>{commandMenuScopeLabel(commandScope)}</p>
+              {commandScope !== "root" ? (
+                <button
+                  type="button"
+                  data-command="command-menu.backspace-back"
+                  onClick={() => onCommandMenuSelect?.("command-menu.backspace-back")}
+                  style={{ ...chromeButton, marginBottom: "0.75rem" }}
+                >
+                  Back
+                </button>
+              ) : null}
               <input
                 name="command-query"
                 aria-label="Command search"
@@ -367,6 +381,7 @@ export function Shell({
                   borderRadius: "0.45rem",
                 }}
               />
+              {commandScope === "root" ? (
               <div data-surface="command-menu.categories" role="tablist" aria-label="Command categories">
                 {COMMAND_MENU_CATEGORIES.map((row) => (
                   <button
@@ -387,6 +402,7 @@ export function Shell({
                   </button>
                 ))}
               </div>
+              ) : null}
               <ul role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
                 {paletteItems.map((item, index) => (
                   <li key={item.id} role="option" aria-selected={index === selectedIndex}>
