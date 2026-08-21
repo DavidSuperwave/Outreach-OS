@@ -19,6 +19,8 @@ import {
   type HydrateSplitState,
 } from "./client-hydrate.js";
 
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 const cleanups: (() => void)[] = [];
 
 afterEach(async () => {
@@ -67,7 +69,7 @@ describe("integrated N5 hydrate runtime", () => {
     let popoverOpen = true;
     const navigations: string[] = [];
     const historyMoves: number[] = [];
-    let renderUi = () => undefined;
+    let renderUi: () => void = () => undefined;
     const { root, container } = mount((mountedRoot) => {
       renderUi = () => {
         mountedRoot.render(createElement(Shell, {
@@ -225,6 +227,9 @@ describe("integrated N5 hydrate runtime", () => {
     act(() => key(window, "KeyT", "T", { shiftKey: true }));
     expect(navigations.at(-1)).toBe("/home/_/tasks/_");
     expect(composeOpen).toBe(false);
+    createOpen = true;
+    act(() => key(window, "KeyC", "c"));
+    expect(createOpen).toBe(false);
     launcherRuntime.remove();
 
     path = "/";
@@ -244,7 +249,7 @@ describe("integrated N5 hydrate runtime", () => {
     let category: "all" | "commands" = "all";
     let scope: "root" | "change-theme" = "root";
     let selected = 0;
-    let renderUi = () => undefined;
+    let renderUi: () => void = () => undefined;
     const { container } = mount((root) => {
       renderUi = () => root.render(createElement(
         "div",
@@ -326,7 +331,7 @@ describe("integrated N5 hydrate runtime", () => {
     const last = nestedButtons[nestedButtons.length - 1]!;
     last.focus();
     act(() => key(last, "Tab", "Tab"));
-    expect(document.activeElement).toBe(container.querySelector('[aria-label="Command search"]'));
+    expect(document.activeElement).toBe(nestedButtons[0]);
 
     const nestedSearch = container.querySelector<HTMLInputElement>('[aria-label="Command search"]')!;
     act(() => key(nestedSearch, "Escape", "Escape"));
