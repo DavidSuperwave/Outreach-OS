@@ -264,11 +264,11 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(soupEnabled("soup-entity.status", soup)).toBe(true);
 
     const registry = new CommandRegistry();
-    let ctx = requestContext(ownerActor(), { correlationId: "c-t" });
+    let chordCtx = requestContext(ownerActor(), { correlationId: "c-t" });
     bindSliceCommands(
       registry,
       api,
-      () => ctx,
+      () => chordCtx,
       () => ({ title: "From chord", status: "in_progress", priority: "high", assigneeId: ownerId }),
     );
     expect(SLICE_HOTKEY_BINDINGS.map((row) => row.id).sort()).toEqual([...SLICE_COMMAND_IDS].sort());
@@ -286,7 +286,7 @@ describe("N6 task vertical slice (11 gates)", () => {
       entityId: createdTask.id,
       need: "edit",
     });
-    ctx = requestContext(ownerActor(), { receipt: receiptForChords, correlationId: "chord-mut" });
+    chordCtx = requestContext(ownerActor(), { receipt: receiptForChords, correlationId: "chord-mut" });
     registry.setActive("split");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.tab-1");
     expect(registry.dispatch({ chord: "enter", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.open");
