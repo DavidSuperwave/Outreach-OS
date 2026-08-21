@@ -32,7 +32,9 @@ are marked-and-skipped on the DO outbox. In-process maps remain the unit-test co
 ## RPC/API contract
 
 Typed `TaskApi` capability (ADR-002 pattern). Not added to kernel `api.ts`. No Instantly
-send/activate methods.
+send/activate methods. Worker `/rpc` binds the actor from a kernel session token
+(`Authorization: Bearer username:secret`) plus `x-neuwave-tenant` membership on Team DO.
+Client `x-neuwave-actor` / body `actor` is rejected.
 
 ## Commands and UI surfaces
 

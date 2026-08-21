@@ -51,6 +51,7 @@ export interface TaskRpc {
   setAssignee(assigneeId: string, ctx: RequestContext): Promise<TaskRecord>;
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
+  listVisible(actor: ActorContext): Promise<SoupItem[]>;
   seq(): Promise<number>;
   replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
   rebuildProjection(actor: ActorContext): Promise<void>;

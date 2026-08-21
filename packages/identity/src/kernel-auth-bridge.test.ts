@@ -1,6 +1,7 @@
 import { SERVICE_SALT as KERNEL_SALT } from "@gadgets/workshop-shared/api";
 import { describe, expect, it } from "vitest";
 import { afterKernelAuthenticate, assertAdminPolicyAgrees } from "./kernel-auth-bridge.js";
+import { bindKernelSession, SessionBindError } from "./session-bind.js";
 import { parseKernelSessionToken } from "./kernel-types.js";
 import { SERVICE_SALT } from "./kernel-auth-surface.js";
 import { loadSeedFixtures, SEED_ADMIN, SEED_MEMBER } from "./seed.js";
@@ -35,5 +36,60 @@ describe("OD-16 kernel auth bridge", () => {
 
   it("SERVICE_SALT matches the pinned kernel export", () => {
     expect(SERVICE_SALT).toEqual(KERNEL_SALT);
+  });
+});
+
+describe("bindKernelSession (N1 → N6 actor)", () => {
+  it("scopes the seeded admin to the tenant after authenticate", async () => {
+    const { api, teamId } = loadSeedFixtures();
+    const ctx = await bindKernelSession({
+      token: "admin:kernel-session-secret",
+      tenantId: teamId,
+      directory: api,
+      authenticate: async () => undefined,
+      memberRole: async (userId, tenant) => api.resolveEffectiveRole(api.users.get(userId)!, tenant),
+    });
+    expect(ctx.kernelUsername).toBe("admin");
+    expect(ctx.actor.tenantId).toBe(teamId);
+    expect(ctx.actor.id).toBe(SEED_ADMIN.userId);
+  });
+
+  it("rejects an outsider who authenticates but is not a member", async () => {
+    const { api, teamId } = loadSeedFixtures();
+    try {
+      await bindKernelSession({
+        token: "outsider:kernel-session-secret",
+        tenantId: teamId,
+        directory: api,
+        authenticate: async () => undefined,
+        memberRole: async (userId, tenant) => {
+          const session = api.users.get(userId);
+          return session ? api.resolveEffectiveRole(session, tenant) : null;
+        },
+      });
+      throw new Error("expected bind to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SessionBindError);
+      expect((error as SessionBindError).status).toBe(403);
+    }
+  });
+
+  it("rejects a failed kernel authenticate as 401", async () => {
+    const { api, teamId } = loadSeedFixtures();
+    try {
+      await bindKernelSession({
+        token: "admin:kernel-session-secret",
+        tenantId: teamId,
+        directory: api,
+        authenticate: async () => {
+          throw new Error("invalid session token");
+        },
+        memberRole: async () => "owner",
+      });
+      throw new Error("expected bind to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SessionBindError);
+      expect((error as SessionBindError).status).toBe(401);
+    }
   });
 });

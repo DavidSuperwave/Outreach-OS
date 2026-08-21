@@ -196,6 +196,12 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return filterVisible(rows, receipts);
   }
 
+  async listVisible(actor: ActorContext): Promise<SoupItem[]> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    return this.listTasks(this.#viewReceipts(slice, actor));
+  }
+
   async seq(): Promise<number> {
     return this.#load().plane.lists.seq;
   }

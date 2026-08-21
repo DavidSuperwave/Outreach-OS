@@ -26,6 +26,7 @@ export { DurableTeamsApi } from "./durable-teams-api.js";
 export { loadSeedFixtures, SEED_ADMIN, SEED_MEMBER, SEED_OUTSIDER } from "./seed.js";
 export { afterKernelAuthenticate, assertAdminPolicyAgrees } from "./kernel-auth-bridge.js";
 export type { KernelIdentityDirectory } from "./kernel-auth-bridge.js";
+export { bindKernelSession, bearerToken, SessionBindError } from "./session-bind.js";
 export { parseKernelSessionToken } from "./kernel-types.js";
 export { LoginAttemptImpl } from "./login-attempt.js";
 export {

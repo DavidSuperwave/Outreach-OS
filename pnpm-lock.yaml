@@ -826,6 +826,15 @@ importers:
 
   packages/task-slice:
     dependencies:
+      '@gadgets/backend-utils':
+        specifier: workspace:*
+        version: link:../../cloudflare-os/packages/backend-utils
+      '@gadgets/typed-storage':
+        specifier: workspace:*
+        version: link:../../cloudflare-os/packages/typed-storage
+      '@gadgets/workshop-shared':
+        specifier: workspace:*
+        version: link:../../cloudflare-os/packages/workshop-shared
       authz:
         specifier: workspace:*
         version: link:../authz

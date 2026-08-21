@@ -13,6 +13,9 @@
     "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@gadgets/backend-utils": "workspace:*",
+    "@gadgets/typed-storage": "workspace:*",
+    "@gadgets/workshop-shared": "workspace:*",
     "authz": "workspace:*",
     "control-plane": "workspace:*",
     "identity": "workspace:*",
