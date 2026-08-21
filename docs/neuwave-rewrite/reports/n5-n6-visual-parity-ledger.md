@@ -42,7 +42,9 @@ after `registerChromeHotkeys` (slice overrides win):
 `03-command-hotkey-ledger.csv` (`N5_KEYED_BINDINGS`). Unkeyed rows
 (command-menu only, including killed `global.hotkey-debugger`) stay in
 `N5_UNKEYED_IDS`. Settings tabs `1`–`9` register on `detached` so they do not
-steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu`.
+steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu` (search + 7 category tabs).
+`o` then `t` opens that palette on the Tasks category (ledger L22), it does not
+navigate. Arrow keys move `data-selected`; Enter confirms the highlight.
 `g` then `t` is `go-to.tasks`. `c` then `t` stays on `command-scope-create-menu`
 (`chromeActiveScope` does not flip the launcher to `detached`). Slice
 registration still wins on `/tasks`. Compose starts closed; `c` opens

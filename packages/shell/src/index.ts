@@ -17,9 +17,13 @@ export {
   chromeNavigatePath,
   COMMAND_MENU_ITEMS,
   CREATE_MENU_ITEMS,
+  COMMAND_MENU_CATEGORIES,
+  filterCommandMenuItems,
+  commandMenuCategoryFromId,
   GO_TO_PATH,
   persistTheme,
 } from "./n5-hotkeys.js";
+export type { CommandMenuCategory } from "./n5-hotkeys.js";
 export { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 export { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 export type { KernelConsumedRpc } from "./kernel-surface.js";

@@ -6,7 +6,7 @@ import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
-import { COMMAND_MENU_ITEMS, CREATE_MENU_ITEMS } from "./n5-hotkeys.js";
+import { COMMAND_MENU_CATEGORIES, CREATE_MENU_ITEMS, filterCommandMenuItems, type CommandMenuCategory } from "./n5-hotkeys.js";
 
 export interface ShellProps {
   path: string;
@@ -30,6 +30,10 @@ export interface ShellProps {
   sessionReady?: boolean;
   commandMenuOpen?: boolean;
   createMenuOpen?: boolean;
+  commandQuery?: string;
+  commandCategory?: CommandMenuCategory;
+  commandSelectedIndex?: number;
+  onCommandQueryChange?: (query: string) => void;
   onCommandMenuSelect?: (id: string) => void;
   onCreateMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
@@ -77,6 +81,10 @@ export function Shell({
   sessionReady,
   commandMenuOpen = false,
   createMenuOpen = false,
+  commandQuery = "",
+  commandCategory = "all",
+  commandSelectedIndex = 0,
+  onCommandQueryChange,
   onCommandMenuSelect,
   onCreateMenuSelect,
   sidebarCollapsed = false,
@@ -117,6 +125,9 @@ export function Shell({
     padding: "0.85rem 1rem",
     boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
   };
+  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory);
+  const selectedIndex =
+    paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
   return (
     <div
       data-shell="outreach-os"
@@ -275,16 +286,63 @@ export function Shell({
         ) : null}
         {commandMenuOpen ? (
           <div data-surface="command-menu" role="dialog" aria-label="Command menu" style={overlay}>
-            <div style={popover}>
+            <div style={{ ...popover, maxWidth: "32rem" }}>
               <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Command menu</p>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {COMMAND_MENU_ITEMS.map((item) => (
-                  <li key={item.id}>
+              <input
+                name="command-query"
+                aria-label="Command search"
+                value={commandQuery}
+                onChange={(event) => onCommandQueryChange?.(event.currentTarget.value)}
+                placeholder="Search"
+                autoComplete="off"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: "0.75rem",
+                  padding: "0.45rem 0.6rem",
+                  background: "var(--outreach-surface)",
+                  color: "var(--outreach-text)",
+                  border: "1px solid var(--outreach-border)",
+                  borderRadius: "0.45rem",
+                }}
+              />
+              <div data-surface="command-menu.categories" role="tablist" aria-label="Command categories">
+                {COMMAND_MENU_CATEGORIES.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={commandCategory === row.id}
+                    data-command={row.command}
+                    data-category={row.id}
+                    onClick={() => onCommandMenuSelect?.(row.command)}
+                    style={{
+                      ...chromeButton,
+                      padding: "0.25rem 0.5rem",
+                      textDecoration: commandCategory === row.id ? "underline" : "none",
+                    }}
+                  >
+                    {row.label}
+                  </button>
+                ))}
+              </div>
+              <ul role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
+                {paletteItems.map((item, index) => (
+                  <li key={item.id} role="option" aria-selected={index === selectedIndex}>
                     <button
                       type="button"
                       data-command={item.id}
+                      data-selected={index === selectedIndex ? "true" : "false"}
                       onClick={() => onCommandMenuSelect?.(item.id)}
-                      style={{ ...chromeButton, display: "block", width: "100%", textAlign: "left", padding: "0.45rem 0" }}
+                      style={{
+                        ...chromeButton,
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.45rem 0.35rem",
+                        background: index === selectedIndex ? "var(--outreach-surface)" : "none",
+                        borderRadius: "0.35rem",
+                      }}
                     >
                       {item.label}
                     </button>

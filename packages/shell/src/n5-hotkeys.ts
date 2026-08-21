@@ -107,6 +107,47 @@ export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] =
   { id: "theme.set-visible.outreach-light", label: "Outreach Light" },
 ];
 
+export const COMMAND_MENU_CATEGORIES = [
+  { id: "all", label: "All", command: "command-menu.open-category.all" },
+  { id: "commands", label: "Command", command: "command-menu.open-category.commands" },
+  { id: "chats", label: "Agents", command: "command-menu.open-category.chats" },
+  { id: "documents", label: "Files", command: "command-menu.open-category.documents" },
+  { id: "tasks", label: "Tasks", command: "command-menu.open-category.tasks" },
+  { id: "channels", label: "Channels", command: "command-menu.open-category.channels" },
+  { id: "dms", label: "People", command: "command-menu.open-category.dms" },
+] as const;
+
+export type CommandMenuCategory = (typeof COMMAND_MENU_CATEGORIES)[number]["id"];
+
+export function commandMenuCategoryFromId(id: string): CommandMenuCategory | null {
+  const match = /^command-menu\.open-category\.(.+)$/.exec(id);
+  if (!match) return null;
+  return COMMAND_MENU_CATEGORIES.some((row) => row.id === match[1]) ? (match[1] as CommandMenuCategory) : null;
+}
+
+export function commandMenuItemCategory(id: string): CommandMenuCategory {
+  if (id === "go-to.tasks" || id === "create-menu.task") return "tasks";
+  if (id === "go-to.documents" || id === "go-to.markdown-documents") return "documents";
+  if (id === "go-to.channels") return "channels";
+  if (id === "go-to.agents") return "chats";
+  if (id === "go-to.companies") return "dms";
+  if (id.startsWith("theme.") || id.startsWith("global.")) return "commands";
+  return "all";
+}
+
+export function filterCommandMenuItems(
+  query = "",
+  category: CommandMenuCategory = "all",
+): readonly { id: N5CommandId; label: string }[] {
+  const needle = query.trim().toLowerCase();
+  return COMMAND_MENU_ITEMS.filter((item) => {
+    const cat = commandMenuItemCategory(item.id);
+    if (category !== "all" && cat !== category) return false;
+    if (!needle) return true;
+    return item.label.toLowerCase().includes(needle) || item.id.toLowerCase().includes(needle);
+  });
+}
+
 export function chromeActiveScope(
   path: string,
   flags: { commandMenuOpen?: boolean; createMenuOpen?: boolean } = {},
@@ -192,6 +233,9 @@ export function defaultChromeHotkeyHandle(
     toggleCommandMenu?: () => boolean;
     toggleCreateMenu?: () => boolean;
     openTaskCompose?: () => boolean;
+    openCommandCategory?: (id: string) => boolean;
+    moveCommandSelection?: (delta: number) => boolean;
+    confirmCommandSelection?: () => boolean;
     closeMenus?: () => boolean;
     applyTheme?: (theme: ThemeId, kind?: "visible" | "light" | "dark") => boolean;
     logout?: () => boolean;
@@ -231,10 +275,17 @@ export function defaultChromeHotkeyHandle(
       const theme = themeIdFromCommand(id);
       return theme ? extras.applyTheme?.(theme, "dark") ?? true : false;
     }
-    if (id === "command-menu.nav-down" || id === "command-menu.nav-up" || id === "launcher.nav-down" || id === "launcher.nav-up") {
-      return extras.toggleCommandMenu ? true : false;
+    if (id.startsWith("command-menu.open-category.")) {
+      return extras.openCommandCategory?.(id) ?? (chromeNavigatePath(id) ? (navigate(chromeNavigatePath(id)!), true) : true);
+    }
+    if (id === "command-menu.nav-down" || id === "launcher.nav-down") {
+      return extras.moveCommandSelection?.(1) ?? Boolean(extras.toggleCommandMenu);
+    }
+    if (id === "command-menu.nav-up" || id === "launcher.nav-up") {
+      return extras.moveCommandSelection?.(-1) ?? Boolean(extras.toggleCommandMenu);
     }
     if (id === "command-menu.confirm" || id === "command-menu.confirm-new-split" || id === "launcher.confirm") {
+      if (extras.confirmCommandSelection) return extras.confirmCommandSelection();
       navigate("/tasks");
       extras.closeMenus?.();
       return true;

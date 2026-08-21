@@ -97,12 +97,14 @@ export function TaskPane({
           role="dialog"
           aria-label="Create task"
           style={{
-            background: "var(--outreach-popover)",
-            border: "1px solid var(--outreach-border)",
-            borderRadius: "0.75rem",
-            padding: "0.85rem 1rem",
-            margin: "0.75rem 0 1rem",
-            maxWidth: "28rem",
+            position: "fixed",
+            inset: 0,
+            zIndex: 21,
+            background: "var(--outreach-overlay)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "12vh 1.25rem 1.25rem",
           }}
           onSubmit={(event) => {
             if (!onCreate) return;
@@ -112,11 +114,22 @@ export function TaskPane({
             if (value) onCreate(value);
           }}
         >
-          <label>
-            Title
-            <input name="title" defaultValue={draft} aria-label="Task title" autoComplete="off" />
-          </label>
-          <button type="submit">Create task</button>
+          <div
+            style={{
+              background: "var(--outreach-popover)",
+              border: "1px solid var(--outreach-border)",
+              borderRadius: "0.75rem",
+              padding: "0.85rem 1rem",
+              maxWidth: "28rem",
+              width: "100%",
+            }}
+          >
+            <label>
+              Title
+              <input name="title" defaultValue={draft} aria-label="Task title" autoComplete="off" />
+            </label>
+            <button type="submit">Create task</button>
+          </div>
         </form>
       ) : null}
       <div data-surface="soup-nav" role="toolbar" aria-label="Soup navigation">

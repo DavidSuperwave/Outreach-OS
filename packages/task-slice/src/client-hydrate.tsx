@@ -7,9 +7,12 @@ import {
   chromeActiveScope,
   defaultChromeContext,
   defaultChromeHotkeyHandle,
+  filterCommandMenuItems,
+  commandMenuCategoryFromId,
   persistTheme,
   registerChromeHotkeys,
   STORAGE_KEYS,
+  type CommandMenuCategory,
   type ThemeId,
 } from "shell";
 import { registerSliceHotkeys } from "./slice-hotkeys.js";
@@ -78,7 +81,11 @@ function clickSliceCommand(command: string): boolean {
 
 function handleLiveSliceHotkey(
   id: string,
-  ui: { openCreateMenu: () => boolean; openTaskCompose: () => boolean },
+  ui: {
+    openCreateMenu: () => boolean;
+    openTaskCompose: () => boolean;
+    openCommandCategory: (id: string) => boolean;
+  },
 ): boolean {
   switch (id) {
     case "global.create":
@@ -89,8 +96,9 @@ function handleLiveSliceHotkey(
     case "create-menu.task":
     case "launcher.task":
       return ui.openTaskCompose();
-    case "go-to.tasks":
     case "command-menu.open-category.tasks":
+      return ui.openCommandCategory(id);
+    case "go-to.tasks":
       if (window.location.pathname !== "/tasks") window.location.assign("/tasks");
       return true;
     case "soup.tab-1":
@@ -153,6 +161,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [alerts, setAlerts] = useState<TaskPaneAlert[]>([]);
   const [sessionReady, setSessionReady] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [commandCategory, setCommandCategory] = useState<CommandMenuCategory>("all");
+  const [commandSelectedIndex, setCommandSelectedIndex] = useState(0);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [taskComposeOpen, setTaskComposeOpen] = useState(() => {
     try {
@@ -171,11 +182,27 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const sessionRef = useRef<TaskSessionApi | null>(null);
   const registryRef = useRef<CommandRegistry | null>(null);
   const commandMenuOpenRef = useRef(commandMenuOpen);
+  const commandQueryRef = useRef(commandQuery);
+  const commandCategoryRef = useRef(commandCategory);
+  const commandSelectedIndexRef = useRef(commandSelectedIndex);
   const createMenuOpenRef = useRef(createMenuOpen);
   const taskComposeOpenRef = useRef(taskComposeOpen);
+  const selectCommandRef = useRef<(id: string) => void>(() => undefined);
   commandMenuOpenRef.current = commandMenuOpen;
+  commandQueryRef.current = commandQuery;
+  commandCategoryRef.current = commandCategory;
+  commandSelectedIndexRef.current = commandSelectedIndex;
   createMenuOpenRef.current = createMenuOpen;
   taskComposeOpenRef.current = taskComposeOpen;
+
+  const resetPalette = (category: CommandMenuCategory = "all") => {
+    setCommandQuery("");
+    commandQueryRef.current = "";
+    setCommandCategory(category);
+    commandCategoryRef.current = category;
+    setCommandSelectedIndex(0);
+    commandSelectedIndexRef.current = 0;
+  };
 
   const closeMenus = useCallback(() => {
     setCommandMenuOpen(false);
@@ -209,8 +236,36 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     if (next) {
       setCreateMenuOpen(false);
       createMenuOpenRef.current = false;
+      resetPalette("all");
       registryRef.current?.jettison();
     }
+    return true;
+  }, []);
+
+  const openCommandCategory = useCallback((id: string) => {
+    const category = commandMenuCategoryFromId(id) ?? "all";
+    resetPalette(category);
+    setCommandMenuOpen(true);
+    commandMenuOpenRef.current = true;
+    setCreateMenuOpen(false);
+    createMenuOpenRef.current = false;
+    registryRef.current?.jettison();
+    return true;
+  }, []);
+
+  const moveCommandSelection = useCallback((delta: number) => {
+    const items = filterCommandMenuItems(commandQueryRef.current, commandCategoryRef.current);
+    if (items.length === 0) return true;
+    const next = (commandSelectedIndexRef.current + delta + items.length) % items.length;
+    commandSelectedIndexRef.current = next;
+    setCommandSelectedIndex(next);
+    return true;
+  }, []);
+
+  const confirmCommandSelection = useCallback(() => {
+    const items = filterCommandMenuItems(commandQueryRef.current, commandCategoryRef.current);
+    const item = items[commandSelectedIndexRef.current] ?? items[0];
+    if (item) selectCommandRef.current(item.id);
     return true;
   }, []);
 
@@ -325,6 +380,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         navigate("/tasks");
         return true;
       },
+      openCommandCategory,
+      moveCommandSelection,
+      confirmCommandSelection,
       closeMenus,
       logout: () => {
         localStorage.removeItem(boot.authTokenKey);
@@ -345,7 +403,11 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     registerChromeHotkeys(registry, handleChrome);
     if (isTaskPath(boot.path) && !commandMenuOpen) {
       registerSliceHotkeys(registry, (id) =>
-        handleLiveSliceHotkey(id, { openCreateMenu: toggleCreateMenu, openTaskCompose }),
+        handleLiveSliceHotkey(id, {
+          openCreateMenu: toggleCreateMenu,
+          openTaskCompose,
+          openCommandCategory,
+        }),
       );
     }
     const onKey = (event: KeyboardEvent) => {
@@ -386,6 +448,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     boot.tenantKey,
     closeMenus,
     commandMenuOpen,
+    confirmCommandSelection,
+    moveCommandSelection,
+    openCommandCategory,
     openTaskCompose,
     toggleCommandMenu,
     toggleCreateMenu,
@@ -506,6 +571,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   };
 
   const chromeClick = (id: string) => {
+    if (id.startsWith("command-menu.open-category.")) {
+      openCommandCategory(id);
+      return;
+    }
     if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
       if (isTaskPath(boot.path)) {
         openTaskCompose();
@@ -553,9 +622,13 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         },
         toggleCreateMenu,
         toggleCommandMenu,
+        openCommandCategory,
+        moveCommandSelection,
+        confirmCommandSelection,
       },
     )(id);
   };
+  selectCommandRef.current = chromeClick;
 
   return createElement(Shell, {
     path: boot.path,
@@ -569,9 +642,18 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     sessionReady,
     commandMenuOpen,
     createMenuOpen,
+    commandQuery,
+    commandCategory,
+    commandSelectedIndex,
     sidebarCollapsed,
     onToggleCommandMenu: toggleCommandMenu,
     onToggleCreateMenu: toggleCreateMenu,
+    onCommandQueryChange: (query) => {
+      setCommandQuery(query);
+      commandQueryRef.current = query;
+      setCommandSelectedIndex(0);
+      commandSelectedIndexRef.current = 0;
+    },
     onCommandMenuSelect: chromeClick,
     onCreateMenuSelect: chromeClick,
     onKernelAuth,

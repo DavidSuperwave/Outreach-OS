@@ -16,6 +16,7 @@ import {
   defaultChromeHotkeyHandle,
   COMMAND_MENU_ITEMS,
   CREATE_MENU_ITEMS,
+  filterCommandMenuItems,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -455,9 +456,74 @@ describe("Shell boots", () => {
       createElement(Shell, { path: "/tasks", theme: "outreach-dark", commandMenuOpen: true }),
     );
     expect(html).toContain("data-surface=\"command-menu\"");
+    expect(html).toContain("aria-label=\"Command search\"");
+    expect(html).toContain("data-command=\"command-menu.open-category.tasks\"");
     expect(html).toContain("data-command=\"go-to.tasks\"");
     expect(html).toContain("data-command=\"global.logout\"");
+    expect(html).toContain("data-selected=\"true\"");
     expect(html).not.toMatch(/macro/i);
+    const tasks = renderToString(
+      createElement(Shell, {
+        path: "/tasks",
+        theme: "outreach-dark",
+        commandMenuOpen: true,
+        commandCategory: "tasks",
+        commandQuery: "create",
+      }),
+    );
+    expect(tasks).toContain("data-command=\"create-menu.task\"");
+    expect(tasks).not.toContain("data-command=\"global.logout\"");
+  });
+
+  it("filters the palette and confirms the highlighted row without a hard /tasks jump", () => {
+    expect(filterCommandMenuItems("", "tasks").map((item) => item.id)).toEqual(["go-to.tasks", "create-menu.task"]);
+    expect(filterCommandMenuItems("create", "all").some((item) => item.id === "create-menu.task")).toBe(true);
+    const paths: string[] = [];
+    const hits: string[] = [];
+    let selected = 0;
+    let category = "all";
+    const items = () => filterCommandMenuItems("", category === "tasks" ? "tasks" : "all");
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle((path) => paths.push(path), {
+        toggleCommandMenu: () => true,
+        openCommandCategory: (id) => {
+          category = id.endsWith(".tasks") ? "tasks" : "all";
+          selected = 0;
+          return true;
+        },
+        moveCommandSelection: (delta) => {
+          const list = items();
+          selected = (selected + delta + list.length) % list.length;
+          return true;
+        },
+        confirmCommandSelection: () => {
+          hits.push(items()[selected]?.id ?? "");
+          return true;
+        },
+        enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
+      }),
+    );
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "o", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "global.open-category-leader",
+    );
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "command-menu.open-category.tasks",
+    );
+    expect(category).toBe("tasks");
+    expect(paths).toEqual([]);
+    registry.setActive("detached");
+    expect(registry.dispatch({ chord: "arrowdown", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "command-menu.nav-down",
+    );
+    expect(selected).toBe(1);
+    expect(registry.dispatch({ chord: "enter", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "command-menu.confirm",
+    );
+    expect(hits).toEqual(["create-menu.task"]);
+    expect(paths).toEqual([]);
   });
 
   it("renders the create-menu overlay; c then t opens compose without navigating", () => {
