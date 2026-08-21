@@ -331,6 +331,15 @@ export class TaskSlice {
     const slice = new TaskSlice();
     slice.registry.restore(snapshot.registry);
     slice.access.restore(snapshot.access);
+    // Pre-fix snapshots stored task assignees only on TaskRecord. The task
+    // record is authoritative for the property bundle; lift it into access
+    // state while preserving owner, shares, and every other policy field.
+    for (const doc of snapshot.docs) {
+      const state = slice.access.get(doc.id);
+      if (state) {
+        slice.access.put(doc.id, { ...state, assigneeIds: [...doc.assigneeIds] });
+      }
+    }
     slice.rebuildAccessProjection();
     slice.outbox.restore(snapshot.outbox);
     slice.activity.restore(snapshot.activity);

@@ -43,6 +43,11 @@ interface PendingProjection {
   tenantId: string;
 }
 
+interface PendingTransition extends PendingProjection {
+  target: TaskSliceSnapshot;
+  closedAccess: ClosedAccess[];
+}
+
 interface ClosedAccess {
   actorId: string;
   entityId: string;
@@ -85,6 +90,20 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         tenant_id TEXT NOT NULL
       )
     `);
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS projection_transition (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        generation INTEGER NOT NULL,
+        tenant_id TEXT NOT NULL,
+        target_json TEXT NOT NULL,
+        closed_access_json TEXT NOT NULL
+      )
+    `);
+    this.ctx.blockConcurrencyWhile(async () => {
+      if (this.#pendingTransition()) {
+        await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+      }
+    });
   }
 
   async #serializeWrite<T>(run: () => Promise<T>): Promise<T> {
@@ -141,6 +160,10 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   }
 
   async #closeAccess(rows: readonly ClosedAccess[]): Promise<void> {
+    const fail = this.ctx.storage.sql
+      .exec<{ v: string }>("DELETE FROM meta WHERE k = 'test_fail_next_close' RETURNING v")
+      .toArray()[0];
+    if (fail) throw new Error("injected D1 access close failure");
     await closeAccessProjectionRows(this.env.SOUP, rows);
   }
 
@@ -176,13 +199,78 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return row ? { generation: row.generation, tenantId: row.tenant_id } : null;
   }
 
-  #persistAuthority(slice: TaskSlice, tenantId: string): number {
-    const snapshot = JSON.stringify(slice.toSnapshot());
-    return this.ctx.storage.transactionSync(() => {
+  #pendingTransition(): PendingTransition | null {
+    const row = this.ctx.storage.sql
+      .exec<{
+        generation: number;
+        tenant_id: string;
+        target_json: string;
+        closed_access_json: string;
+      }>(
+        `SELECT generation, tenant_id, target_json, closed_access_json
+         FROM projection_transition WHERE id = 1`,
+      )
+      .toArray()[0];
+    if (!row) return null;
+    return {
+      generation: row.generation,
+      tenantId: row.tenant_id,
+      target: JSON.parse(row.target_json) as TaskSliceSnapshot,
+      closedAccess: JSON.parse(row.closed_access_json) as ClosedAccess[],
+    };
+  }
+
+  #beginTransition(
+    slice: TaskSlice,
+    tenantId: string,
+    closedAccess: readonly ClosedAccess[],
+  ): PendingTransition {
+    const fail = this.ctx.storage.sql
+      .exec<{ v: string }>("DELETE FROM meta WHERE k = 'test_fail_next_marker' RETURNING v")
+      .toArray()[0];
+    if (fail) throw new Error("injected transition marker failure");
+    const target = slice.toSnapshot();
+    const generation = this.ctx.storage.transactionSync(() => {
       const current = this.ctx.storage.sql
+        .exec<{ v: string }>("SELECT v FROM meta WHERE k = 'transition_generation'")
+        .toArray()[0];
+      const projected = this.ctx.storage.sql
         .exec<{ v: string }>("SELECT v FROM meta WHERE k = 'projection_generation'")
         .toArray()[0];
-      const generation = Number(current?.v ?? "0") + 1;
+      const next = Math.max(Number(current?.v ?? "0"), Number(projected?.v ?? "0")) + 1;
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('transition_generation', ?)",
+        String(next),
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT OR REPLACE INTO projection_transition
+          (id, generation, tenant_id, target_json, closed_access_json)
+         VALUES (1, ?, ?, ?, ?)`,
+        next,
+        tenantId,
+        JSON.stringify(target),
+        JSON.stringify(closedAccess),
+      );
+      return next;
+    });
+    return { generation, tenantId, target, closedAccess: [...closedAccess] };
+  }
+
+  async #scheduleRecovery(): Promise<void> {
+    const fail = this.ctx.storage.sql
+      .exec<{ v: string }>("DELETE FROM meta WHERE k = 'test_fail_next_alarm' RETURNING v")
+      .toArray()[0];
+    if (fail) throw new Error("injected setAlarm failure");
+    await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+  }
+
+  #persistAuthority(slice: TaskSlice, tenantId: string, generation: number): void {
+    const fail = this.ctx.storage.sql
+      .exec<{ v: string }>("DELETE FROM meta WHERE k = 'test_fail_next_authority' RETURNING v")
+      .toArray()[0];
+    if (fail) throw new Error("injected authority save failure");
+    const snapshot = JSON.stringify(slice.toSnapshot());
+    this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec(
         "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
         snapshot,
@@ -197,7 +285,6 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         generation,
         tenantId,
       );
-      return generation;
     });
   }
 
@@ -219,6 +306,10 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   async #completeProjection(generation: number): Promise<void> {
     this.ctx.storage.sql.exec(
       "DELETE FROM projection_delivery WHERE id = 1 AND generation = ?",
+      generation,
+    );
+    this.ctx.storage.sql.exec(
+      "DELETE FROM projection_transition WHERE id = 1 AND generation = ?",
       generation,
     );
     if (!this.#pendingProjection()) await this.ctx.storage.deleteAlarm();
@@ -244,6 +335,23 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     await this.#broadcast(slice);
   }
 
+  async #resumeTransition(
+    transition: PendingTransition,
+    enqueue: boolean,
+  ): Promise<TaskSlice> {
+    const slice = TaskSlice.fromSnapshot(transition.target);
+    await this.#closeAccess(transition.closedAccess);
+    this.#persistAuthority(slice, transition.tenantId, transition.generation);
+    this.#broadcastAccessClosures(slice, transition.closedAccess);
+    await this.#deliverProjection(slice, transition, enqueue);
+    return slice;
+  }
+
+  async #recoverTransitionBeforeWrite(): Promise<void> {
+    const pending = this.#pendingTransition();
+    if (pending) await this.#resumeTransition(pending, false);
+  }
+
   async #save(slice: TaskSlice, closedAccess: readonly ClosedAccess[] = []): Promise<void> {
     const tenantId = this.#tenantId(slice) ?? slice.toSnapshot().docs[0]?.tenantId;
     if (!tenantId) {
@@ -251,15 +359,21 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       return;
     }
 
-    // Schedule recovery before committing authority. With writes serialized, an
-    // alarm cannot clear this recovery path before its matching marker exists.
-    await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
-    const generation = this.#persistAuthority(slice, tenantId);
-    this.#broadcastAccessClosures(slice, closedAccess);
+    // The target snapshot is durable before either the alarm or fail-close D1
+    // deletion. Recovery can therefore resume every later interruption.
+    const transition = this.#beginTransition(slice, tenantId, closedAccess);
     try {
-      await this.#deliverProjection(slice, { generation, tenantId }, true);
+      await this.#scheduleRecovery();
+      await this.#resumeTransition(transition, true);
     } catch (error) {
-      await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+      // If setAlarm itself failed the transition marker remains. A restarted
+      // DO schedules it in blockConcurrencyWhile; otherwise preserve/refresh
+      // the already-established alarm without masking the original error.
+      try {
+        await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+      } catch {
+        // Durable transition intent remains the restart recovery marker.
+      }
       throw error;
     }
   }
@@ -267,6 +381,11 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   /** Queue consumer entry — re-drains the outbox and rebuilds the latest D1 projection. */
   async drainOutbox(): Promise<{ pending: number }> {
     return this.#serializeWrite(async () => {
+      const transition = this.#pendingTransition();
+      if (transition) {
+        const recovered = await this.#resumeTransition(transition, false);
+        return { pending: recovered.outbox.pending().length };
+      }
       const slice = this.#load();
       slice.drain();
       this.#persistSnapshot(slice);
@@ -289,6 +408,16 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   async alarm(): Promise<void> {
     await this.#serializeWrite(async () => {
+      const transition = this.#pendingTransition();
+      if (transition) {
+        try {
+          this.ctx.storage.sql.exec("DELETE FROM meta WHERE k = 'test_fail_projection_until_alarm'");
+          await this.#resumeTransition(transition, true);
+        } catch {
+          await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+        }
+        return;
+      }
       const pending = this.#pendingProjection();
       if (!pending) {
         await this.ctx.storage.deleteAlarm();
@@ -389,6 +518,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   async createTask(title: string, ctx: RequestContext): Promise<TaskView> {
     return this.#serializeWrite(async () => {
+      await this.#recoverTransitionBeforeWrite();
       const slice = this.#load();
       this.#assertTenant(ctx.actor, slice);
       const view = slice.createTask(title, ctx);
@@ -497,6 +627,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   async rebuildProjection(actor: ActorContext): Promise<void> {
     await this.#serializeWrite(async () => {
+      await this.#recoverTransitionBeforeWrite();
       const slice = this.#load();
       this.#assertTenant(actor, slice);
       slice.rebuildProjection();
@@ -554,6 +685,24 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     });
   }
 
+  /** One-shot transition boundary faults for Workers recovery tests. */
+  async failNextTransitionBoundary(
+    boundary: "marker" | "alarm" | "close" | "authority",
+  ): Promise<void> {
+    await this.#serializeWrite(async () => {
+      const keys = {
+        marker: "test_fail_next_marker",
+        alarm: "test_fail_next_alarm",
+        close: "test_fail_next_close",
+        authority: "test_fail_next_authority",
+      } as const;
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES (?, '1')",
+        keys[boundary],
+      );
+    });
+  }
+
   async get(id: string, actor: ActorContext): Promise<TaskRecord | null> {
     const slice = this.#load();
     this.#assertTenant(actor, slice);
@@ -572,6 +721,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   ): Promise<{ ok: true } | { ok: false; message: string }> {
     try {
       return await this.#serializeWrite(async () => {
+        await this.#recoverTransitionBeforeWrite();
         const slice = this.#load();
         this.#assertTenant(actor, slice);
         const receipt = slice.engine.mint({
@@ -587,7 +737,6 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         slice.access.put(entityId, state);
         slice.rebuildAccessProjection();
         const closed = this.#closedAccess(before, this.#accessProjection(slice, tenantId));
-        await this.#closeAccess(closed);
         await this.#save(slice, closed);
         return { ok: true as const };
       });
@@ -624,6 +773,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     run: (slice: TaskSlice, gated: RequestContext) => TaskRecord,
   ): Promise<TaskRecord> {
     return this.#serializeWrite(async () => {
+      await this.#recoverTransitionBeforeWrite();
       const slice = this.#load();
       this.#assertTenant(ctx.actor, slice);
       const entityId = ctx.receipt?.entityId;
@@ -641,7 +791,6 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       const closed = tenantId
         ? this.#closedAccess(before, this.#accessProjection(slice, tenantId))
         : [];
-      await this.#closeAccess(closed);
       await this.#save(slice, closed);
       return next;
     });

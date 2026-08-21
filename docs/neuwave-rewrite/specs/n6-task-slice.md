@@ -42,6 +42,15 @@ later enqueue/projection failure therefore remains fail-closed until alarm
 reconciliation. Rollback is drop-and-rebuild of derived tables, not an
 authority migration.
 
+Each write first persists a versioned `projection_transition` target snapshot,
+then establishes an alarm, then closes removed access, commits authority, and
+atomically projects D1. The marker survives alarm/close/authority/enqueue/
+projection interruption; DO restart re-establishes its alarm and resumes the
+same target. A marker-write failure changes neither authority nor projection.
+Snapshot restore also upgrades pre-fix task records by reconciling their
+authoritative assignee bundle into `AccessState.assigneeIds` before rebuilding
+projected edit access.
+
 
 ## RPC/API contract
 

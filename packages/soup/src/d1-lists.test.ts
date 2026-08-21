@@ -12,6 +12,9 @@ class MemoryD1 implements SoupD1 {
     return {
       bind: (...values: unknown[]) => ({
         run: async () => {
+          if (sql.includes("projection_failure_injection")) {
+            throw new Error("injected batch failure");
+          }
           if (sql.startsWith("CREATE")) {
             this.#ready = true;
             return;
@@ -104,9 +107,17 @@ class MemoryD1 implements SoupD1 {
   }
 
   async batch(statements: any[]): Promise<unknown[]> {
-    const results: unknown[] = [];
-    for (const statement of statements) results.push(await statement.run());
-    return results;
+    const before = new Map(
+      [...this.#rows.entries()].map(([key, row]) => [key, { ...row }]),
+    );
+    try {
+      const results: unknown[] = [];
+      for (const statement of statements) results.push(await statement.run());
+      return results;
+    } catch (error) {
+      this.#rows = before;
+      throw error;
+    }
   }
 }
 
@@ -156,5 +167,39 @@ describe("D1 lists projector (OD-27)", () => {
     await projectListSnapshot(db, [other]);
     expect(await queryFacetRows(db, item.tenantId, "task")).toEqual([item]);
     expect(await queryFacetRows(db, other.tenantId, "task")).toEqual([other]);
+  });
+
+  it("rolls back every MemoryD1 batch mutation on a mid-batch failure", async () => {
+    const db = new MemoryD1();
+    const item: SoupItem = {
+      entityType: "document",
+      entityId: fixtureId("document", 1),
+      tenantId: fixtureId("team", 1),
+      title: "Complete",
+      body: "Complete",
+      updatedAt: 1,
+      createdAt: 1,
+      version: 1,
+      facet: "task",
+      projectId: null,
+      unread: false,
+      done: false,
+      tombstoned: false,
+      status: "todo",
+      priority: null,
+      assigneeIds: [],
+      tags: [],
+    };
+    await projectListSnapshot(db, [item]);
+    await expect(
+      projectListSnapshot(
+        db,
+        [{ ...item, title: "Partial", version: 2 }],
+        item.tenantId,
+        [],
+        { injectFailure: true },
+      ),
+    ).rejects.toThrow("injected batch failure");
+    expect(await queryFacetRows(db, item.tenantId, "task")).toEqual([item]);
   });
 });

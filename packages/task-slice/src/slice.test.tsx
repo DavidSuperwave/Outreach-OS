@@ -74,6 +74,67 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(restored.activity.list()[0]?.action).toBe("created");
   });
 
+  it("upgrades pre-fix snapshots by reconciling task assignees into access state", () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const { task, receipt } = slice.createTask(
+      "Legacy assignee",
+      requestContext(ownerActor(), { correlationId: "legacy-create" }),
+    );
+    slice.setAssignee(
+      teammateId,
+      requestContext(ownerActor(), { receipt, correlationId: "legacy-assign" }),
+    );
+    const legacy = JSON.parse(JSON.stringify(slice.toSnapshot())) as ReturnType<TaskSlice["toSnapshot"]>;
+    const access = legacy.access.find((row) => row.entityId === task.id);
+    if (!access) throw new Error("expected access fixture");
+    access.state.assigneeIds = [];
+
+    const restored = TaskSlice.fromSnapshot(legacy);
+    const teammate = actorContext(userPrincipal(teammateId, tenant));
+    const teammateReceipt = restored.engine.mint({
+      actor: teammate,
+      entityType: "document",
+      entityId: task.id,
+      need: "edit",
+    });
+    expect(restored.listTasks([teammateReceipt])).toHaveLength(1);
+
+    const ownerReceipt = restored.engine.mint({
+      actor: ownerActor(),
+      entityType: "document",
+      entityId: task.id,
+      need: "owner",
+    });
+    const replacementId = fixtureId("user", 3);
+    restored.setAssignee(
+      replacementId,
+      requestContext(ownerActor(), { receipt: ownerReceipt, correlationId: "legacy-replace" }),
+    );
+    expect(restored.listTasks([teammateReceipt])).toEqual([]);
+    const replacement = actorContext(userPrincipal(replacementId, tenant));
+    const replacementReceipt = restored.engine.mint({
+      actor: replacement,
+      entityType: "document",
+      entityId: task.id,
+      need: "edit",
+    });
+    expect(restored.listTasks([replacementReceipt])).toHaveLength(1);
+    restored.setAssignee(
+      "",
+      requestContext(ownerActor(), { receipt: ownerReceipt, correlationId: "legacy-remove" }),
+    );
+    expect(restored.listTasks([replacementReceipt])).toEqual([]);
+    expect(() =>
+      restored.engine.mint({
+        actor: replacement,
+        entityType: "document",
+        entityId: task.id,
+        need: "view",
+      }),
+    ).toThrow(/lacks view/);
+  });
+
   it("maps legacy task ids without writing (OD-1 Branch A)", () => {
     const slice = new TaskSlice();
     const mapped = dryRunIdentityMapping([{ table: "tasks", pgId: 42 }]);

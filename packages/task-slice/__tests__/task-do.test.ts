@@ -410,6 +410,73 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(after).toEqual({ title: "Partial generation", version: 2 });
   });
 
+  it.each(["marker", "alarm", "close", "authority", "enqueue", "project"] as const)(
+    "recovers a fail-closed access transition across eviction at the %s boundary",
+    async (boundary) => {
+      resetIdSequence();
+      const index = ["marker", "alarm", "close", "authority", "enqueue", "project"].indexOf(boundary) + 20;
+      const scopedTenant = fixtureId("team", index);
+      const scopedOwner = fixtureId("user", index * 2);
+      const scopedViewer = fixtureId("user", index * 2 + 1);
+      const owner = actorContext(userPrincipal(scopedOwner, scopedTenant));
+      const viewer = actorContext(userPrincipal(scopedViewer, scopedTenant));
+      const api = new DurableTaskApi(testEnv.TASK_SLICE, scopedTenant);
+      const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(scopedTenant));
+      const { task } = await api.createTask(
+        `Boundary ${boundary}`,
+        requestContext(owner, { correlationId: `${boundary}-create` }),
+      );
+      expect(
+        (await stub.shareState(
+          task.id,
+          grantShare(emptyAccess(scopedOwner, scopedTenant), scopedViewer, "comment"),
+          owner,
+        )).ok,
+      ).toBe(true);
+      expect(await api.listVisible(viewer)).toHaveLength(1);
+      await api.drainOutbox();
+
+      if (boundary === "enqueue") await stub.failNextOutboxSend();
+      else if (boundary === "project") await stub.failProjectionUntilAlarm();
+      else await stub.failNextTransitionBoundary(boundary);
+      const result = await stub.shareState(
+        task.id,
+        emptyAccess(scopedOwner, scopedTenant),
+        owner,
+      );
+      expect(result.ok).toBe(false);
+
+      const authorityBeforeRestart = await stub.get(task.id, viewer);
+      const visibleBeforeRestart = await api.listVisible(viewer);
+      if (authorityBeforeRestart === null) expect(visibleBeforeRestart).toEqual([]);
+      if (boundary === "marker") {
+        expect(authorityBeforeRestart).not.toBeNull();
+        expect(visibleBeforeRestart).toHaveLength(1);
+      }
+
+      await evictDurableObject(stub);
+      await runInDurableObject(stub, (instance) => instance.alarm());
+      const raw = await testEnv.SOUP.prepare(
+        `SELECT level FROM entity_access_index
+         WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+      ).bind(scopedTenant, scopedViewer, task.id).first<{ level: string }>();
+      if (boundary === "marker") {
+        expect(await stub.get(task.id, viewer)).not.toBeNull();
+        expect(await api.listVisible(viewer)).toHaveLength(1);
+        expect(raw?.level).toBe("comment");
+      } else {
+        expect(await stub.get(task.id, viewer)).toBeNull();
+        expect(await api.listVisible(viewer)).toEqual([]);
+        expect(raw).toBeNull();
+      }
+      const ownerRow = await testEnv.SOUP.prepare(
+        `SELECT level FROM entity_access_index
+         WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+      ).bind(scopedTenant, scopedOwner, task.id).first<{ level: string }>();
+      expect(ownerRow?.level).toBe("owner");
+    },
+  );
+
   it("keeps a newer mutation when it arrives while alarm recovery is pending", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
