@@ -350,6 +350,15 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(tenantId.startsWith("team_")).toBe(true);
     const created = await submitTaskCompose(session, "Hydrate compose", "hydrate-1");
     expect(created.items.map((item) => item.title)).toEqual(["Hydrate compose"]);
+    expect(created.items[0]?.status).toBe("todo");
+
+    const renamed = await session.updateTitle(created.items[0]!.entityId, "Hydrate compose", "hydrate-1b");
+    void renamed;
+    await session.setStatus(created.items[0]!.entityId, "in_progress", "hydrate-status");
+    await session.setPriority(created.items[0]!.entityId, "high", "hydrate-priority");
+    const listed = await session.listTasks();
+    expect(listed[0]?.status).toBe("in_progress");
+    expect(listed[0]?.priority).toBe("high");
 
     const sub = await handleOutreachFetch(
       new Request(`https://task-slice/subscribe?cursor=0&token=${encodeURIComponent(token)}&tenant=${tenantId}`, {
@@ -358,5 +367,66 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
       env,
     );
     expect(sub.status).toBe(101);
+  });
+
+  it("replays missed /subscribe deltas after the socket drops (reconnect, no loss)", async () => {
+    const token = await kernelToken("admin", adminPassword);
+    const teams = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
+    teams.registerKernelUser(SEED_ADMIN);
+    const team = await teams.createTeam(SEED_ADMIN, "Outreach");
+
+    using domain = await connectDomain();
+    using authed = await domain.authenticate(token) as RpcStub<TaskAuthenticatedApi>;
+    using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
+    const created = await session.createTask("Keep", "rc-1");
+    const cursor = await session.seq();
+
+    const first = await handleOutreachFetch(
+      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
+        headers: {
+          Upgrade: "websocket",
+          authorization: `Bearer ${token}`,
+          "x-neuwave-tenant": team.id,
+        },
+      }),
+      testEnv,
+    );
+    expect(first.status).toBe(101);
+    const firstWs = first.webSocket;
+    if (!firstWs) throw new TypeError("Expected first subscribe WebSocket.");
+    firstWs.accept();
+    firstWs.close();
+
+    await session.updateTitle(created.task.id, "Keep v2", "rc-2");
+    const missed = await session.replayFrom(cursor);
+    expect(missed.map((delta) => delta.item.title)).toContain("Keep v2");
+
+    const replayed: string[] = [];
+    const second = await handleOutreachFetch(
+      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
+        headers: {
+          Upgrade: "websocket",
+          authorization: `Bearer ${token}`,
+          "x-neuwave-tenant": team.id,
+        },
+      }),
+      testEnv,
+    );
+    expect(second.status).toBe(101);
+    const ws = second.webSocket;
+    if (!ws) throw new TypeError("Expected reconnect WebSocket.");
+    const got = new Promise<void>((resolve) => {
+      ws.addEventListener("message", (event) => {
+        const payload = JSON.parse(String(event.data)) as { deltas?: Array<{ item: { title: string } }> };
+        for (const delta of payload.deltas ?? []) replayed.push(delta.item.title);
+        if (replayed.includes("Keep v2")) resolve();
+      });
+    });
+    ws.accept();
+    await Promise.race([
+      got,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("reconnect replay missed Keep v2")), 2000)),
+    ]);
+    expect(replayed.filter((title) => title === "Keep v2")).toHaveLength(1);
   });
 });

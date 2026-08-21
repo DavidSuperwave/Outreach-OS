@@ -44,6 +44,8 @@ function surfaceItems(
     title: item.title,
     facet: item.facet,
     done: item.done,
+    status: item.status,
+    priority: item.priority,
   }));
 }
 
@@ -129,6 +131,60 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         return true;
       },
     });
+    registry.register({
+      id: "global.go-to",
+      scope: "global",
+      chord: "g",
+      priority: 0,
+      registrationType: "override",
+      runWithInputFocused: false,
+      handle: () => {
+        registry.activateLeader("g");
+        return true;
+      },
+    });
+    registry.register({
+      id: "go-to.tasks",
+      scope: "command-scope-go-to",
+      chord: "t",
+      priority: 0,
+      registrationType: "override",
+      runWithInputFocused: false,
+      handle: () => {
+        if (window.location.pathname !== "/tasks") window.location.assign("/tasks");
+        return true;
+      },
+    });
+    registry.register({
+      id: "soup-entity.mark-done",
+      scope: "global",
+      chord: "e",
+      priority: 0,
+      registrationType: "add",
+      runWithInputFocused: false,
+      handle: () => {
+        const focused = document.querySelector<HTMLElement>("[data-slice='task'] [data-focused='true']");
+        const button = focused?.querySelector<HTMLButtonElement>("[data-command='soup-entity.mark-done'], [data-command='soup-entity.mark-not-done']");
+        button?.click();
+        return Boolean(button);
+      },
+    });
+    registry.register({
+      id: "soup-entity.rename",
+      scope: "global",
+      chord: "r",
+      priority: 0,
+      registrationType: "add",
+      runWithInputFocused: false,
+      handle: () => {
+        const input = document.querySelector<HTMLInputElement>(
+          "[data-slice='task'] [data-focused='true'] input[data-command='soup-entity.rename']",
+        );
+        input?.focus();
+        input?.select();
+        return Boolean(input);
+      },
+    });
     const onKey = (event: KeyboardEvent) => {
       const chord = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
       const inputFocused = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
@@ -198,6 +254,48 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     }
   };
 
+  const onRenameTask = async (entityId: string, title: string) => {
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      await session.updateTitle(entityId, title);
+      await applySurface(session);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "rename failed");
+    }
+  };
+
+  const onSetStatus = async (entityId: string, status: string) => {
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      await session.setStatus(entityId, status);
+      await applySurface(session);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "status failed");
+    }
+  };
+
+  const onSetPriority = async (entityId: string, priority: string) => {
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      await session.setPriority(entityId, priority === "none" ? "none" : priority);
+      await applySurface(session);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "priority failed");
+    }
+  };
+
   return createElement(Shell, {
     path: boot.path,
     theme: "outreach-dark",
@@ -211,5 +309,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     onKernelAuth,
     onCreateTask,
     onMarkDone,
+    onRenameTask,
+    onSetStatus,
+    onSetPriority,
   });
 }
