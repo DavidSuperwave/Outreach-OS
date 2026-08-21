@@ -32,8 +32,8 @@ return a no-op.
   materialize visible/default-light/default-dark children from
   `outreach-user-themes`.
 - Downstream-gated: non-task creation and launcher actions (N7/N9/N10/N11);
-  dynamic user themes; instructions (N7); uploads (N14); mutation undo/redo;
-  favorites (N17); invites (N1); block sharing (N2).
+  instructions (N7); uploads (N14); mutation undo/redo; favorites (N17);
+  invites (N1); block sharing (N2).
 - Owner-gated: the LOCAL_ONLY hotkey debugger. OD-23's other quirks are not
   reproduced as inert behavior.
 
