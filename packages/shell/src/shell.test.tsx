@@ -423,6 +423,7 @@ describe("Shell boots", () => {
     expect(html).toContain("data-command=\"global.create\"");
     expect(html).toContain("data-surface=\"soup.tasks\"");
     expect(html).toContain("data-hint=\"create-menu.task\"");
+    expect(html).toContain(">Tasks</h1>");
     expect(html).toContain("data-command=\"soup.tab-1\"");
     expect(html).toContain("data-command=\"soup-nav.down-j\"");
     expect(html).toContain("data-command=\"global.command-menu\"");

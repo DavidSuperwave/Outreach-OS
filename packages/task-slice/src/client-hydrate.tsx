@@ -123,7 +123,8 @@ function handleLiveSliceHotkey(
     case "soup-entity.mark-not-done":
       return clickInFocusedRow("[data-command='soup-entity.mark-not-done']");
     case "soup-entity.rename":
-      return focusInFocusedRow("input[data-command='soup-entity.rename']");
+      if (focusInFocusedRow("input[data-command='soup-entity.rename']")) return true;
+      return clickInFocusedRow("button[data-command='soup-entity.rename']");
     case "soup-entity.status":
     case "soup-entity.properties":
       return focusInFocusedRow("[data-command='soup-entity.status'], select[aria-label='Status']");
