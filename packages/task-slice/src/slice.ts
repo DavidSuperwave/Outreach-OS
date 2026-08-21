@@ -176,7 +176,18 @@ export class TaskSlice {
   }
 
   listTasks(receipts: readonly Receipt[]): SoupItem[] {
-    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items;
+    const current = new Set(
+      this.#accessRows.map((row) => `${row.tenantId}\0${row.actorId}\0${row.entityId}`),
+    );
+    return this.plane.lists
+      .query({ types: ["document"], facet: "task" }, receipts)
+      .items.filter((item) =>
+        receipts.some(
+          (receipt) =>
+            receipt.entityId === item.entityId &&
+            current.has(`${receipt.tenantId}\0${receipt.actorId}\0${receipt.entityId}`),
+        ),
+      );
   }
 
   listVisible(actor: ActorContext): SoupItem[] {

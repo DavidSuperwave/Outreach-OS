@@ -724,6 +724,9 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     );
     const shared = grantShare(emptyAccess(ownerId, tenant), teammateId, "comment");
     expect((await stub.shareState(task.id, shared, ownerActor())).ok).toBe(true);
+    const stale = await stub.mintView(teammateActor(), task.id, "view");
+    expect(stale.ok).toBe(true);
+    if (!stale.ok) throw new Error("expected shared receipt");
     expect(await stub.poisonPending(5)).toBe(1);
     expect(await api.listVisible(teammateActor())).toHaveLength(1);
     expect(await api.listActivity(teammateActor())).not.toHaveLength(0);
@@ -758,6 +761,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     ]));
 
     expect(await api.listVisible(teammateActor())).toEqual([]);
+    expect(await api.listTasks([stale.receipt])).toEqual([]);
     expect(await api.replayFrom(0, teammateActor())).toEqual([]);
     expect(await api.listActivity(teammateActor())).toEqual([]);
     expect(await api.listAlerts(teammateActor())).toEqual([]);

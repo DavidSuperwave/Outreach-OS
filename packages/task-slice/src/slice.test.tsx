@@ -210,6 +210,7 @@ describe("N6 task vertical slice (11 gates)", () => {
 
     const shared = grantShare(emptyAccess(ownerId, tenant), teammateId, "comment");
     slice.access.put(task.id, shared);
+    slice.rebuildAccessProjection();
     const teammate = slice.engine.mint({
       actor: actorContext(userPrincipal(teammateId, tenant)),
       entityType: "document",
@@ -218,6 +219,7 @@ describe("N6 task vertical slice (11 gates)", () => {
     });
     expect(api.listTasks([teammate])).toHaveLength(1);
     slice.access.put(task.id, emptyAccess(ownerId, tenant));
+    slice.rebuildAccessProjection();
     expect(() =>
       slice.engine.mint({
         actor: actorContext(userPrincipal(teammateId, tenant)),
@@ -226,6 +228,7 @@ describe("N6 task vertical slice (11 gates)", () => {
         need: "view",
       }),
     ).toThrow(/lacks view/);
+    expect(api.listTasks([teammate])).toHaveLength(0);
     expect(api.listTasks([])).toHaveLength(0);
     expect(api.listTasks([receipt])).toHaveLength(1);
   });
