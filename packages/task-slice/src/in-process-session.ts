@@ -1,10 +1,11 @@
-import type { ActivityFact, RequestContext } from "control-plane";
+import type { RequestContext } from "control-plane";
 import { requestContext } from "control-plane";
 import type { ActorContext } from "identity/principal";
-import type { SoupDelta, SoupItem } from "soup";
+import type { SoupDelta } from "soup";
 import type { TaskSessionApi } from "./domain-api.js";
 import { operatorAlertsFromPoison } from "./operator-alerts.js";
 import type { TaskRecord, TaskSlice } from "./slice.js";
+import { loadTaskSurface, submitTaskCompose } from "./live-session.js";
 
 /** In-process TaskSessionApi over TaskSlice. Same methods as the Cap'n Web stub. */
 export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): TaskSessionApi {
@@ -55,6 +56,11 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
     rebuildProjection: async () => {
       slice.rebuildProjection();
     },
+    tenantId: async () => {
+      const tenantId = actor.actor.tenantId;
+      if (!tenantId) throw new Error("session is not tenant-scoped");
+      return tenantId;
+    },
   };
 }
 
@@ -77,33 +83,4 @@ function viewReceipts(slice: TaskSlice, actor: ActorContext) {
   return receipts;
 }
 
-export async function loadTaskSurface(session: TaskSessionApi): Promise<{
-  items: SoupItem[];
-  activity: Array<{ id: string; action: string; entityId: string }>;
-  alerts: Awaited<ReturnType<TaskSessionApi["listAlerts"]>>;
-}> {
-  const [items, facts, alerts] = await Promise.all([
-    session.listTasks(),
-    session.listActivity(),
-    session.listAlerts(),
-  ]);
-  return {
-    items,
-    activity: facts.map((fact: ActivityFact) => ({
-      id: fact.id,
-      action: fact.action,
-      entityId: fact.entityId,
-    })),
-    alerts,
-  };
-}
-
-/** Compose popover submit — the same mutation `c` then `t` invokes. */
-export async function submitTaskCompose(
-  session: TaskSessionApi,
-  title: string,
-  correlationId?: string,
-): Promise<Awaited<ReturnType<typeof loadTaskSurface>>> {
-  await session.createTask(title, correlationId);
-  return loadTaskSurface(session);
-}
+export { loadTaskSurface, submitTaskCompose };

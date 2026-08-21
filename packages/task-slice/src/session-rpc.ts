@@ -16,6 +16,11 @@ import type { TaskAuthenticatedApi, TaskDomainPublicApi, TaskSessionApi } from "
 import { loadTaskSurface } from "./in-process-session.js";
 import { renderOutreachDocument } from "./origin-html.js";
 import { classifyOutreachPath } from "./routes.js";
+import { localKernelPublicApiFetcher } from "./local-public-api.js";
+
+/** Tests and workers without an ASSETS binding still serve a hydrate marker. */
+const OUTREACH_SHELL_STUB =
+  "/* LiveOutreach hydrate stub — wrangler ASSETS serves dist/assets/outreach-shell.js */\n";
 
 interface KernelUserDo {
   authenticate(secret: string): Promise<void>;
@@ -38,6 +43,13 @@ export interface TaskWorkerEnv {
   };
   /** Kernel Workshop worker. `/api` is proxied here so PublicApi stays unpatched. */
   WORKSHOP?: WorkshopFetcher;
+  /**
+   * Local origin only. When "true" and USER is bound, `/api` serves login/createAccount
+   * over the kernel User DO. Production binds WORKSHOP instead.
+   */
+  LOCAL_KERNEL_API?: string;
+  /** Wrangler static assets (`dist/assets/outreach-shell.js`). */
+  ASSETS?: WorkshopFetcher;
 }
 
 interface DurableObjectStubLike {
@@ -88,12 +100,14 @@ async function assertKernelToken(env: TaskWorkerEnv, token: string): Promise<voi
     throw new SessionBindError(401, "invalid session");
   }
   if (!teams.users.get(username)) {
-    throw new SessionBindError(401, `no wrapper identity for kernel user ${username}; load seed fixtures (OD-1)`);
+    await teams.ensureKernelUser(username);
   }
 }
 
 async function actorFromSession(env: TaskWorkerEnv, token: string, tenantId: string): Promise<ActorContext> {
   const { teams, authenticate } = requireBindings(env);
+  const { username } = parseKernelSessionToken(token);
+  await teams.ensureKernelUser(username);
   return bindKernelSession({
     token,
     tenantId,
@@ -191,6 +205,12 @@ export class TaskSessionTarget extends RpcTarget implements TaskSessionApi {
   async rebuildProjection() {
     return this.#api().rebuildProjection(this.actor);
   }
+
+  async tenantId() {
+    const tenantId = this.actor.actor.tenantId;
+    if (!tenantId) throw new Error("session is not tenant-scoped");
+    return tenantId;
+  }
 }
 
 export class TaskAuthenticatedTarget extends RpcTarget implements TaskAuthenticatedApi {
@@ -206,6 +226,18 @@ export class TaskAuthenticatedTarget extends RpcTarget implements TaskAuthentica
     try {
       const actor = await actorFromSession(this.env, this.token, tenantId);
       return new TaskSessionTarget(this.env, actor);
+    } catch (error) {
+      throw rpcError(error);
+    }
+  }
+
+  async openDefaultTenant(): Promise<TaskSessionTarget> {
+    try {
+      const { teams } = requireBindings(this.env);
+      const { username } = parseKernelSessionToken(this.token);
+      const session = await teams.ensureKernelUser(username);
+      const team = await teams.ensureHomeTeam(session);
+      return this.openTenant(team.id);
     } catch (error) {
       throw rpcError(error);
     }
@@ -229,8 +261,9 @@ export class TaskDomainTarget extends RpcTarget implements TaskDomainPublicApi {
 }
 
 async function subscribeFromSession(request: Request, env: TaskWorkerEnv): Promise<Response> {
-  const token = bearerToken(request);
-  const tenantId = request.headers.get("x-neuwave-tenant");
+  const url = new URL(request.url);
+  const token = bearerToken(request) ?? url.searchParams.get("token");
+  const tenantId = request.headers.get("x-neuwave-tenant") ?? url.searchParams.get("tenant");
   if (!token || !tenantId) {
     return new Response("session required", { status: 401 });
   }
@@ -243,7 +276,7 @@ async function subscribeFromSession(request: Request, env: TaskWorkerEnv): Promi
     }
     return new Response(error instanceof Error ? error.message : "session failed", { status: 401 });
   }
-  const cursor = Number(new URL(request.url).searchParams.get("cursor") ?? "0");
+  const cursor = Number(url.searchParams.get("cursor") ?? "0");
   return new DurableTaskApi(env.TASK_SLICE as never, tenantId).subscribe(cursor, actor);
 }
 
@@ -301,10 +334,11 @@ export async function handleOutreachFetch(request: Request, env: TaskWorkerEnv):
     case "rest-rejected":
       return new Response("REST /rpc is not served; use Cap'n Web TaskDomainApi on /domain", { status: 404 });
     case "kernel-capnp":
-      if (!env.WORKSHOP) {
-        return new Response("kernel PublicApi is served by the Workshop worker on /api", { status: 404 });
+      if (env.WORKSHOP) return env.WORKSHOP.fetch(request);
+      if (env.LOCAL_KERNEL_API === "true" && env.USER) {
+        return localKernelPublicApiFetcher(env.USER).fetch(request);
       }
-      return env.WORKSHOP.fetch(request);
+      return new Response("kernel PublicApi is served by the Workshop worker on /api", { status: 404 });
     case "domain-capnp":
       return newWorkersRpcResponse(request, new TaskDomainTarget(env));
     case "streaming":
@@ -313,6 +347,15 @@ export async function handleOutreachFetch(request: Request, env: TaskWorkerEnv):
       return new Response("webhooks are served by the github-hooks worker", { status: 404 });
     case "oauth":
       return new Response("oauth callbacks are not served by the task-slice origin", { status: 404 });
+    case "asset": {
+      if (env.ASSETS) return env.ASSETS.fetch(request);
+      return new Response(OUTREACH_SHELL_STUB, {
+        headers: {
+          "content-type": "text/javascript; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    }
     case "shell":
       return serveOutreachShell(request, env);
     default:

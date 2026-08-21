@@ -1,5 +1,4 @@
 import type { TaskAuthenticatedApi, TaskDomainPublicApi, TaskSessionApi } from "./domain-api.js";
-import { loadTaskSurface, submitTaskCompose } from "./in-process-session.js";
 
 /** Same key workshop-frontend writes after PublicApi.login / createAccount. */
 export const KERNEL_AUTH_TOKEN_KEY = "authToken";
@@ -14,6 +13,24 @@ export const ORIGIN_MOUNTS = {
   subscribe: "/subscribe",
 } as const;
 
+export interface OutreachBootConfig {
+  kernelApi: typeof ORIGIN_MOUNTS.kernelApi;
+  domainApi: typeof ORIGIN_MOUNTS.domainApi;
+  subscribe: typeof ORIGIN_MOUNTS.subscribe;
+  authTokenKey: typeof KERNEL_AUTH_TOKEN_KEY;
+  tenantKey: typeof TASK_TENANT_STORAGE_KEY;
+  path: string;
+}
+
+export function outreachBootConfig(path: string): OutreachBootConfig {
+  return {
+    ...ORIGIN_MOUNTS,
+    authTokenKey: KERNEL_AUTH_TOKEN_KEY,
+    tenantKey: TASK_TENANT_STORAGE_KEY,
+    path,
+  };
+}
+
 export interface KernelPasswordPublicApi {
   login(username: string, passwordHash: Uint8Array): Promise<string | null>;
   createAccount(
@@ -27,12 +44,12 @@ export interface KernelPasswordPublicApi {
 export async function bootLiveTaskSession(
   domain: TaskDomainPublicApi,
   token: string,
-  tenantId: string,
+  tenantId?: string,
 ): Promise<TaskSessionApi> {
   if (!token) throw new Error("session required");
-  if (!tenantId) throw new Error("tenantId required");
   const authed: TaskAuthenticatedApi = await domain.authenticate(token);
-  return authed.openTenant(tenantId);
+  if (tenantId) return authed.openTenant(tenantId);
+  return authed.openDefaultTenant();
 }
 
 export async function loginViaKernelPublicApi(
@@ -56,4 +73,33 @@ export async function createAccountViaKernelPublicApi(
   return token;
 }
 
-export { loadTaskSurface, submitTaskCompose };
+export async function loadTaskSurface(session: TaskSessionApi): Promise<{
+  items: Awaited<ReturnType<TaskSessionApi["listTasks"]>>;
+  activity: Array<{ id: string; action: string; entityId: string }>;
+  alerts: Awaited<ReturnType<TaskSessionApi["listAlerts"]>>;
+}> {
+  const [items, facts, alerts] = await Promise.all([
+    session.listTasks(),
+    session.listActivity(),
+    session.listAlerts(),
+  ]);
+  return {
+    items,
+    activity: facts.map((fact) => ({
+      id: fact.id,
+      action: fact.action,
+      entityId: fact.entityId,
+    })),
+    alerts,
+  };
+}
+
+/** Compose popover submit — the same mutation `c` then `t` invokes. */
+export async function submitTaskCompose(
+  session: TaskSessionApi,
+  title: string,
+  correlationId?: string,
+): Promise<Awaited<ReturnType<typeof loadTaskSurface>>> {
+  await session.createTask(title, correlationId);
+  return loadTaskSurface(session);
+}

@@ -16,6 +16,8 @@ export interface TaskDomainPublicApi {
 /** Kernel session capability. Tenant membership is checked when opening a tenant. */
 export interface TaskAuthenticatedApi {
   openTenant(tenantId: string): Promise<TaskSessionApi>;
+  /** Bootstrap or reuse the kernel user's home team, then mint a tenant session. */
+  openDefaultTenant(): Promise<TaskSessionApi>;
 }
 
 /**
@@ -35,4 +37,5 @@ export interface TaskSessionApi {
   seq(): Promise<number>;
   replayFrom(seq: number): Promise<SoupDelta[]>;
   rebuildProjection(): Promise<void>;
+  tenantId(): Promise<string>;
 }

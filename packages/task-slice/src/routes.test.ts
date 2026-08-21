@@ -19,6 +19,7 @@ describe("ADR-002 Outreach router", () => {
     expect(classifyOutreachPath("/desktop-auth")).toBe("not-found");
     expect(classifyOutreachPath("/.well-known")).toBe("not-found");
     expect(classifyOutreachPath("/oauth/callback")).toBe("oauth");
+    expect(classifyOutreachPath("/assets/outreach-shell.js")).toBe("asset");
   });
 
   it("rejects REST /rpc (negative: no wrapper HTTP recreation of Neuwave endpoints)", () => {

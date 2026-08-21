@@ -2,29 +2,10 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { Shell } from "shell";
 import type { TaskPaneActivity, TaskPaneAlert, TaskPaneItem } from "shell";
-import {
-  KERNEL_AUTH_TOKEN_KEY,
-  ORIGIN_MOUNTS,
-  TASK_TENANT_STORAGE_KEY,
-} from "./live-session.js";
+import { outreachBootConfig } from "./live-session.js";
 
-export interface OutreachBootConfig {
-  kernelApi: typeof ORIGIN_MOUNTS.kernelApi;
-  domainApi: typeof ORIGIN_MOUNTS.domainApi;
-  subscribe: typeof ORIGIN_MOUNTS.subscribe;
-  authTokenKey: typeof KERNEL_AUTH_TOKEN_KEY;
-  tenantKey: typeof TASK_TENANT_STORAGE_KEY;
-  path: string;
-}
-
-export function outreachBootConfig(path: string): OutreachBootConfig {
-  return {
-    ...ORIGIN_MOUNTS,
-    authTokenKey: KERNEL_AUTH_TOKEN_KEY,
-    tenantKey: TASK_TENANT_STORAGE_KEY,
-    path,
-  };
-}
+export type { OutreachBootConfig } from "./live-session.js";
+export { outreachBootConfig } from "./live-session.js";
 
 export function renderOutreachDocument(input: {
   path: string;
@@ -56,6 +37,7 @@ export function renderOutreachDocument(input: {
 <body>
 <div id="root" data-origin="compositor">${body}</div>
 <script type="application/json" id="outreach-boot">${boot}</script>
+<script type="module" src="/assets/outreach-shell.js"></script>
 </body>
 </html>`;
 }

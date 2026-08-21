@@ -34,6 +34,7 @@ describe("origin compositor client boot", () => {
             expect(tenantId).toBe(tenant);
             return inProcessTaskSession(slice, actor);
           },
+          openDefaultTenant: async () => inProcessTaskSession(slice, actor),
         };
       },
     };
@@ -41,6 +42,26 @@ describe("origin compositor client boot", () => {
     const surface = await submitTaskCompose(session, "From live boot", "boot-1");
     expect(surface.items.map((item) => item.title)).toEqual(["From live boot"]);
     expect((await loadTaskSurface(session)).activity.map((fact) => fact.action)).toContain("created");
+  });
+
+  it("omits tenantId so the client calls openDefaultTenant", async () => {
+    let openedDefault = false;
+    const slice = new TaskSlice();
+    const actor = actorContext(userPrincipal(ownerId, tenant));
+    const domain: TaskDomainPublicApi = {
+      authenticate: async () => ({
+        openTenant: async () => {
+          throw new Error("hydrate path must not pass a tenant");
+        },
+        openDefaultTenant: async () => {
+          openedDefault = true;
+          return inProcessTaskSession(slice, actor);
+        },
+      }),
+    };
+    const session = await bootLiveTaskSession(domain, "admin:secret");
+    expect(openedDefault).toBe(true);
+    expect(await session.tenantId()).toBe(tenant);
   });
 
   it("mints a kernel session token through PublicApi.login / createAccount", async () => {
@@ -87,6 +108,7 @@ describe("origin compositor client boot", () => {
     expect(boot.tenantKey).toBe(TASK_TENANT_STORAGE_KEY);
     expect(html).toContain("\"kernelApi\":\"/api\"");
     expect(html).toContain("\"domainApi\":\"/domain\"");
+    expect(html).toContain("/assets/outreach-shell.js");
     const login = renderOutreachDocument({ path: "/login" });
     expect(login).toContain("data-surface=\"kernel.login\"");
   });

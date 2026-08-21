@@ -15,7 +15,8 @@ export {
   KERNEL_AUTH_TOKEN_KEY,
   ORIGIN_MOUNTS,
   TASK_TENANT_STORAGE_KEY,
+  outreachBootConfig,
 } from "./live-session.js";
-export type { KernelPasswordPublicApi } from "./live-session.js";
-export { renderOutreachDocument, outreachBootConfig } from "./origin-html.js";
+export type { KernelPasswordPublicApi, OutreachBootConfig } from "./live-session.js";
+export { renderOutreachDocument } from "./origin-html.js";
 export type { OperatorAlert } from "./operator-alerts.js";

@@ -3,15 +3,35 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "LOCAL_KERNEL_API": "true"
+  },
+  "build": {
+    "command": "node scripts/build-client.mjs",
+    "cwd": "."
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["TaskSliceDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["TeamDurableObject", "UserDurableObject", "AdminSettings"]
     }
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "TASK_SLICE", "class_name": "TaskSliceDurableObject" }
+      { "name": "TASK_SLICE", "class_name": "TaskSliceDurableObject" },
+      { "name": "TEAM", "class_name": "TeamDurableObject" },
+      { "name": "USER", "class_name": "UserDurableObject" }
     ]
   },
   "d1_databases": [

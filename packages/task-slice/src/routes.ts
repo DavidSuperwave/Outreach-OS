@@ -11,6 +11,7 @@ export const TASK_DOMAIN_API_PATH = "/domain";
 export const TASK_SUBSCRIBE_PATH = "/subscribe";
 export const REST_RPC_PATH = "/rpc";
 export const HEALTH_PATH = "/health";
+export const SHELL_ASSET_PATH = "/assets/outreach-shell.js";
 
 export type OutreachRouteKind =
   | "kernel-capnp"
@@ -20,6 +21,7 @@ export type OutreachRouteKind =
   | "oauth"
   | "health"
   | "shell"
+  | "asset"
   | "rest-rejected"
   | "not-found";
 
@@ -35,6 +37,7 @@ export function classifyOutreachPath(pathname: string): OutreachRouteKind {
   if (pathname === "/hooks" || pathname.startsWith("/hooks/")) return "webhook";
   if (pathname === "/oauth/callback" || pathname.startsWith("/oauth/")) return "oauth";
   if (pathname === HEALTH_PATH) return "health";
+  if (pathname === SHELL_ASSET_PATH) return "asset";
   if (!isWebServed(pathname)) return "not-found";
   if (PATH_ROUTE_SET.has(pathname)) return "shell";
   try {

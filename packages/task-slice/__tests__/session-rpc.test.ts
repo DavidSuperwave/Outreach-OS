@@ -206,7 +206,11 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
   });
 
   it("leaves /api as the unpatched kernel mount when Workshop is not bound", async () => {
-    const res = await handleOutreachFetch(new Request("https://task-slice/api"), testEnv);
+    const res = await handleOutreachFetch(new Request("https://task-slice/api"), {
+      ...testEnv,
+      WORKSHOP: undefined,
+      LOCAL_KERNEL_API: undefined,
+    });
     expect(res.status).toBe(404);
     expect(await res.text()).toMatch(/Workshop worker on \/api/);
   });
@@ -250,7 +254,21 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(html).toContain("\"kernelApi\":\"/api\"");
 
     const login = await handleOutreachFetch(new Request("https://task-slice/login"), testEnv);
-    expect(await login.text()).toContain("data-surface=\"kernel.login\"");
+    expect(await login.text()).toMatch(/data-surface="kernel.login"/);
+    const stub = await handleOutreachFetch(new Request("https://task-slice/assets/outreach-shell.js"), testEnv);
+    expect(stub.headers.get("content-type")).toMatch(/javascript/);
+    expect(await stub.text()).toContain("LiveOutreach");
+
+    const fromAssets = await handleOutreachFetch(new Request("https://task-slice/assets/outreach-shell.js"), {
+      ...testEnv,
+      ASSETS: {
+        fetch: async () =>
+          new Response("/* LiveOutreach from ASSETS */", {
+            headers: { "content-type": "text/javascript; charset=utf-8" },
+          }),
+      },
+    });
+    expect(await fromAssets.text()).toContain("from ASSETS");
 
     const home = await handleOutreachFetch(new Request("https://task-slice/"), testEnv);
     expect(home.headers.get("x-outreach-origin")).toBe("compositor");
@@ -305,5 +323,40 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(page).toContain("data-surface=\"activity.facts\"");
     expect(page).toContain("data-actor=\"admin\"");
     expect((await loadTaskSurface(session)).alerts).toEqual([]);
+  });
+
+  it("openDefaultTenant bootstraps a home team and lists compose through the hydrate path", async () => {
+    const env = { ...testEnv, LOCAL_KERNEL_API: "true" };
+    const apiRes = await handleOutreachFetch(
+      new Request("https://task-slice/api", { headers: { Upgrade: "websocket" } }),
+      env,
+    );
+    expect(apiRes.status).toBe(101);
+    const apiSocket = apiRes.webSocket;
+    if (!apiSocket) throw new TypeError("Expected kernel /api WebSocket.");
+    apiSocket.accept();
+    using publicApi = newWebSocketRpcSession<{
+      createAccount(
+        username: string,
+        displayName: string,
+        passwordHash: Uint8Array,
+      ): Promise<string | null>;
+    }>(apiSocket);
+    const token = await createAccountViaKernelPublicApi(publicApi, "admin", "Admin", adminPassword);
+
+    using domain = await connectDomain();
+    using session = await bootLiveTaskSession(domain, token);
+    const tenantId = await session.tenantId();
+    expect(tenantId.startsWith("team_")).toBe(true);
+    const created = await submitTaskCompose(session, "Hydrate compose", "hydrate-1");
+    expect(created.items.map((item) => item.title)).toEqual(["Hydrate compose"]);
+
+    const sub = await handleOutreachFetch(
+      new Request(`https://task-slice/subscribe?cursor=0&token=${encodeURIComponent(token)}&tenant=${tenantId}`, {
+        headers: { Upgrade: "websocket" },
+      }),
+      env,
+    );
+    expect(sub.status).toBe(101);
   });
 });

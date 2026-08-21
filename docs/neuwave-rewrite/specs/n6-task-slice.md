@@ -36,13 +36,15 @@ No Instantly send/activate methods.
 
 Kernel `PublicApi` stays on Workshop `/api` (unpatched). The wrapper origin composes beside it:
 the custom React shell as HTML for the 27-route map, Cap'n Web `TaskDomainApi` on `/domain`
-(`authenticate(token)` → `openTenant(tenantId)` → `TaskSessionApi`), and live subscribe on
-`/subscribe`. Actor is minted from the kernel session + Team DO membership. Client
-`x-neuwave-actor` / REST `POST /rpc` are rejected. Browser boot is `bootLiveTaskSession`
-after `PublicApi.login` / `createAccount` (token key `authToken`). Authenticated `GET /tasks`
+(`authenticate(token)` → `openTenant` / `openDefaultTenant` → `TaskSessionApi`), and live
+subscribe on `/subscribe`. Actor is minted from the kernel session + Team DO membership.
+Client `x-neuwave-actor` / REST `POST /rpc` are rejected. Browser hydrate
+(`/assets/outreach-shell.js`) calls `PublicApi.login` / `createAccount`, then
+`bootLiveTaskSession` (token key `authToken`). Authenticated `GET /tasks`
 (Bearer + `x-neuwave-tenant`) SSRs the Soup list from the same session. Poisoned outbox
 rows surface as `TaskSessionApi.listAlerts()` / `operator.alerts` (gate 8 proof). Compose
-submit is `submitTaskCompose(session, title)`.
+submit is `submitTaskCompose(session, title)`. Local origin may set `LOCAL_KERNEL_API=true`
+to serve login/createAccount over the kernel User DO when Workshop is unbound.
 
 ## Commands and UI surfaces
 
