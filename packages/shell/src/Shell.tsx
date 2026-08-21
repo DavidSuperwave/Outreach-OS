@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
-import { panesFromPath } from "./path-panes.js";
+import { panesFromPath, pathnameOf, PATH_SPLIT } from "./path-panes.js";
 import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { HomePane } from "./home-pane.js";
@@ -54,8 +54,12 @@ export interface ShellProps {
   onToggleSidebar?: () => void;
 }
 
-function navActive(path: string, href: string): boolean {
-  if (href === "/") return path === "/";
+function navActive(path: string, href: string, layout: readonly SplitPane[]): boolean {
+  if (href === "/") return path === "/" || layout.some((pane) => pane.type === "home");
+  if (layout.length > 1) {
+    const mapped = PATH_SPLIT[href as keyof typeof PATH_SPLIT];
+    if (mapped && layout.some((pane) => pane.type === mapped)) return true;
+  }
   return path === href || path.startsWith(`${href}/`);
 }
 
@@ -99,6 +103,8 @@ export function Shell({
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
   const layout = panes ?? panesFromPath(path);
+  const pathname = pathnameOf(path);
+  const multiSplit = layout.length > 1;
   const vars = tokenVars(theme);
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
   const authPath = path === "/login" || path === "/signup";
@@ -255,7 +261,7 @@ export function Shell({
             style={{ display: "flex", flexDirection: "column", gap: "0.15rem", flex: 1, minHeight: 0 }}
           >
             {SIDEBAR_NAV.map((item) => {
-              const active = navActive(path, item.href);
+              const active = navActive(path, item.href, layout);
               return (
                 <a
                   key={item.id}
@@ -296,7 +302,18 @@ export function Shell({
           </div>
         </aside>
       )}
-      <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem", flex: 1, minWidth: 0 }}>
+      <main
+        data-route={layout[0]?.type ?? "home"}
+        data-split-count={String(layout.length)}
+        style={{
+          padding: multiSplit ? 0 : "1.25rem",
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
         {kernelAuthError ? (
           <p
             data-auth-error=""
@@ -306,9 +323,39 @@ export function Shell({
             {kernelAuthError}
           </p>
         ) : null}
-        {layout.map((pane) => (
-          <section key={`${pane.type}:${pane.id}`} data-split={pane.type} data-split-id={pane.id}>
-            {pane.type === "home" && path === "/" ? <HomePane alerts={operatorAlerts} /> : null}
+        <div
+          data-split-layout={multiSplit ? "row" : "stack"}
+          style={{
+            display: "flex",
+            flexDirection: multiSplit ? "row" : "column",
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+          }}
+        >
+        {layout.map((pane, index) => (
+          <section
+            key={`${pane.type}:${pane.id}:${index}`}
+            data-split={pane.type}
+            data-split-id={pane.id}
+            style={
+              multiSplit
+                ? {
+                    flex: 1,
+                    minWidth: 0,
+                    padding: "1.25rem",
+                    overflow: "auto",
+                    borderRight:
+                      index < layout.length - 1 ? "1px solid var(--outreach-border)" : undefined,
+                  }
+                : undefined
+            }
+          >
+            {pane.type === "home" &&
+            !authPath &&
+            (pathname === "/" || pathname.startsWith("/home/")) ? (
+              <HomePane alerts={operatorAlerts} />
+            ) : null}
             {authPath ? (
               <LoginPane
                 mode={path === "/signup" ? "signup" : "login"}
@@ -361,6 +408,7 @@ export function Shell({
             ) : null}
           </section>
         ))}
+        </div>
         {children}
         {path === "/onboarding" || path === "/getting-started" ? (
           <section data-surface="n19.parked" data-spec="needed" data-path={path}>

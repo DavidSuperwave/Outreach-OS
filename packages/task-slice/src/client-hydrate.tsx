@@ -20,6 +20,7 @@ import {
   STORAGE_KEYS,
   chromeInputFocused,
   isThemeId,
+  panesFromPath,
   type CommandMenuCategory,
   type CommandMenuScope,
   type LeaderKey,
@@ -455,19 +456,22 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       if (window.location.pathname + window.location.search !== path) window.location.assign(path);
     };
     const handleChrome = defaultChromeHotkeyHandle(navigate, {
-      enabled: () =>
-        defaultChromeContext({
+      currentPath: () => boot.path,
+      enabled: () => {
+        const splitCount = panesFromPath(boot.path).length;
+        return defaultChromeContext({
           signedIn: Boolean(token),
           commandMenuOpen: commandMenuOpenRef.current,
           settingsOpen: boot.path === "/settings" || boot.path === "/mcp" || boot.path.startsWith("/settings"),
           settingsTabCount: 3,
           createMenuOpen: createMenuOpenRef.current,
-          splitCount: 1,
-          canAppendSplit: true,
+          splitCount,
+          canAppendSplit: splitCount < 8,
           leader: registry.leader,
           fullCoverRoute: isFullCoverRoute(boot.path),
           sidebarMounted: !isFullCoverRoute(boot.path),
-        }),
+        });
+      },
       toggleCommandMenu,
       toggleCreateMenu,
       openTaskCompose: () => {
@@ -745,15 +749,20 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     defaultChromeHotkeyHandle(
       (path) => window.location.assign(path),
       {
-        enabled: () =>
-          defaultChromeContext({
+        currentPath: () => boot.path,
+        enabled: () => {
+          const splitCount = panesFromPath(boot.path).length;
+          return defaultChromeContext({
             signedIn: Boolean(token),
             commandMenuOpen: commandMenuOpenRef.current,
             createMenuOpen: createMenuOpenRef.current,
             leader: registryRef.current?.leader ?? (createMenuOpenRef.current ? "c" : null),
             fullCoverRoute: isFullCoverRoute(boot.path),
             sidebarMounted: !isFullCoverRoute(boot.path),
-          }),
+            splitCount,
+            canAppendSplit: splitCount < 8,
+          });
+        },
         logout: () => {
           localStorage.removeItem(boot.authTokenKey);
           localStorage.removeItem(boot.tenantKey);

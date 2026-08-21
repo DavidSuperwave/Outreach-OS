@@ -16,6 +16,8 @@ describe("ADR-002 Outreach router", () => {
     expect(classifyOutreachPath("/login")).toBe("shell");
     expect(classifyOutreachPath("/signup")).toBe("shell");
     expect(classifyOutreachPath("/tasks/_")).toBe("shell");
+    expect(classifyOutreachPath("/home/_/inbox/_")).toBe("shell");
+    expect(classifyOutreachPath("/tasks/_/inbox/_")).toBe("shell");
     expect(classifyOutreachPath("/desktop-auth")).toBe("not-found");
     expect(classifyOutreachPath("/.well-known")).toBe("not-found");
     expect(classifyOutreachPath("/oauth/callback")).toBe("oauth");

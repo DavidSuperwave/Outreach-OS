@@ -1,6 +1,7 @@
 import type { N5CommandId } from "./n5-command-ids.js";
 import { N5_KEYED_BINDINGS } from "./n5-ledger.js";
 import { commandEnabled, defaultChromeContext, type ChromeCommandContext } from "./commands.js";
+import { appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
 import type { CommandRegistry, LeaderKey, ScopeId } from "./registry.js";
 import { SETTINGS_TABS } from "./settings.js";
 import { STORAGE_KEYS, THEME_IDS, THEME_LABELS, type ThemeId } from "./theme.js";
@@ -265,7 +266,9 @@ export function chromeNavigatePath(id: string, path = "/"): string | null {
   if (id === "global.account" || id === "global.instructions") return "/settings";
   if (id === "global.mcp-setup") return "/mcp";
   if (id === "global.logout") return "/login";
-  if (id === "settings.close" || id === "split.close-or-home") return "/";
+  if (id === "settings.close") return "/";
+  if (id === "split.close-or-home") return closeFocusedSplitPath(path);
+  if (id === "global.new-split.cmd" || id === "global.new-split.bare") return appendInboxSplitPath(path);
   const tab = settingsTabPath(id);
   if (tab) return tab;
   if (id === "settings.next-tab" || id === "settings.prev-tab") {
@@ -300,8 +303,6 @@ const INERT = new Set<string>([
   "split.focus-left",
   "popover-split.close",
   "block.share",
-  "global.new-split.cmd",
-  "global.new-split.bare",
 ]);
 
 export function defaultChromeHotkeyHandle(
@@ -322,11 +323,14 @@ export function defaultChromeHotkeyHandle(
     logout?: () => boolean;
     toggleSidebar?: () => boolean;
     focusHomeChat?: () => boolean;
+    currentPath?: string | (() => string);
     enabled?: ChromeCommandContext | (() => ChromeCommandContext);
   } = {},
 ): ChromeHotkeyHandle {
   return (id) => {
     const ctx = typeof extras.enabled === "function" ? extras.enabled() : (extras.enabled ?? defaultChromeContext());
+    const current =
+      typeof extras.currentPath === "function" ? extras.currentPath() : (extras.currentPath ?? "/");
     if (id === "global.hotkey-debugger") return false;
     if (!commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
     if (id === "global.create") return extras.toggleCreateMenu?.() ?? true;
@@ -398,7 +402,7 @@ export function defaultChromeHotkeyHandle(
       return true;
     }
     if (INERT.has(id)) return false;
-    const path = chromeNavigatePath(id);
+    const path = chromeNavigatePath(id, current);
     if (path) {
       navigate(path);
       extras.closeMenus?.();

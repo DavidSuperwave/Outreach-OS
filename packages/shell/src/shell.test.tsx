@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute, isAuthCoverPath, POST_AUTH_PATH } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
-import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
+import { PATH_SPLIT, panesFromPath, pathFromPanes, appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
 import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, isThemeId, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
@@ -143,6 +143,9 @@ describe("N5 chrome commands (160)", () => {
     expect(chromeNavigatePath("go-to.tasks")).toBe("/tasks");
     expect(chromeNavigatePath("global.toggle-settings")).toBe("/settings");
     expect(chromeNavigatePath("settings.tab-2")).toBe("/mcp");
+    expect(chromeNavigatePath("global.new-split.bare", "/")).toBe("/home/_/inbox/_");
+    expect(chromeNavigatePath("global.new-split.cmd", "/tasks")).toBe("/tasks/_/inbox/_");
+    expect(chromeNavigatePath("split.close-or-home", "/home/_/inbox/_")).toBe("/");
     expect(chromeActiveScope("/tasks")).toBe("split");
     expect(chromeActiveScope("/settings")).toBe("detached");
     expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
@@ -399,6 +402,51 @@ describe("path → split layout", () => {
     expect(panesFromPath("/login")).toEqual([{ type: "home", id: "_" }]);
     expect(panesFromPath("/tasks/_")).toEqual([{ type: "tasks", id: "_" }]);
     expect(panesFromPath("/hotkey-debugger/_")).toEqual([{ type: "home", id: "_" }]);
+    expect(panesFromPath("/home/_/inbox/_")).toEqual([
+      { type: "home", id: "_" },
+      { type: "inbox", id: "_" },
+    ]);
+    expect(appendInboxSplitPath("/")).toBe("/home/_/inbox/_");
+    expect(appendInboxSplitPath("/tasks")).toBe("/tasks/_/inbox/_");
+    expect(pathFromPanes([{ type: "home", id: "_" }])).toBe("/");
+    expect(pathFromPanes([{ type: "tasks", id: "_" }])).toBe("/tasks");
+    expect(closeFocusedSplitPath("/")).toBe("/");
+    expect(closeFocusedSplitPath("/home/_/inbox/_")).toBe("/");
+    expect(closeFocusedSplitPath("/tasks/_/inbox/_")).toBe("/tasks");
+  });
+
+  it("dispatches global.new-split on \\ and cmd+\\; bare is gated while typing", () => {
+    const paths: string[] = [];
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle((path) => paths.push(path), {
+        currentPath: () => "/tasks",
+      }),
+    );
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "\\", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "global.new-split.bare",
+    );
+    expect(paths).toEqual(["/tasks/_/inbox/_"]);
+    expect(
+      registry.dispatch({
+        chord: chordFromEvent({
+          key: "\\",
+          code: "Backslash",
+          altKey: false,
+          shiftKey: false,
+          metaKey: true,
+          ctrlKey: false,
+        }),
+        inputFocused: true,
+        touch: false,
+        platform: "mac",
+      }),
+    ).toBe("global.new-split.cmd");
+    expect(paths).toEqual(["/tasks/_/inbox/_", "/tasks/_/inbox/_"]);
+    expect(registry.dispatch({ chord: "\\", inputFocused: true, touch: false, platform: "mac" })).toBeNull();
+    expect(commandEnabled("global.new-split.bare", defaultChromeContext({ canAppendSplit: false }))).toBe(false);
   });
 });
 
@@ -426,6 +474,19 @@ describe("Shell boots", () => {
     expect(html).not.toMatch(/macro/i);
     const blocked = renderToString(createElement(Shell, { path: "/.well-known" }));
     expect(blocked).toContain("data-unserved");
+  });
+
+  it("renders a multi-split codec URL as side-by-side panes (N5 URL round-trip)", () => {
+    const html = renderToString(createElement(Shell, { path: "/home/_/inbox/_", theme: "outreach-dark" }));
+    expect(html).toContain("data-split-layout=\"row\"");
+    expect(html).toContain("data-split-count=\"2\"");
+    expect(html).toContain("data-path=\"/home/_/inbox/_\"");
+    expect(html).toContain("data-split=\"home\"");
+    expect(html).toContain("data-split=\"inbox\"");
+    expect(html).toContain("data-surface=\"home.bound\"");
+    expect(html).toContain("Inbox (N11)");
+    expect(html).toContain("data-nav=\"/\"");
+    expect(html).toContain("data-nav=\"/inbox\"");
   });
 
   it("renders kernel login chrome on /login and /signup (PublicApi stays on /api)", () => {
