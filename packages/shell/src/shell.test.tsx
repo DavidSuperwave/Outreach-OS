@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createElement } from "react";
-import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute } from "./routes.js";
+import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute, isAuthCoverPath, POST_AUTH_PATH } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
 import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
 import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, isThemeId, assertNoMacroBrand } from "./theme.js";
@@ -150,6 +150,11 @@ describe("N5 chrome commands (160)", () => {
     expect(isFullCoverRoute("/login")).toBe(true);
     expect(isFullCoverRoute("/settings")).toBe(true);
     expect(isFullCoverRoute("/tasks")).toBe(false);
+    expect(isAuthCoverPath("/login")).toBe(true);
+    expect(isAuthCoverPath("/signup")).toBe(true);
+    expect(isAuthCoverPath("/")).toBe(false);
+    expect(isAuthCoverPath("/tasks")).toBe(false);
+    expect(POST_AUTH_PATH).toBe("/");
     expect(SIDEBAR_NAV.some((row) => row.id === "go-to.search")).toBe(false);
     expect(SIDEBAR_NAV.find((row) => row.id === "go-to.documents")?.label).toBe("Files");
   });
@@ -409,6 +414,15 @@ describe("Shell boots", () => {
     expect(html).toContain("data-chrome=\"sidebar\"");
     expect(html).toContain("data-command=\"go-to.tasks\"");
     expect(html).toContain("data-command=\"global.toggle-sidebar\"");
+    expect(html).toContain("data-surface=\"home.bound\"");
+    expect(html).toContain("data-surface=\"playbooks\"");
+    expect(html).toContain("data-icp=\"intraplex\"");
+    expect(html).toContain("data-surface=\"inspect\"");
+    expect(html).toContain("data-surface=\"ask\"");
+    expect(html).toContain("data-command=\"home.focus-chat-input\"");
+    expect(html).toContain("data-surface=\"table-gadget\"");
+    expect(html).toContain("data-surface=\"instantly.reads\"");
+    expect(html).toContain("data-posture=\"reads-only\"");
     expect(html).not.toMatch(/macro/i);
     const blocked = renderToString(createElement(Shell, { path: "/.well-known" }));
     expect(blocked).toContain("data-unserved");
@@ -748,6 +762,26 @@ describe("Shell boots", () => {
     expect(chromeInputFocused(true, true, "c")).toBe(false);
     expect(chromeInputFocused(true, true, "t")).toBe(true);
     expect(chromeInputFocused(true, true, "e")).toBe(true);
+  });
+
+  it("enter on home focuses ask; soup.open still owns enter after slice registration", () => {
+    let focused = false;
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle(() => undefined, {
+        focusHomeChat: () => {
+          focused = true;
+          return true;
+        },
+        enabled: () => defaultChromeContext({ signedIn: true }),
+      }),
+    );
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "enter", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "home.focus-chat-input",
+    );
+    expect(focused).toBe(true);
   });
 
   it("keeps soup property cells as chips until a property command opens an editor", () => {

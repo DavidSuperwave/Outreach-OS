@@ -300,7 +300,6 @@ const INERT = new Set<string>([
   "split.focus-left",
   "popover-split.close",
   "block.share",
-  "home.focus-chat-input",
   "global.new-split.cmd",
   "global.new-split.bare",
 ]);
@@ -322,6 +321,7 @@ export function defaultChromeHotkeyHandle(
     applyTheme?: (theme: ThemeId, kind?: "visible" | "light" | "dark") => boolean;
     logout?: () => boolean;
     toggleSidebar?: () => boolean;
+    focusHomeChat?: () => boolean;
     enabled?: ChromeCommandContext | (() => ChromeCommandContext);
   } = {},
 ): ChromeHotkeyHandle {
@@ -330,6 +330,7 @@ export function defaultChromeHotkeyHandle(
     if (id === "global.hotkey-debugger") return false;
     if (!commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
     if (id === "global.create") return extras.toggleCreateMenu?.() ?? true;
+    if (id === "home.focus-chat-input") return extras.focusHomeChat?.() ?? false;
     if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
       return extras.openTaskCompose?.() ?? (navigate("/tasks"), extras.closeMenus?.(), true);
     }

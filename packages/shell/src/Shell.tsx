@@ -4,6 +4,7 @@ import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
 import { panesFromPath } from "./path-panes.js";
 import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
+import { HomePane } from "./home-pane.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
 import type { LeaderKey } from "./registry.js";
@@ -307,9 +308,7 @@ export function Shell({
         ) : null}
         {layout.map((pane) => (
           <section key={`${pane.type}:${pane.id}`} data-split={pane.type} data-split-id={pane.id}>
-            {pane.type === "home" && path === "/" ? (
-              <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
-            ) : null}
+            {pane.type === "home" && path === "/" ? <HomePane alerts={operatorAlerts} /> : null}
             {authPath ? (
               <LoginPane
                 mode={path === "/signup" ? "signup" : "login"}

@@ -13,6 +13,8 @@ import {
   LEADER_HINT_RESET_MS, // wrangler rebuilds when this hydrate entry changes
   nextCommandMenuCategory,
   isFullCoverRoute,
+  isAuthCoverPath,
+  POST_AUTH_PATH,
   persistTheme,
   registerChromeHotkeys,
   STORAGE_KEYS,
@@ -372,7 +374,15 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   }, []);
 
   useEffect(() => {
-    if (!token || (boot.path !== "/tasks" && !boot.path.startsWith("/tasks/"))) return;
+    if (token) {
+      if (isAuthCoverPath(boot.path)) window.location.assign(POST_AUTH_PATH);
+      return;
+    }
+    if (!isAuthCoverPath(boot.path)) window.location.assign("/login");
+  }, [boot.path, token]);
+
+  useEffect(() => {
+    if (!token || isAuthCoverPath(boot.path)) return;
     let cancelled = false;
     let domain: RpcStub<TaskDomainPublicApi> | undefined;
     let stopSubscribe: (() => void) | undefined;
@@ -489,7 +499,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         if (kind === "visible") setTheme(next);
         return true;
       },
-      toggleSidebar: () => {
+        toggleSidebar: () => {
         setSidebarCollapsed((value) => {
           const next = !value;
           try {
@@ -500,6 +510,13 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
           return next;
         });
         return true;
+      },
+      focusHomeChat: () => {
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-surface="ask"] input[data-command="home.focus-chat-input"]',
+        );
+        input?.focus();
+        return Boolean(input);
       },
     });
     registerChromeHotkeys(registry, handleChrome);
@@ -599,7 +616,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       const live = await bootLiveTaskSession(domain, nextToken);
       const nextTenant = await live.tenantId();
       localStorage.setItem(boot.tenantKey, nextTenant);
-      window.location.assign("/tasks");
+      window.location.assign(POST_AUTH_PATH);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "login failed");
     }
@@ -768,6 +785,13 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         commandQueryEmpty: () => commandQueryRef.current.trim() === "",
         moveCommandSelection,
         confirmCommandSelection,
+        focusHomeChat: () => {
+          const input = document.querySelector<HTMLInputElement>(
+            '[data-surface="ask"] input[data-command="home.focus-chat-input"]',
+          );
+          input?.focus();
+          return Boolean(input);
+        },
       },
     )(id);
   };

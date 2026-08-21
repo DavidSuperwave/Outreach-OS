@@ -6,9 +6,12 @@ export {
   isWebServed,
   wellKnownResponse,
   isFullCoverRoute,
+  isAuthCoverPath,
+  POST_AUTH_PATH,
 } from "./routes.js";
 export { ALWAYS_SPLITS, KILLED_DEV_SPLITS, encodeSplits, decodeSplits, SplitManager, isProductSplit, isKilledSplit } from "./splits.js";
 export { PATH_SPLIT, pathnameOf, panesFromPath } from "./path-panes.js";
+export { HomePane } from "./home-pane.js";
 export { LoginPane } from "./login-pane.js";
 export type { KernelAuthFields } from "./login-pane.js";
 export type { SplitType, SplitPane } from "./splits.js";

@@ -356,6 +356,7 @@ describe("N6 task vertical slice (11 gates)", () => {
     );
     registry.setActive("split");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.tab-1");
+    expect(registry.dispatch({ chord: "enter", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.open");
     expect(registry.dispatch({ chord: "e", inputFocused: false, touch: false, platform: "mac" })).toBe(
       "soup-entity.mark-done",
     );
