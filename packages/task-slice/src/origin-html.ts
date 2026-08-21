@@ -20,7 +20,7 @@ export function renderOutreachDocument(input: {
       theme: "outreach-dark",
       username: input.username ?? "signed-out",
       taskItems: input.items ?? [],
-      taskComposeOpen: true,
+      taskComposeOpen: false,
       taskDraft: "",
       activityFacts: input.activity ?? [],
       operatorAlerts: input.alerts ?? [],

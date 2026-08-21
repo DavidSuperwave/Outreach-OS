@@ -249,7 +249,8 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     expect(html).toContain("data-origin=\"compositor\"");
     expect(html).toContain("data-shell=\"outreach-os\"");
     expect(html).toContain("data-slice=\"task\"");
-    expect(html).toContain("data-scope=\"task-compose-popover\"");
+    expect(html).not.toContain("data-scope=\"task-compose-popover\"");
+    expect(html).toContain("data-command=\"global.create\"");
     expect(html).toContain("\"domainApi\":\"/domain\"");
     expect(html).toContain("\"kernelApi\":\"/api\"");
 

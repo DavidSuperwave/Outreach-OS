@@ -13,7 +13,9 @@ import {
   chromeActiveScope,
   chromeNavigatePath,
   registerChromeHotkeys,
+  defaultChromeHotkeyHandle,
   COMMAND_MENU_ITEMS,
+  CREATE_MENU_ITEMS,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -82,6 +84,7 @@ describe("OD-24 brand tripwire", () => {
       assertNoMacroBrand(key);
     }
     expect(OKLCH_TOKENS["outreach-dark"].surface.startsWith("oklch(")).toBe(true);
+    expect(OKLCH_TOKENS["outreach-dark"].popover.startsWith("oklch(")).toBe(true);
     expect(N5_COMMAND_IDS.join("\n")).not.toMatch(/macro/i);
   });
 });
@@ -123,6 +126,7 @@ describe("N5 chrome commands (160)", () => {
     expect(chromeActiveScope("/tasks")).toBe("split");
     expect(chromeActiveScope("/settings")).toBe("detached");
     expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
+    expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("command-scope-create-menu");
   });
 
   it("registers keyed chrome chords; settings 1/2/3 stay off the soup split", () => {
@@ -383,9 +387,9 @@ describe("Shell boots", () => {
       createElement(Shell, { path: "/tasks", theme: "outreach-dark" }),
     );
     expect(html).toContain("data-slice=\"task\"");
-    expect(html).toContain("data-scope=\"task-compose-popover\"");
+    expect(html).not.toContain("data-scope=\"task-compose-popover\"");
+    expect(html).toContain("data-command=\"global.create\"");
     expect(html).toContain("data-surface=\"soup.tasks\"");
-    expect(html).toContain("aria-label=\"Task title\"");
     expect(html).toContain("data-hint=\"create-menu.task\"");
     expect(html).toContain("data-command=\"soup.tab-1\"");
     expect(html).toContain("data-command=\"soup-nav.down-j\"");
@@ -393,6 +397,11 @@ describe("Shell boots", () => {
     expect(html).toContain("data-empty=\"tasks\"");
     expect(html).toContain("aria-label=\"Tasks\"");
     expect(html).not.toMatch(/macro/i);
+    const compose = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", taskComposeOpen: true }),
+    );
+    expect(compose).toContain("data-scope=\"task-compose-popover\"");
+    expect(compose).toContain("aria-label=\"Task title\"");
     const denied = renderToString(
       createElement(Shell, { path: "/tasks", theme: "outreach-dark", kernelAuthError: "usr_1 lacks edit on doc_1" }),
     );
@@ -449,5 +458,47 @@ describe("Shell boots", () => {
     expect(html).toContain("data-command=\"go-to.tasks\"");
     expect(html).toContain("data-command=\"global.logout\"");
     expect(html).not.toMatch(/macro/i);
+  });
+
+  it("renders the create-menu overlay; c then t opens compose without navigating", () => {
+    const html = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", createMenuOpen: true }),
+    );
+    expect(html).toContain("data-surface=\"create-menu\"");
+    expect(html).toContain("data-command=\"create-menu.task\"");
+    expect(CREATE_MENU_ITEMS.some((item) => item.id === "create-menu.task")).toBe(true);
+    const paths: string[] = [];
+    let createOpen = false;
+    let compose = false;
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(
+      registry,
+      defaultChromeHotkeyHandle((path) => paths.push(path), {
+        toggleCreateMenu: () => {
+          createOpen = !createOpen;
+          return true;
+        },
+        openTaskCompose: () => {
+          compose = true;
+          createOpen = false;
+          return true;
+        },
+        closeMenus: () => {
+          createOpen = false;
+          return true;
+        },
+        enabled: () => defaultChromeContext({ leader: registry.leader, createMenuOpen: createOpen }),
+      }),
+    );
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "c", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "global.create",
+    );
+    expect(createOpen).toBe(true);
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "create-menu.task",
+    );
+    expect(compose).toBe(true);
+    expect(paths).toEqual([]);
   });
 });

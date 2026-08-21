@@ -29,6 +29,8 @@ import {
 } from "./live-session.js";
 import type { OutreachBootConfig } from "./live-session.js";
 
+export const OPEN_TASK_COMPOSE_KEY = "outreach-open-task-compose";
+
 function isTaskPath(path: string): boolean {
   return path === "/tasks" || path.startsWith("/tasks/");
 }
@@ -74,20 +76,19 @@ function clickSliceCommand(command: string): boolean {
   return Boolean(node);
 }
 
-function handleLiveSliceHotkey(id: string): boolean {
+function handleLiveSliceHotkey(
+  id: string,
+  ui: { openCreateMenu: () => boolean; openTaskCompose: () => boolean },
+): boolean {
   switch (id) {
     case "global.create":
+      return ui.openCreateMenu();
     case "global.go-to":
     case "global.open-category-leader":
       return true;
     case "create-menu.task":
-    case "launcher.task": {
-      const input = document.querySelector<HTMLInputElement>(
-        '[data-scope="task-compose-popover"] input[name="title"]',
-      );
-      input?.focus();
-      return Boolean(input);
-    }
+    case "launcher.task":
+      return ui.openTaskCompose();
     case "go-to.tasks":
     case "command-menu.open-category.tasks":
       if (window.location.pathname !== "/tasks") window.location.assign("/tasks");
@@ -152,6 +153,14 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [alerts, setAlerts] = useState<TaskPaneAlert[]>([]);
   const [sessionReady, setSessionReady] = useState(false);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [taskComposeOpen, setTaskComposeOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(OPEN_TASK_COMPOSE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<ThemeId>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.theme);
@@ -160,6 +169,65 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   // RpcStub is thenable (Cap'n Web pipelining). React 19 useState unwraps thenables, so
   // the session must live on a ref — not in state — or create/markDone see a null session.
   const sessionRef = useRef<TaskSessionApi | null>(null);
+  const registryRef = useRef<CommandRegistry | null>(null);
+  const commandMenuOpenRef = useRef(commandMenuOpen);
+  const createMenuOpenRef = useRef(createMenuOpen);
+  const taskComposeOpenRef = useRef(taskComposeOpen);
+  commandMenuOpenRef.current = commandMenuOpen;
+  createMenuOpenRef.current = createMenuOpen;
+  taskComposeOpenRef.current = taskComposeOpen;
+
+  const closeMenus = useCallback(() => {
+    setCommandMenuOpen(false);
+    setCreateMenuOpen(false);
+    setTaskComposeOpen(false);
+    commandMenuOpenRef.current = false;
+    createMenuOpenRef.current = false;
+    taskComposeOpenRef.current = false;
+    registryRef.current?.jettison();
+    return true;
+  }, []);
+
+  const toggleCreateMenu = useCallback(() => {
+    const next = !createMenuOpenRef.current;
+    createMenuOpenRef.current = next;
+    setCreateMenuOpen(next);
+    if (next) {
+      setCommandMenuOpen(false);
+      commandMenuOpenRef.current = false;
+      registryRef.current?.activateLeader("c");
+    } else {
+      registryRef.current?.jettison();
+    }
+    return true;
+  }, []);
+
+  const toggleCommandMenu = useCallback(() => {
+    const next = !commandMenuOpenRef.current;
+    commandMenuOpenRef.current = next;
+    setCommandMenuOpen(next);
+    if (next) {
+      setCreateMenuOpen(false);
+      createMenuOpenRef.current = false;
+      registryRef.current?.jettison();
+    }
+    return true;
+  }, []);
+
+  const openTaskCompose = useCallback(() => {
+    try {
+      sessionStorage.removeItem(OPEN_TASK_COMPOSE_KEY);
+    } catch {
+      /* ignore */
+    }
+    setCreateMenuOpen(false);
+    createMenuOpenRef.current = false;
+    setCommandMenuOpen(false);
+    commandMenuOpenRef.current = false;
+    setTaskComposeOpen(true);
+    taskComposeOpenRef.current = true;
+    return true;
+  }, []);
 
   const applySurface = useCallback(async (live: TaskSessionApi) => {
     const surface = await loadTaskSurface(live);
@@ -213,7 +281,21 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   }, [applySurface, boot.domainApi, boot.path, boot.subscribe, boot.tenantKey, token]);
 
   useEffect(() => {
+    if (!taskComposeOpen) return;
+    try {
+      sessionStorage.removeItem(OPEN_TASK_COMPOSE_KEY);
+    } catch {
+      /* ignore */
+    }
+    const input = document.querySelector<HTMLInputElement>(
+      '[data-scope="task-compose-popover"] input[name="title"]',
+    );
+    input?.focus();
+  }, [taskComposeOpen]);
+
+  useEffect(() => {
     const registry = new CommandRegistry();
+    registryRef.current = registry;
     registry.setActive(chromeActiveScope(boot.path, { commandMenuOpen }));
     const navigate = (path: string) => {
       if (window.location.pathname + window.location.search !== path) window.location.assign(path);
@@ -222,22 +304,27 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       enabled: () =>
         defaultChromeContext({
           signedIn: Boolean(token),
-          commandMenuOpen,
+          commandMenuOpen: commandMenuOpenRef.current,
           settingsOpen: boot.path === "/settings" || boot.path === "/mcp" || boot.path.startsWith("/settings"),
           settingsTabCount: 3,
-          createMenuOpen: false,
+          createMenuOpen: createMenuOpenRef.current,
           splitCount: 1,
           canAppendSplit: true,
           leader: registry.leader,
         }),
-      toggleCommandMenu: () => {
-        setCommandMenuOpen((open) => !open);
+      toggleCommandMenu,
+      toggleCreateMenu,
+      openTaskCompose: () => {
+        if (isTaskPath(boot.path)) return openTaskCompose();
+        try {
+          sessionStorage.setItem(OPEN_TASK_COMPOSE_KEY, "1");
+        } catch {
+          /* ignore */
+        }
+        navigate("/tasks");
         return true;
       },
-      closeMenus: () => {
-        setCommandMenuOpen(false);
-        return true;
-      },
+      closeMenus,
       logout: () => {
         localStorage.removeItem(boot.authTokenKey);
         localStorage.removeItem(boot.tenantKey);
@@ -256,24 +343,50 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     });
     registerChromeHotkeys(registry, handleChrome);
     if (isTaskPath(boot.path) && !commandMenuOpen) {
-      registerSliceHotkeys(registry, handleLiveSliceHotkey);
+      registerSliceHotkeys(registry, (id) =>
+        handleLiveSliceHotkey(id, { openCreateMenu: toggleCreateMenu, openTaskCompose }),
+      );
     }
     const onKey = (event: KeyboardEvent) => {
       const inputFocused =
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
+      const chord = chordFromEvent(event);
       const id = registry.dispatch({
-        chord: chordFromEvent(event),
+        chord,
         inputFocused,
         touch: false,
         platform: navigator.platform.toLowerCase().includes("mac") ? "mac" : "non-mac",
       });
-      if (id) event.preventDefault();
+      if (id) {
+        event.preventDefault();
+        return;
+      }
+      if (
+        chord === "escape" &&
+        (commandMenuOpenRef.current || createMenuOpenRef.current || taskComposeOpenRef.current)
+      ) {
+        closeMenus();
+        event.preventDefault();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [boot.authTokenKey, boot.path, boot.tenantKey, commandMenuOpen, token]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (registryRef.current === registry) registryRef.current = null;
+    };
+  }, [
+    boot.authTokenKey,
+    boot.path,
+    boot.tenantKey,
+    closeMenus,
+    commandMenuOpen,
+    openTaskCompose,
+    toggleCommandMenu,
+    toggleCreateMenu,
+    token,
+  ]);
 
   const onKernelAuth = async (fields: { username: string; password: string; displayName: string }) => {
     setAuthError("");
@@ -311,6 +424,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       setItems(surfaceItems(surface.items));
       setActivity(surface.activity);
       setAlerts(surface.alerts);
+      setTaskComposeOpen(false);
+      taskComposeOpenRef.current = false;
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "create failed");
     }
@@ -386,43 +501,75 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     }
   };
 
+  const chromeClick = (id: string) => {
+    if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
+      if (isTaskPath(boot.path)) {
+        openTaskCompose();
+        return;
+      }
+      try {
+        sessionStorage.setItem(OPEN_TASK_COMPOSE_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      window.location.assign("/tasks");
+      return;
+    }
+    defaultChromeHotkeyHandle(
+      (path) => window.location.assign(path),
+      {
+        enabled: () =>
+          defaultChromeContext({
+            signedIn: Boolean(token),
+            commandMenuOpen: commandMenuOpenRef.current,
+            createMenuOpen: createMenuOpenRef.current,
+            leader: registryRef.current?.leader ?? (createMenuOpenRef.current ? "c" : null),
+          }),
+        logout: () => {
+          localStorage.removeItem(boot.authTokenKey);
+          localStorage.removeItem(boot.tenantKey);
+          window.location.assign("/login");
+          return true;
+        },
+        applyTheme: (next, kind = "visible") => {
+          persistTheme(next, kind);
+          if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
+          return true;
+        },
+        closeMenus,
+        openTaskCompose: () => {
+          if (isTaskPath(boot.path)) return openTaskCompose();
+          try {
+            sessionStorage.setItem(OPEN_TASK_COMPOSE_KEY, "1");
+          } catch {
+            /* ignore */
+          }
+          window.location.assign("/tasks");
+          return true;
+        },
+        toggleCreateMenu,
+        toggleCommandMenu,
+      },
+    )(id);
+  };
+
   return createElement(Shell, {
     path: boot.path,
     theme,
     username,
     taskItems: items,
-    taskComposeOpen: true,
+    taskComposeOpen,
     activityFacts: activity,
     operatorAlerts: alerts,
     kernelAuthError: authError,
     sessionReady,
     commandMenuOpen,
+    createMenuOpen,
     sidebarCollapsed,
-    onToggleCommandMenu: () => setCommandMenuOpen((open) => !open),
-    onCommandMenuSelect: (id) => {
-      defaultChromeHotkeyHandle(
-        (path) => window.location.assign(path),
-        {
-          enabled: defaultChromeContext({ signedIn: Boolean(token), commandMenuOpen: true }),
-          logout: () => {
-            localStorage.removeItem(boot.authTokenKey);
-            localStorage.removeItem(boot.tenantKey);
-            window.location.assign("/login");
-            return true;
-          },
-          applyTheme: (next, kind = "visible") => {
-            persistTheme(next, kind);
-            if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
-            return true;
-          },
-          closeMenus: () => {
-            setCommandMenuOpen(false);
-            return true;
-          },
-        },
-      )(id);
-      if (id !== "global.command-menu") setCommandMenuOpen(false);
-    },
+    onToggleCommandMenu: toggleCommandMenu,
+    onToggleCreateMenu: toggleCreateMenu,
+    onCommandMenuSelect: chromeClick,
+    onCreateMenuSelect: chromeClick,
     onKernelAuth,
     onCreateTask,
     onMarkDone,

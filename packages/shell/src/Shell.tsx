@@ -1,12 +1,12 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { panesFromPath } from "./path-panes.js";
 import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
-import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
-import { COMMAND_MENU_ITEMS } from "./n5-hotkeys.js";
+import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
+import { COMMAND_MENU_ITEMS, CREATE_MENU_ITEMS } from "./n5-hotkeys.js";
 
 export interface ShellProps {
   path: string;
@@ -29,9 +29,12 @@ export interface ShellProps {
   onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
   sessionReady?: boolean;
   commandMenuOpen?: boolean;
+  createMenuOpen?: boolean;
   onCommandMenuSelect?: (id: string) => void;
+  onCreateMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
   onToggleCommandMenu?: () => void;
+  onToggleCreateMenu?: () => void;
 }
 
 const NAV = [
@@ -59,7 +62,7 @@ export function Shell({
   username = "admin",
   children,
   taskItems = [],
-  taskComposeOpen = true,
+  taskComposeOpen = false,
   taskDraft = "",
   activityFacts = [],
   operatorAlerts = [],
@@ -73,17 +76,47 @@ export function Shell({
   onKernelAuth,
   sessionReady,
   commandMenuOpen = false,
+  createMenuOpen = false,
   onCommandMenuSelect,
+  onCreateMenuSelect,
   sidebarCollapsed = false,
   onToggleCommandMenu,
+  onToggleCreateMenu,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
   const layout = panes ?? panesFromPath(path);
-  const tokens = theme === "outreach-light" ? OKLCH_TOKENS["outreach-light"] : OKLCH_TOKENS["outreach-dark"];
+  const vars = tokenVars(theme);
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
   const authPath = path === "/login" || path === "/signup";
+  const chromeButton: CSSProperties = {
+    color: "var(--outreach-accent)",
+    background: "none",
+    border: 0,
+    cursor: "pointer",
+  };
+  const overlay: CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    background: "var(--outreach-overlay)",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    padding: "12vh 1.25rem 1.25rem",
+    zIndex: 20,
+  };
+  const popover: CSSProperties = {
+    background: "var(--outreach-popover)",
+    color: "var(--outreach-text)",
+    border: "1px solid var(--outreach-border)",
+    borderRadius: "0.75rem",
+    minWidth: "18rem",
+    maxWidth: "28rem",
+    width: "100%",
+    padding: "0.85rem 1rem",
+    boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
+  };
   return (
     <div
       data-shell="outreach-os"
@@ -91,13 +124,16 @@ export function Shell({
       data-theme-label={THEME_LABELS[theme] ?? theme}
       data-path={encodeSplits(layout)}
       data-session-ready={sessionReady ? "true" : "false"}
-      style={{
-        minHeight: "100vh",
-        fontFamily: "ui-sans-serif, system-ui, sans-serif",
-        background: tokens.surface,
-        color: tokens.text,
-        borderColor: tokens.border,
-      }}
+      style={
+        {
+          ...vars,
+          minHeight: "100vh",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          background: "var(--outreach-surface)",
+          color: "var(--outreach-text)",
+          borderColor: "var(--outreach-border)",
+        } as CSSProperties
+      }
     >
       <header
         data-chrome="sidebar"
@@ -107,7 +143,7 @@ export function Shell({
           gap: "1.25rem",
           alignItems: "center",
           padding: "0.85rem 1.25rem",
-          borderBottom: `1px solid ${tokens.border}`,
+          borderBottom: "1px solid var(--outreach-border)",
         }}
       >
         <strong>Outreach OS</strong>
@@ -117,7 +153,7 @@ export function Shell({
               key={item.href}
               href={item.href}
               data-nav={item.href}
-              style={{ color: tokens.accent, textDecoration: path === item.href ? "underline" : "none" }}
+              style={{ color: "var(--outreach-accent)", textDecoration: path === item.href ? "underline" : "none" }}
             >
               {item.label}
             </a>
@@ -125,10 +161,13 @@ export function Shell({
         </nav>
         <button
           type="button"
-          data-command="global.command-menu"
-          onClick={onToggleCommandMenu}
-          style={{ marginLeft: "auto", color: tokens.accent, background: "none", border: 0, cursor: "pointer" }}
+          data-command="global.create"
+          onClick={onToggleCreateMenu}
+          style={{ ...chromeButton, marginLeft: "auto" }}
         >
+          Create
+        </button>
+        <button type="button" data-command="global.command-menu" onClick={onToggleCommandMenu} style={chromeButton}>
           Command menu
         </button>
       </header>
@@ -206,22 +245,57 @@ export function Shell({
           </section>
         ) : null}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
+        {createMenuOpen ? (
+          <div data-surface="create-menu" role="dialog" aria-label="Create" style={overlay}>
+            <div style={popover}>
+              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Create</p>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {CREATE_MENU_ITEMS.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      data-command={item.id}
+                      onClick={() => onCreateMenuSelect?.(item.id)}
+                      style={{
+                        ...chromeButton,
+                        display: "flex",
+                        width: "100%",
+                        justifyContent: "space-between",
+                        padding: "0.45rem 0",
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      <kbd style={{ color: "var(--outreach-muted)" }}>{item.chord}</kbd>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
         {commandMenuOpen ? (
-          <div data-surface="command-menu" role="dialog" aria-label="Command menu">
-            <p>Command menu</p>
-            <ul>
-              {COMMAND_MENU_ITEMS.map((item) => (
-                <li key={item.id}>
-                  <button type="button" data-command={item.id} onClick={() => onCommandMenuSelect?.(item.id)}>
-                    {item.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div data-surface="command-menu" role="dialog" aria-label="Command menu" style={overlay}>
+            <div style={popover}>
+              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Command menu</p>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {COMMAND_MENU_ITEMS.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      data-command={item.id}
+                      onClick={() => onCommandMenuSelect?.(item.id)}
+                      style={{ ...chromeButton, display: "block", width: "100%", textAlign: "left", padding: "0.45rem 0" }}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         ) : null}
       </main>
-      <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: `1px solid ${tokens.border}` }}>
+      <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: "1px solid var(--outreach-border)" }}>
         {username}
       </footer>
     </div>

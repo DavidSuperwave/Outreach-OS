@@ -37,7 +37,7 @@ export type SoupTaskTab = (typeof SOUP_TASK_TABS)[number]["id"];
 /** N5/N6 task split: compose popover + Soup list surface, no Macro chrome. */
 export function TaskPane({
   items = [],
-  composeOpen = true,
+  composeOpen = false,
   draft = "",
   activity = [],
   alerts = [],
@@ -87,13 +87,23 @@ export function TaskPane({
       role="region"
       aria-label="Tasks"
     >
-      <p data-hint="create-menu.task">
-        <kbd>c</kbd> then <kbd>t</kbd> creates a task
+      <p data-hint="create-menu.task" style={{ color: "var(--outreach-muted)" }}>
+        <kbd>c</kbd> then <kbd>t</kbd> opens compose
       </p>
       {composeOpen ? (
         <form
           data-scope="task-compose-popover"
           data-command="create-menu.task"
+          role="dialog"
+          aria-label="Create task"
+          style={{
+            background: "var(--outreach-popover)",
+            border: "1px solid var(--outreach-border)",
+            borderRadius: "0.75rem",
+            padding: "0.85rem 1rem",
+            margin: "0.75rem 0 1rem",
+            maxWidth: "28rem",
+          }}
           onSubmit={(event) => {
             if (!onCreate) return;
             event.preventDefault();
@@ -104,7 +114,7 @@ export function TaskPane({
         >
           <label>
             Title
-            <input name="title" defaultValue={draft} aria-label="Task title" />
+            <input name="title" defaultValue={draft} aria-label="Task title" autoComplete="off" />
           </label>
           <button type="submit">Create task</button>
         </form>
@@ -132,7 +142,7 @@ export function TaskPane({
           </button>
         ))}
       </div>
-      <table data-surface="soup.tasks" role="table">
+      <table data-surface="soup.tasks" role="table" style={{ borderColor: "var(--outreach-border)", width: "100%" }}>
         <thead>
           <tr>
             <th>Done</th>

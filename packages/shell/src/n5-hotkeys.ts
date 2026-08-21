@@ -68,6 +68,21 @@ const CREATE_OR_LAUNCH: Record<string, string> = {
   "launcher.code-new-split": "/documents",
 };
 
+export const CREATE_MENU_ITEMS: readonly { id: N5CommandId; label: string; chord: string }[] = [
+  { id: "create-menu.task", label: "Create task", chord: "t" },
+  { id: "create-menu.md", label: "Create document", chord: "d" },
+  { id: "create-menu.email", label: "Create email", chord: "e" },
+  { id: "create-menu.chat", label: "Create agent", chord: "a" },
+  { id: "create-menu.channel", label: "Create channel", chord: "g" },
+  { id: "create-menu.channel-message", label: "Create message", chord: "m" },
+  { id: "create-menu.project", label: "Create folder", chord: "f" },
+  { id: "create-menu.canvas", label: "Create canvas", chord: "n" },
+  { id: "create-menu.code", label: "Create code", chord: "o" },
+  { id: "create-menu.automation", label: "Create automation", chord: "u" },
+  { id: "create-menu.skill", label: "Create skill", chord: "k" },
+  { id: "create-menu.snippet", label: "Create snippet", chord: "s" },
+];
+
 export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] = [
   { id: "go-to.home", label: "Home" },
   { id: "go-to.tasks", label: "Tasks" },
@@ -96,7 +111,10 @@ export function chromeActiveScope(
   path: string,
   flags: { commandMenuOpen?: boolean; createMenuOpen?: boolean } = {},
 ): ScopeId {
-  if (flags.commandMenuOpen || flags.createMenuOpen) return "detached";
+  if (flags.commandMenuOpen) return "detached";
+  // Visual launcher stays on create-menu scope so `c` then `t` is create-menu.task,
+  // not detached launcher.task (ledger L8). Mouse Create also activateLeader("c").
+  if (flags.createMenuOpen) return "command-scope-create-menu";
   if (path === "/settings" || path === "/mcp" || path.startsWith("/settings")) return "detached";
   return "split";
 }
@@ -172,6 +190,8 @@ export function defaultChromeHotkeyHandle(
   navigate: (path: string) => void,
   extras: {
     toggleCommandMenu?: () => boolean;
+    toggleCreateMenu?: () => boolean;
+    openTaskCompose?: () => boolean;
     closeMenus?: () => boolean;
     applyTheme?: (theme: ThemeId, kind?: "visible" | "light" | "dark") => boolean;
     logout?: () => boolean;
@@ -183,6 +203,10 @@ export function defaultChromeHotkeyHandle(
     const ctx = typeof extras.enabled === "function" ? extras.enabled() : (extras.enabled ?? defaultChromeContext());
     if (id === "global.hotkey-debugger") return false;
     if (!commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
+    if (id === "global.create") return extras.toggleCreateMenu?.() ?? true;
+    if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
+      return extras.openTaskCompose?.() ?? (navigate("/tasks"), extras.closeMenus?.(), true);
+    }
     if (id === "global.command-menu") return extras.toggleCommandMenu?.() ?? true;
     if (
       id === "create-menu.close" ||
