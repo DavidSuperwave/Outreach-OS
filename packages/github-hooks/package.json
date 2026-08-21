@@ -1,0 +1,24 @@
+{
+  "name": "github-hooks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "types:check": "tsc --noEmit",
+    "test": "vitest run src/index.test.ts"
+  },
+  "dependencies": {
+    "authz": "workspace:*",
+    "connectivity": "workspace:*",
+    "registry": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@types/node": "^26.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.115.0"
+  }
+}

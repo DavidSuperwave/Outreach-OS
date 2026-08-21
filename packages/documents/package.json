@@ -1,0 +1,31 @@
+{
+  "name": "documents",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    "./browser": "./src/browser.ts",
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "types:check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "authz": "workspace:*",
+    "control-plane": "workspace:*",
+    "identity": "workspace:*",
+    "registry": "workspace:*",
+    "shell": "workspace:*",
+    "soup": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "react": "^19.2.7",
+    "react-dom": "^19.1.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

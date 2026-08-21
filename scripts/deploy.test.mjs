@@ -10,6 +10,7 @@ const validConfig = {
     workshop: { name: "acme-cloudflare-os", route: { customDomain: "os.example.com" } },
     context: { name: "acme-cloudflare-os-context" },
     customGatekeeper: { name: "acme-cloudflare-os-custom" },
+    githubHooks: { name: "acme-cloudflare-os-github-hooks" },
     errorReporter: { name: "acme-cloudflare-os-errors" },
   },
   access: {
@@ -49,6 +50,7 @@ async function baseConfigs() {
     workshop: await baseConfig("../cloudflare-os/packages/workshop-backend/wrangler.jsonc"),
     context: await baseConfig("../cloudflare-os/packages/gatekeeper-context/wrangler.jsonc"),
     customGatekeeper: await baseConfig("../packages/custom-gatekeeper/wrangler.jsonc"),
+    githubHooks: await baseConfig("../packages/github-hooks/wrangler.jsonc"),
     errorReporter: {
       name: "error-reporter",
       observability: { enabled: true, logs: { invocation_logs: false } },
@@ -174,6 +176,9 @@ test("generates Access-mode Workshop, Context, and custom Gatekeeper configs", a
     namespace: "acme-context-collections",
   }]);
   assert.equal(generated.customGatekeeper.name, "acme-cloudflare-os-custom");
+  assert.equal(generated.githubHooks.name, "acme-cloudflare-os-github-hooks");
+  assert.deepEqual(generated.githubHooks.secrets, { required: ["GITHUB_WEBHOOK_SECRET"] });
+  assert.equal(generated.githubHooks.workers_dev, true);
   assert.deepEqual(generated.customGatekeeper.vars, {
     CUSTOM_NAME: "Acme",
     CUSTOM_MESSAGE: "Use the company handbook.",

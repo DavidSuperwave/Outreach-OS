@@ -1,0 +1,41 @@
+{
+  "name": "ui-fixtures",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "types:check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "activity": "workspace:*",
+    "calendar": "workspace:*",
+    "channels": "workspace:*",
+    "converter": "workspace:*",
+    "crm": "workspace:*",
+    "documents": "workspace:*",
+    "files": "workspace:*",
+    "mailbox": "workspace:*",
+    "notifications": "workspace:*",
+    "search": "workspace:*",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "shell": "workspace:*",
+    "task-properties": "workspace:*"
+  },
+  "devDependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
+    "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "stream-browserify": "^3.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
+  }
+}

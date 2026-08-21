@@ -1,0 +1,12 @@
+export { FilesSlice, actorContext, requestContext } from "./slice.js";
+export type { FilesApi, FileView, FileDownload, CreateFileInput } from "./slice.js";
+export { MemoryBlobStore, FileMetadataStore, blobKeyFor, contentSha } from "./store.js";
+export { dryRunIdentityMapping, mapLegacyFileId, LEGACY_FILE_TABLES, FILE_METADATA_FIELDS } from "./mapping.js";
+export type { LegacyFileRef, LegacyFileTable, IdentityMappingResult } from "./mapping.js";
+export { FILE_COMMAND_IDS, N14_PARITY_COMMAND_IDS } from "./commands.js";
+export type { FileCommandId, N14ParityCommandId } from "./commands.js";
+export { IMAGE_PROXY, FILES_HTTP_ROUTE, UPLOAD_STATES } from "./types.js";
+export type { FileMetadata, UploadState, UnfurlCard, FetchedImage, FileBlob } from "./types.js";
+export { unfurl, fetchImage, proxyImage, parseUnfurlCard, defaultSafeFetch } from "./unfurl.js";
+export { FilesError } from "./errors.js";
+export { FileUploadForm, FileList, FileWorkspace } from "./ui.js";

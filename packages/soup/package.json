@@ -1,0 +1,26 @@
+{
+  "name": "soup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    "./browser": "./src/browser.ts",
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "types:check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "authz": "workspace:*",
+    "control-plane": "workspace:*",
+    "registry": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "identity": "workspace:*",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

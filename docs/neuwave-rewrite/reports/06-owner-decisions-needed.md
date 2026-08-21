@@ -506,6 +506,12 @@ here. Per-item summary, recommendation, and build-graph impact:
   before any UI ships; the command-menu logo asset is replaced. No `macro-*` identifier may
   appear in the first shipped UI strings (N5 skeleton themes included) — the 07-UI-UX tripwire
   is enforced from the first wave, not deferred to polish.
+- **AMENDMENT (owner, in-session, 2026-08-20): wire headers renamed to `x-neuwave-*`.** The
+  rename extends beyond UI/brand strings to the wire contract of the new packages: every
+  `x-macro-*` HTTP header shipped by the rewrite (`x-macro-bot-token`, `x-macro-bot-scope`,
+  `x-macro-signature`, `x-macro-timestamp`, `x-macro-event`, `x-macro-delivery`, and the
+  reserved `x-macro-*` subscriber-header prefix) becomes `x-neuwave-*`. Semantics unchanged;
+  legacy header names are historical reference only.
 
 ### OD-25 — Merge-branch pin drift resolution (package hygiene)
 

@@ -1,0 +1,17 @@
+{
+  "name": "outreach-identity",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TeamDurableObject"]
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "TEAM", "class_name": "TeamDurableObject" }
+    ]
+  }
+}
