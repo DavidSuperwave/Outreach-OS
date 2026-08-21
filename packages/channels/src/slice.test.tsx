@@ -167,9 +167,9 @@ describe("N9 channels + messages + realtime (05-MAP row 7)", () => {
     expect(api.queryPresence(channel.id).sessions).toHaveLength(1);
   });
 
-  it("channel-bot contract: mbot format, x-macro-bot-token header, no send mail", () => {
-    expect(BOT_TOKEN_HEADER).toBe("x-macro-bot-token");
-    expect(BOT_SCOPE_HEADER).toBe("x-macro-bot-scope");
+  it("channel-bot contract: mbot format, x-neuwave-bot-token header, no send mail", () => {
+    expect(BOT_TOKEN_HEADER).toBe("x-neuwave-bot-token");
+    expect(BOT_SCOPE_HEADER).toBe("x-neuwave-bot-scope");
     expect(isBotToken(FIXTURE_BOT_TOKEN)).toBe(true);
     expect(BOT_TOKEN_RE.test(FIXTURE_BOT_TOKEN)).toBe(true);
     expect(parseBotToken(FIXTURE_BOT_TOKEN)).toEqual({ prefix: "a".repeat(12), secret: "b".repeat(64) });

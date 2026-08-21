@@ -8,10 +8,11 @@ import type { SafeFetch } from "./safe-fetch.js";
 export const WEBHOOK_RETRY_DELAYS_SECONDS = [30, 60, 120, 300] as const;
 export const WEBHOOK_MAX_ATTEMPTS = 5;
 
-export const WEBHOOK_SIGNATURE_HEADER = "x-macro-signature";
-export const WEBHOOK_TIMESTAMP_HEADER = "x-macro-timestamp";
-export const WEBHOOK_EVENT_HEADER = "x-macro-event";
-export const WEBHOOK_DELIVERY_HEADER = "x-macro-delivery";
+/** Wire headers renamed from legacy `x-macro-*` per OD-24 amendment (owner ruling, 2026-08-20). */
+export const WEBHOOK_SIGNATURE_HEADER = "x-neuwave-signature";
+export const WEBHOOK_TIMESTAMP_HEADER = "x-neuwave-timestamp";
+export const WEBHOOK_EVENT_HEADER = "x-neuwave-event";
+export const WEBHOOK_DELIVERY_HEADER = "x-neuwave-delivery";
 
 export const DOCUMENT_EVENTS_ALL = [
   "created",
@@ -260,7 +261,7 @@ export class WebhookRegistry {
       [WEBHOOK_DELIVERY_HEADER]: row.eventId,
     };
     for (const name of Object.keys(headers)) {
-      if (name.startsWith("x-macro-") && !isReservedWebhookHeader(name)) {
+      if (name.startsWith("x-neuwave-") && !isReservedWebhookHeader(name)) {
         throw new ConnectivityError("denied", `reserved header ${name}`);
       }
     }

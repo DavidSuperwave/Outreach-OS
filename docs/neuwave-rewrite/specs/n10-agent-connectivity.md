@@ -34,8 +34,9 @@ catalog harvest). Macro-as-MCP-server stays behind a kill switch (OD-2).
 
 One agent runtime: the kernel. Instantly session types contain no send / activate
 / start methods; a generic dispatcher still throws `read_only`. Webhook owner is
-user XOR bot. Signing secrets are read-once at create. Reserved `x-macro-*`
-headers cannot be supplied by subscribers. Document events `content_uploaded`,
+user XOR bot. Signing secrets are read-once at create. Reserved `x-neuwave-*`
+headers (renamed from legacy `x-macro-*` per the OD-24 amendment, owner ruling
+2026-08-20) cannot be supplied by subscribers. Document events `content_uploaded`,
 `sync_content_updated`, and `purged` are never forwarded. GitHub ingress accepts
 exactly six event types and skips unknown. Import latitude is on content, never
 on shape. Completions force `stream=false`, stamp `AiFeature`, and allow-list
@@ -75,8 +76,8 @@ Typed capabilities (ADR-002), not kernel `api.ts`:
   `listEmails`, `getCampaignAnalytics`. **Stop for David** before any write
   method.
 - `WebhooksApi` — create / list / pause / disable / inspect / validate
-  (rate-limited). HMAC `x-macro-signature` over `timestamp + "." + raw body`;
-  `x-macro-timestamp`.
+  (rate-limited). HMAC `x-neuwave-signature` over `timestamp + "." + raw body`;
+  `x-neuwave-timestamp`.
 - `AutomationsApi` — cron + IANA timezone, `ActionKind` = `Agent` only.
 - `MemoryApi` — get / refresh-on-activity / 24h stale-while-revalidate.
 - `ImportApi` — gather / confirm / discard for Linear, Notion, Slack.

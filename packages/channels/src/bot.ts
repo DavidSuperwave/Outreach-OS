@@ -1,13 +1,14 @@
 /**
- * Channel-bot contract (ledger:46, S7 kept). Living header names stay
- * `x-macro-bot-token` / `x-macro-bot-scope` — the two CF bot workers are the
- * working reference. Do not implement send mail (N11).
+ * Channel-bot contract (ledger:46, S7 kept). Wire header names renamed from
+ * legacy `x-macro-bot-*` to `x-neuwave-bot-*` per the OD-24 amendment (owner
+ * ruling, 2026-08-20); semantics unchanged from the two CF bot workers, which
+ * remain the working reference. Do not implement send mail (N11).
  */
 
-/** Preserved wire name (ledger:46). Not an OD-24 product string. */
-export const BOT_TOKEN_HEADER = "x-macro-bot-token";
-/** Preserved wire name (ledger:46 / S7). */
-export const BOT_SCOPE_HEADER = "x-macro-bot-scope";
+/** Wire name (ledger:46 semantics; renamed per OD-24 amendment). */
+export const BOT_TOKEN_HEADER = "x-neuwave-bot-token";
+/** Wire name (ledger:46 / S7 semantics; renamed per OD-24 amendment). */
+export const BOT_SCOPE_HEADER = "x-neuwave-bot-scope";
 
 /** `mbot_<12-hex-prefix>_<64-hex-secret>` (tokens.rs:5-15). */
 export const BOT_TOKEN_RE = /^mbot_[0-9a-f]{12}_[0-9a-f]{64}$/;
@@ -80,7 +81,7 @@ export function resolvePosterXor(input: {
     throw new ChannelsError("xor_poster", "human session XOR bot token — not both");
   }
   if (botSession && hasToken && input.actorId && input.actorId !== token) {
-    throw new ChannelsError("xor_poster", "bot session id must match x-macro-bot-token");
+    throw new ChannelsError("xor_poster", "bot session id must match x-neuwave-bot-token");
   }
   if (hasToken) {
     if (!isBotToken(token!)) throw new ChannelsError("invalid_bot_token", "malformed mbot token");

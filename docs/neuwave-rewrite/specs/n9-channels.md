@@ -6,8 +6,10 @@ Wave 4a core domain. Ruled keep (2026-08-19) for the full messaging surface.
 05-MAP row 7: two users + one agent exchange ordered messages and reconnect
 safely. Gateway `/track/{type}/{id}` is an internal JSON **presence query**
 (01 §2.10 J18), not the WS upgrade — C1 kernel session push is the socket
-plane (ADR-009). Channel-bot contract preserved: `x-macro-bot-token` /
-`x-macro-bot-scope`, `mbot_<12-hex>_<64-hex>` (ledger:46, S7 kept). Bots are
+plane (ADR-009). Channel-bot contract semantics preserved, wire headers renamed per the
+OD-24 amendment (owner ruling, 2026-08-20): `x-neuwave-bot-token` /
+`x-neuwave-bot-scope` (formerly `x-macro-bot-*`), `mbot_<12-hex>_<64-hex>`
+(ledger:46, S7 kept). Bots are
 principals with scoped credentials; mention-triggered agents are kernel
 sessions, not a new runtime. No Instantly send/activate. No N11 mailbox /
 Gmail send. No kernel patches.
@@ -20,7 +22,7 @@ post in total order, disconnect, and resume from last seq with
 replay-then-`ready()` (no loss, no duplication). A DM is a channel flavor.
 A thread reply sets `parentId` on the same log. Presence open/ping/close
 answers GET `/track/channel/{id}`. An external poster uses the bot webhook
-(`x-macro-bot-token`); the wrapper does **not** send mail.
+(`x-neuwave-bot-token`); the wrapper does **not** send mail.
 
 ## Invariants
 
@@ -63,7 +65,7 @@ item type `channel_message`).
 Typed `ChannelsApi` (ADR-002). Not added to kernel `api.ts`. Consumes
 PresenceSubscriber `{init, add, remove}` plus subscription-replay. Bot
 ingress is `/hooks/channels/{id}` (C2 HTTP exception) authenticated by
-`x-macro-bot-token`. No send/activate Instantly methods. No mailbox send.
+`x-neuwave-bot-token`. No send/activate Instantly methods. No mailbox send.
 
 Closed realtime union: `message` | `message_edited` | `message_deleted` |
 `presence` | `ready`.
