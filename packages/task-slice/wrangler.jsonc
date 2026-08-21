@@ -40,5 +40,9 @@
       "database_name": "outreach-soup",
       "database_id": "local-soup"
     }
-  ]
+  ],
+  "queues": {
+    "producers": [{ "binding": "TASK_OUTBOX", "queue": "task-outbox" }],
+    "consumers": [{ "queue": "task-outbox", "max_batch_size": 10, "max_batch_timeout": 1 }]
+  }
 }

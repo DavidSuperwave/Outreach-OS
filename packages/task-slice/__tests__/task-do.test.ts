@@ -8,6 +8,7 @@ import { fixtureId, resetIdSequence } from "registry";
 import { actorContext } from "../src/slice.js";
 import { DurableTaskApi } from "../src/durable-task-api.js";
 import { dryRunIdentityMapping } from "../src/mapping.js";
+import { handleTaskOutboxBatch } from "../src/outbox-queue.js";
 import type { TaskSliceDurableObject } from "../src/task-do.js";
 
 const testEnv = env as unknown as {
@@ -131,9 +132,32 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "r1" }));
     await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
-    expect(await api.listTasks([receipt])).toHaveLength(0);
     await api.rebuildProjection(ownerActor());
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
+  });
+
+  it("re-projects D1 when the outbox queue consumer drains the DO", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const { receipt } = await api.createTask("Queued", requestContext(ownerActor(), { correlationId: "q1" }));
+    await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
+    const acked: string[] = [];
+    await handleTaskOutboxBatch(
+      {
+        messages: [
+          {
+            body: { tenantId: tenant },
+            ack: () => {
+              acked.push(tenant);
+            },
+          },
+        ],
+      },
+      testEnv,
+    );
+    expect(acked).toEqual([tenant]);
+    expect((await api.listTasks([receipt]))[0]?.title).toBe("Queued");
+    expect(await api.drainOutbox()).toEqual({ pending: 0 });
   });
 
   it("poisons failing publishes on the DO and skips them on rebuild", async () => {

@@ -33,3 +33,12 @@ type SqlStorageValue = string | number | null;
 interface SqlStorageCursor<T> {
   toArray(): T[];
 }
+
+interface Queue<Body = unknown> {
+  send(message: Body): Promise<void>;
+}
+
+interface MessageBatch<Body = unknown> {
+  readonly queue: string;
+  readonly messages: Array<{ body: Body; ack(): void; retry(): void }>;
+}

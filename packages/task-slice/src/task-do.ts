@@ -15,6 +15,8 @@ import {
 
 export interface TaskSliceEnv {
   SOUP: SoupD1;
+  /** Optional Queues producer — durable outbox re-drive after a write (ADR-005). */
+  TASK_OUTBOX?: { send(message: { tenantId: string }): Promise<unknown> };
 }
 
 interface SubscribeAttachment {
@@ -101,7 +103,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     }
   }
 
-  async #save(slice: TaskSlice): Promise<void> {
+  async #save(slice: TaskSlice, opts: { enqueue?: boolean } = {}): Promise<void> {
     this.ctx.storage.sql.exec(
       "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
       JSON.stringify(slice.toSnapshot()),
@@ -112,6 +114,17 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     }
     await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
     this.#broadcast(slice);
+    if (opts.enqueue !== false && tenantId && this.env.TASK_OUTBOX) {
+      await this.env.TASK_OUTBOX.send({ tenantId });
+    }
+  }
+
+  /** Queue consumer entry — re-drains the outbox and rebuilds the D1 projection. */
+  async drainOutbox(): Promise<{ pending: number }> {
+    const slice = this.#load();
+    slice.drain();
+    await this.#save(slice, { enqueue: false });
+    return { pending: slice.outbox.pending().length };
   }
 
   #broadcast(slice: TaskSlice): void {

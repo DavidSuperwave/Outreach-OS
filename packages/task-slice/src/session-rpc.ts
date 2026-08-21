@@ -50,6 +50,8 @@ export interface TaskWorkerEnv {
   LOCAL_KERNEL_API?: string;
   /** Wrangler static assets (`dist/assets/outreach-shell.js`). */
   ASSETS?: WorkshopFetcher;
+  /** Local/prod Queues producer for outbox re-drive. */
+  TASK_OUTBOX?: { send(message: { tenantId: string }): Promise<unknown> };
 }
 
 interface DurableObjectStubLike {
@@ -61,6 +63,7 @@ interface DurableObjectStubLike {
   ): Promise<{ ok: true; receipt: import("authz").Receipt } | { ok: false; message: string }>;
   createTask(title: string, ctx: import("control-plane").RequestContext): Promise<unknown>;
   updateTitle(title: string, ctx: import("control-plane").RequestContext): Promise<unknown>;
+  drainOutbox(): Promise<{ pending: number }>;
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 

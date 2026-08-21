@@ -39,6 +39,7 @@ interface DurableObjectStub<T> {
     entityId: string,
     need: "view" | "edit" | "owner",
   ): Promise<{ ok: true; receipt: Receipt } | { ok: false; message: string }>;
+  drainOutbox(): Promise<{ pending: number }>;
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
@@ -106,6 +107,10 @@ export class DurableTaskApi implements TaskRpc {
 
   rebuildProjection(actor: ActorContext): Promise<void> {
     return this.#stub().rebuildProjection(actor);
+  }
+
+  drainOutbox(): Promise<{ pending: number }> {
+    return this.#stub().drainOutbox();
   }
 
   shareState(
