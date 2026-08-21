@@ -53,10 +53,14 @@ bar when the event reaches the page.
 `global.change-theme` pushes a nested palette scope listing THEME_IDS;
 Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. Pressing `g` sets `data-leader=g` on the
-sidebar and arms go-to kbd hints (`data-goto-hint`); they auto-reset after
-`LEADER_HINT_RESET_MS` (2s). Stray non-goto keys jettison the leader and are
-swallowed in hydrate (interceptor). `o` shows `data-surface=open-category-hints`
-until a category chord or the same 2s reset. `c` then `t` stays on
+sidebar, shows `data-surface=go-to-hints`, and arms go-to kbd hints
+(`data-goto-hint`); they auto-reset after `LEADER_HINT_RESET_MS` (2s). Live
+wrangler Chromium: hints appear from empty pane and from a soup title field;
+they hide after 2s. Stray non-goto keys jettison the leader and are swallowed
+in hydrate (interceptor). Soup table inputs are split focus for `g`/`o`/`c`
+(`chromeInputFocused`) so those leaders can arm on `/tasks`. `o` shows
+`data-surface=open-category-hints` until a category chord or the same 2s reset;
+`o` then `t` opens the command menu on Tasks. `c` then `t` stays on
 `command-scope-create-menu`
 (`chromeActiveScope` does not flip the launcher to `detached`). Slice
 registration still wins on `/tasks`. Compose starts closed; `c` opens
