@@ -20,6 +20,7 @@ import {
   SIDEBAR_NAV,
   nextCommandMenuCategory,
   LEADER_HINT_RESET_MS,
+  chromeInputFocused,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -721,6 +722,16 @@ describe("Shell boots", () => {
     expect(openCategory).toContain("data-command=\"command-menu.open-category.tasks\"");
     expect(openCategory).toContain("data-command=\"command-menu.open-category.all\"");
     expect(openCategory).not.toContain("data-leader=\"g\"");
+  });
+
+  it("treats soup cells as split focus for g/o/c leaders", () => {
+    expect(chromeInputFocused(false, false, "g")).toBe(false);
+    expect(chromeInputFocused(true, false, "g")).toBe(true);
+    expect(chromeInputFocused(true, true, "g")).toBe(false);
+    expect(chromeInputFocused(true, true, "o")).toBe(false);
+    expect(chromeInputFocused(true, true, "c")).toBe(false);
+    expect(chromeInputFocused(true, true, "t")).toBe(true);
+    expect(chromeInputFocused(true, true, "e")).toBe(true);
   });
 
   it("cycles command-menu categories with tab / shift+tab while the palette is open", () => {

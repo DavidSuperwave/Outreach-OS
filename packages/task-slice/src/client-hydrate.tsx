@@ -16,6 +16,7 @@ import {
   persistTheme,
   registerChromeHotkeys,
   STORAGE_KEYS,
+  chromeInputFocused,
   type CommandMenuCategory,
   type CommandMenuScope,
   type LeaderKey,
@@ -506,12 +507,19 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       );
     }
     const onKey = (event: KeyboardEvent) => {
-      const inputFocused =
+      const formControl =
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
+      const soupCell =
+        event.target instanceof HTMLElement &&
+        Boolean(event.target.closest("[data-slice='task']")) &&
+        !event.target.closest("[data-scope='task-compose-popover']") &&
+        !event.target.closest("[data-surface='command-menu']") &&
+        !event.target.closest("[data-surface='create-menu']");
       const chord = chordFromEvent(event);
-      if (inputFocused && taskComposeOpenRef.current && chord !== "escape") {
+      const inputFocused = chromeInputFocused(formControl, soupCell, chord);
+      if (formControl && taskComposeOpenRef.current && chord !== "escape") {
         return;
       }
       const leaderBefore = registry.leader;
@@ -521,7 +529,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         touch: false,
         platform: navigator.platform.toLowerCase().includes("mac") ? "mac" : "non-mac",
       });
-      setArmedLeader(registry.leader);
+      if (id === "global.go-to" || id === "global.go-to-leader") setArmedLeader("g");
+      else if (id === "global.open-category-leader") setArmedLeader("o");
+      else if (id === "global.create") setArmedLeader("c");
+      else setArmedLeader(registry.leader);
       if (id) {
         event.preventDefault();
         event.stopPropagation();

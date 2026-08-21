@@ -148,6 +148,19 @@ export function nextCommandMenuCategory(current: CommandMenuCategory, delta: num
 
 export type CommandMenuScope = "root" | "change-theme" | "default-light" | "default-dark";
 
+const LEADER_CHORDS = new Set(["g", "o", "c"]);
+
+/**
+ * Soup rows use inputs/selects for properties. That is split focus, not the
+ * ledger input-focus gate — otherwise `g`/`o`/`c` never arm on `/tasks`.
+ * Compose, command search, and create-menu fields stay gated.
+ */
+export function chromeInputFocused(formControl: boolean, soupCell: boolean, chord: string): boolean {
+  if (!formControl) return false;
+  if (soupCell && LEADER_CHORDS.has(chord)) return false;
+  return true;
+}
+
 export const COMMAND_MENU_NESTED_LEADERS: Record<string, CommandMenuScope> = {
   "global.change-theme": "change-theme",
   "global.set-default-light-theme": "default-light",

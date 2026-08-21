@@ -36,6 +36,7 @@ export {
   GO_TO_PATH,
   SIDEBAR_NAV,
   persistTheme,
+  chromeInputFocused,
 } from "./n5-hotkeys.js";
 export type { CommandMenuCategory, CommandMenuScope } from "./n5-hotkeys.js";
 export { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
