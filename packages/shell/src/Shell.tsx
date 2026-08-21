@@ -6,6 +6,7 @@ import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
+import type { LeaderKey } from "./registry.js";
 import {
   COMMAND_MENU_CATEGORIES,
   CREATE_MENU_ITEMS,
@@ -46,6 +47,7 @@ export interface ShellProps {
   onCommandMenuSelect?: (id: string) => void;
   onCreateMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
+  armedLeader?: LeaderKey | null;
   onToggleCommandMenu?: () => void;
   onToggleCreateMenu?: () => void;
   onToggleSidebar?: () => void;
@@ -87,6 +89,7 @@ export function Shell({
   onCommandMenuSelect,
   onCreateMenuSelect,
   sidebarCollapsed = false,
+  armedLeader = null,
   onToggleCommandMenu,
   onToggleCreateMenu,
   onToggleSidebar,
@@ -130,6 +133,24 @@ export function Shell({
     paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
   const fullCover = isFullCoverRoute(path);
   const sidebarWidth = sidebarCollapsed ? "3.75rem" : "15.5rem";
+  const goToHintsVisible = armedLeader === "g";
+  const goToHintKbd: CSSProperties = {
+    color: goToHintsVisible ? "var(--outreach-accent)" : "var(--outreach-muted)",
+    opacity: goToHintsVisible ? 1 : 0,
+    outline: goToHintsVisible ? "1px solid var(--outreach-accent)" : "none",
+    borderRadius: "0.25rem",
+    padding: "0 0.2rem",
+    minWidth: "1.1rem",
+    textAlign: "center",
+  };
+  const collapsedGoToHint: CSSProperties = goToHintsVisible
+    ? {
+        color: "var(--outreach-accent)",
+        outline: "1px solid var(--outreach-accent)",
+        borderRadius: "0.25rem",
+        padding: "0 0.25rem",
+      }
+    : {};
   const chromeLink: CSSProperties = {
     ...chromeButton,
     display: "flex",
@@ -151,6 +172,7 @@ export function Shell({
       data-path={encodeSplits(layout)}
       data-session-ready={sessionReady ? "true" : "false"}
       data-layout={fullCover ? "full-cover" : "app"}
+      data-armed-leader={armedLeader ?? undefined}
       style={
         {
           ...vars,
@@ -167,6 +189,7 @@ export function Shell({
         <aside
           data-chrome="sidebar"
           data-collapsed={sidebarCollapsed ? "true" : "false"}
+          data-leader={goToHintsVisible ? "g" : undefined}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -228,8 +251,14 @@ export function Shell({
                     color: "var(--outreach-accent)",
                   }}
                 >
-                  <span>{sidebarCollapsed ? item.hint : item.label}</span>
-                  {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>{item.hint}</kbd>}
+                  <span style={sidebarCollapsed ? collapsedGoToHint : undefined}>
+                    {sidebarCollapsed ? item.hint : item.label}
+                  </span>
+                  {sidebarCollapsed ? null : (
+                    <kbd data-goto-hint="" data-armed={goToHintsVisible ? "true" : "false"} style={goToHintKbd}>
+                      {item.hint}
+                    </kbd>
+                  )}
                 </a>
               );
             })}
@@ -321,6 +350,42 @@ export function Shell({
           </section>
         ) : null}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
+        {armedLeader === "o" && !commandMenuOpen ? (
+          <div
+            data-surface="open-category-hints"
+            data-leader="o"
+            role="status"
+            aria-label="Open category"
+            style={{
+              position: "fixed",
+              left: sidebarCollapsed ? "4.25rem" : "16.25rem",
+              top: "4.5rem",
+              zIndex: 19,
+              ...popover,
+              minWidth: "14rem",
+              width: "auto",
+            }}
+          >
+            <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Open category</p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {COMMAND_MENU_CATEGORIES.map((row) => (
+                <li
+                  key={row.id}
+                  data-command={row.command}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                    padding: "0.3rem 0",
+                  }}
+                >
+                  <span>{row.label}</span>
+                  <kbd style={{ color: "var(--outreach-muted)" }}>{row.hint}</kbd>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {createMenuOpen ? (
           <div data-surface="create-menu" role="dialog" aria-label="Create" style={overlay}>
             <div style={popover}>

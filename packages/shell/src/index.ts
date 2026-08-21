@@ -26,6 +26,7 @@ export {
   COMMAND_MENU_ITEMS,
   CREATE_MENU_ITEMS,
   COMMAND_MENU_CATEGORIES,
+  LEADER_HINT_RESET_MS,
   filterCommandMenuItems,
   commandMenuCategoryFromId,
   commandMenuItemsForScope,

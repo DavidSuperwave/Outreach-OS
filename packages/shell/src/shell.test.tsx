@@ -19,6 +19,7 @@ import {
   filterCommandMenuItems,
   SIDEBAR_NAV,
   nextCommandMenuCategory,
+  LEADER_HINT_RESET_MS,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -305,6 +306,7 @@ describe("command registry scope tree", () => {
     registry.activateLeader("g");
     expect(registry.dispatch({ chord: "x", inputFocused: false, touch: false, platform: "mac" })).toBeNull();
     expect(registry.leader).toBeNull();
+    expect(LEADER_HINT_RESET_MS).toBe(2000);
     registry.setActive("split");
     registry.register({
       id: "soup.filter",
@@ -691,6 +693,32 @@ describe("Shell boots", () => {
     );
     expect(compose).toBe(true);
     expect(paths).toEqual([]);
+  });
+
+  it("shows go-to sidebar hints for g and an open-category overlay for o", () => {
+    expect(LEADER_HINT_RESET_MS).toBe(2000);
+    const idle = renderToString(createElement(Shell, { path: "/tasks", theme: "outreach-dark" }));
+    expect(idle).not.toContain("data-leader=\"g\"");
+    expect(idle).not.toContain("data-surface=\"open-category-hints\"");
+    expect(idle).toContain("data-armed=\"false\"");
+    const goTo = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", armedLeader: "g" }),
+    );
+    expect(goTo).toContain("data-armed-leader=\"g\"");
+    expect(goTo).toContain("data-chrome=\"sidebar\"");
+    expect(goTo).toContain("data-leader=\"g\"");
+    expect(goTo).toContain("data-goto-hint");
+    expect(goTo).toContain("data-armed=\"true\"");
+    expect(goTo).not.toContain("data-surface=\"open-category-hints\"");
+    const openCategory = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", armedLeader: "o" }),
+    );
+    expect(openCategory).toContain("data-armed-leader=\"o\"");
+    expect(openCategory).toContain("data-surface=\"open-category-hints\"");
+    expect(openCategory).toContain("data-leader=\"o\"");
+    expect(openCategory).toContain("data-command=\"command-menu.open-category.tasks\"");
+    expect(openCategory).toContain("data-command=\"command-menu.open-category.all\"");
+    expect(openCategory).not.toContain("data-leader=\"g\"");
   });
 
   it("cycles command-menu categories with tab / shift+tab while the palette is open", () => {

@@ -10,6 +10,7 @@ import {
   filterCommandMenuItems,
   commandMenuCategoryFromId,
   COMMAND_MENU_NESTED_LEADERS,
+  LEADER_HINT_RESET_MS,
   nextCommandMenuCategory,
   isFullCoverRoute,
   persistTheme,
@@ -17,6 +18,7 @@ import {
   STORAGE_KEYS,
   type CommandMenuCategory,
   type CommandMenuScope,
+  type LeaderKey,
   type ThemeId,
 } from "shell";
 import { registerSliceHotkeys } from "./slice-hotkeys.js";
@@ -184,6 +186,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return false;
     }
   });
+  const [armedLeader, setArmedLeader] = useState<LeaderKey | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.theme);
     return stored === "outreach-light" || stored === "outreach-dark" ? stored : "outreach-dark";
@@ -219,6 +222,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     commandScopeRef.current = "root";
   };
 
+  const syncArmedLeader = useCallback(() => {
+    setArmedLeader(registryRef.current?.leader ?? null);
+  }, []);
+
   const closeMenus = useCallback(() => {
     setCommandMenuOpen(false);
     setCreateMenuOpen(false);
@@ -227,6 +234,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     createMenuOpenRef.current = false;
     taskComposeOpenRef.current = false;
     registryRef.current?.jettison();
+    setArmedLeader(null);
     return true;
   }, []);
 
@@ -241,8 +249,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     } else {
       registryRef.current?.jettison();
     }
+    syncArmedLeader();
     return true;
-  }, []);
+  }, [syncArmedLeader]);
 
   const toggleCommandMenu = useCallback(() => {
     const next = !commandMenuOpenRef.current;
@@ -253,6 +262,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       createMenuOpenRef.current = false;
       resetPalette("all");
       registryRef.current?.jettison();
+      setArmedLeader(null);
     }
     return true;
   }, []);
@@ -292,6 +302,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     setCreateMenuOpen(false);
     createMenuOpenRef.current = false;
     registryRef.current?.jettison();
+    setArmedLeader(null);
     return true;
   }, []);
 
@@ -342,6 +353,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     setTaskComposeOpen(true);
     taskComposeOpenRef.current = true;
     registryRef.current?.jettison();
+    setArmedLeader(null);
     return true;
   }, []);
 
@@ -395,6 +407,15 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       domain?.[Symbol.dispose]();
     };
   }, [applySurface, boot.domainApi, boot.path, boot.subscribe, boot.tenantKey, token]);
+
+  useEffect(() => {
+    if (armedLeader !== "g" && armedLeader !== "o") return;
+    const handle = window.setTimeout(() => {
+      registryRef.current?.jettison();
+      setArmedLeader(null);
+    }, LEADER_HINT_RESET_MS);
+    return () => window.clearTimeout(handle);
+  }, [armedLeader]);
 
   useEffect(() => {
     if (!taskComposeOpen) return;
@@ -493,13 +514,20 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       if (inputFocused && taskComposeOpenRef.current && chord !== "escape") {
         return;
       }
+      const leaderBefore = registry.leader;
       const id = registry.dispatch({
         chord,
         inputFocused,
         touch: false,
         platform: navigator.platform.toLowerCase().includes("mac") ? "mac" : "non-mac",
       });
+      setArmedLeader(registry.leader);
       if (id) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      if (leaderBefore && registry.leader !== leaderBefore) {
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -745,6 +773,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     commandSelectedIndex,
     commandScope,
     sidebarCollapsed,
+    armedLeader,
     onToggleCommandMenu: toggleCommandMenu,
     onToggleCreateMenu: toggleCreateMenu,
     onToggleSidebar: () => {

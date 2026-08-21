@@ -126,14 +126,17 @@ export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] =
 ];
 
 export const COMMAND_MENU_CATEGORIES = [
-  { id: "all", label: "All", command: "command-menu.open-category.all" },
-  { id: "commands", label: "Command", command: "command-menu.open-category.commands" },
-  { id: "chats", label: "Agents", command: "command-menu.open-category.chats" },
-  { id: "documents", label: "Files", command: "command-menu.open-category.documents" },
-  { id: "tasks", label: "Tasks", command: "command-menu.open-category.tasks" },
-  { id: "channels", label: "Channels", command: "command-menu.open-category.channels" },
-  { id: "dms", label: "People", command: "command-menu.open-category.dms" },
+  { id: "all", label: "All", command: "command-menu.open-category.all", hint: "l" },
+  { id: "commands", label: "Command", command: "command-menu.open-category.commands", hint: "m" },
+  { id: "chats", label: "Agents", command: "command-menu.open-category.chats", hint: "a" },
+  { id: "documents", label: "Files", command: "command-menu.open-category.documents", hint: "f" },
+  { id: "tasks", label: "Tasks", command: "command-menu.open-category.tasks", hint: "t" },
+  { id: "channels", label: "Channels", command: "command-menu.open-category.channels", hint: "c" },
+  { id: "dms", label: "People", command: "command-menu.open-category.dms", hint: "p" },
 ] as const;
+
+/** Ledger: go-to overlay auto-reset after 2s. Same timer hides the `o` category overlay. */
+export const LEADER_HINT_RESET_MS = 2000;
 
 export type CommandMenuCategory = (typeof COMMAND_MENU_CATEGORIES)[number]["id"];
 
