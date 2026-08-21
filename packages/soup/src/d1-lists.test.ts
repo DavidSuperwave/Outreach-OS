@@ -17,7 +17,16 @@ class MemoryD1 implements SoupD1 {
             return;
           }
           if (sql.startsWith("DELETE FROM entity_row")) {
-            this.#rows.clear();
+            if (values.length === 0) throw new Error("unscoped delete");
+            const tenantId = values[0];
+            const facet = values[1];
+            const drop: string[] = [];
+            for (const [id, row] of this.#rows) {
+              const tenantOk = tenantId === undefined || row.tenant_id === tenantId;
+              const facetOk = facet === undefined || row.facet === facet;
+              if (tenantOk && facetOk) drop.push(id);
+            }
+            for (const id of drop) this.#rows.delete(id);
             return;
           }
           if (sql.startsWith("INSERT OR REPLACE")) {
@@ -88,5 +97,9 @@ describe("D1 lists projector (OD-27)", () => {
     await projectListSnapshot(db, [item]);
     const listed = await queryFacetRows(db, item.tenantId, "task");
     expect(listed).toEqual([item]);
+    const other: SoupItem = { ...item, entityId: fixtureId("document", 2), tenantId: fixtureId("team", 2), title: "Other" };
+    await projectListSnapshot(db, [other]);
+    expect(await queryFacetRows(db, item.tenantId, "task")).toEqual([item]);
+    expect(await queryFacetRows(db, other.tenantId, "task")).toEqual([other]);
   });
 });

@@ -77,10 +77,6 @@ export async function upsertEntityRow(db: SoupD1, item: SoupItem): Promise<void>
     .run();
 }
 
-export async function clearEntityRows(db: SoupD1): Promise<void> {
-  await db.prepare("DELETE FROM entity_row").bind().run();
-}
-
 export function rowToItem(row: EntityRowRecord): SoupItem {
   return {
     entityType: row.entity_type as SoupItemType,
@@ -117,8 +113,25 @@ export async function queryFacetRows(
   return results.map(rowToItem);
 }
 
-export async function projectListSnapshot(db: SoupD1, items: readonly SoupItem[]): Promise<void> {
+/** Tenant-scoped wipe. Never DELETE FROM entity_row with no WHERE (shared D1). */
+export async function clearEntityRows(db: SoupD1, tenantId: string, facet = "task"): Promise<void> {
+  if (!tenantId) throw new Error("clearEntityRows requires tenantId");
+  await db.prepare("DELETE FROM entity_row WHERE tenant_id = ? AND facet = ?").bind(tenantId, facet).run();
+}
+
+export async function projectListSnapshot(
+  db: SoupD1,
+  items: readonly SoupItem[],
+  tenantId?: string,
+): Promise<void> {
   await ensureListSchema(db);
-  await clearEntityRows(db);
-  for (const item of items) await upsertEntityRow(db, item);
+  const scope = tenantId ?? items[0]?.tenantId;
+  if (!scope) return;
+  await clearEntityRows(db, scope, "task");
+  for (const item of items) {
+    if (item.tenantId !== scope) {
+      throw new Error(`refusing to project cross-tenant row ${item.entityId} into ${scope}`);
+    }
+    await upsertEntityRow(db, item);
+  }
 }

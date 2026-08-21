@@ -23,7 +23,10 @@ Duplicate idempotency keys are no-ops. Poison publishes are marked-and-skipped.
 
 Authoritative document map on `TaskSliceDurableObject` SQLite (survives eviction).
 N3 outbox lives in the same snapshot. N4 lists family is projected to D1 `entity_row`
-(OD-27). In-process maps remain the unit-test core.
+(OD-27), tenant-scoped (never unfiltered DELETE). Live subscribers attach via DO
+hibernation WebSockets on `/subscribe` plus cursor replay. Command identities invoke
+`TaskApi` mutations through `runSliceCommand` / `bindSliceCommands`. Poison publishes
+are marked-and-skipped on the DO outbox. In-process maps remain the unit-test core.
 
 
 ## RPC/API contract

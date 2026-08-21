@@ -54,6 +54,7 @@ export interface TaskRpc {
   seq(): Promise<number>;
   replayFrom(seq: number): Promise<SoupDelta[]>;
   rebuildProjection(): Promise<void>;
+  poisonPending(attempts?: number): Promise<number>;
 }
 
 export interface TaskSliceSnapshot {

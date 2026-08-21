@@ -1,5 +1,6 @@
-import type { Receipt } from "authz";
+import type { AccessState, Receipt } from "authz";
 import type { RequestContext } from "control-plane";
+import type { ActorContext } from "identity/principal";
 import type { SoupDelta, SoupItem } from "soup";
 import type { TaskRecord, TaskRpc, TaskView } from "./slice.js";
 import type { TaskSliceDurableObject } from "./task-do.js";
@@ -24,13 +25,19 @@ interface DurableObjectStub<T> {
   seq(): Promise<number>;
   replayFrom(seq: number): Promise<SoupDelta[]>;
   rebuildProjection(): Promise<void>;
+  poisonPending(attempts?: number): Promise<number>;
   get(id: string): Promise<TaskRecord | null>;
-  shareState(entityId: string, state: unknown): Promise<void>;
+  shareState(
+    entityId: string,
+    state: AccessState,
+    actor: ActorContext,
+  ): Promise<{ ok: true } | { ok: false; message: string }>;
   mintView(
     actor: RequestContext["actor"],
     entityId: string,
     need: "view" | "edit" | "owner",
   ): Promise<{ ok: true; receipt: Receipt } | { ok: false; message: string }>;
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
 /**
@@ -85,5 +92,23 @@ export class DurableTaskApi implements TaskRpc {
 
   rebuildProjection(): Promise<void> {
     return this.#stub().rebuildProjection();
+  }
+
+  poisonPending(attempts?: number): Promise<number> {
+    return this.#stub().poisonPending(attempts);
+  }
+
+  shareState(
+    entityId: string,
+    state: AccessState,
+    actor: ActorContext,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    return this.#stub().shareState(entityId, state, actor);
+  }
+
+  subscribe(cursor = 0): Promise<Response> {
+    return this.#stub().fetch(`https://task-slice/subscribe?cursor=${cursor}`, {
+      headers: { Upgrade: "websocket" },
+    });
   }
 }

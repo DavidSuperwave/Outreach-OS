@@ -9,7 +9,7 @@ import { commandEnabled as chromeEnabled, defaultChromeContext, CommandRegistry 
 import { commandEnabled as soupEnabled, type SoupCommandContext } from "soup";
 import { TaskSlice, actorContext, requestContext } from "./slice.js";
 import { dryRunIdentityMapping } from "./mapping.js";
-import { SLICE_COMMAND_IDS } from "./commands.js";
+import { SLICE_COMMAND_IDS, bindSliceCommands, runSliceCommand } from "./commands.js";
 import { TaskWorkspace } from "./ui.js";
 
 const tenant = fixtureId("team", 1);
@@ -226,8 +226,27 @@ describe("N6 task vertical slice (11 gates)", () => {
 
     resetIdSequence();
     const slice = new TaskSlice();
-    const { receipt } = slice.openApi().createTask("Cmd", requestContext(ownerActor(), { correlationId: "c" }));
-    const soup = soupCtx({ receipt });
+    const api = slice.openApi();
+    const created = runSliceCommand(api, "global.create", requestContext(ownerActor(), { correlationId: "c" }), {
+      title: "Cmd",
+    });
+    if (!created || !("task" in created)) throw new Error("expected TaskView");
+    const ctx = requestContext(ownerActor(), { receipt: created.receipt, correlationId: "c-mut" });
+    const renamed = runSliceCommand(api, "soup-entity.rename", ctx, { title: "Cmd renamed" });
+    expect(renamed && "title" in renamed ? renamed.title : undefined).toBe("Cmd renamed");
+    const statused = runSliceCommand(api, "soup-entity.status", ctx, { status: "in_progress" });
+    expect(statused && "status" in statused ? statused.status : undefined).toBe("in_progress");
+    const prioritized = runSliceCommand(api, "soup-entity.priority", ctx, { priority: "high" });
+    expect(prioritized && "priority" in prioritized ? prioritized.priority : undefined).toBe("high");
+    const assigned = runSliceCommand(api, "soup-entity.assignee", ctx, { assigneeId: ownerId });
+    expect(assigned && "assigneeIds" in assigned ? assigned.assigneeIds : undefined).toEqual([ownerId]);
+    const done = runSliceCommand(api, "soup-entity.mark-done", ctx);
+    expect(done && "done" in done ? done.done : undefined).toBe(true);
+    const undone = runSliceCommand(api, "soup-entity.mark-not-done", ctx);
+    expect(undone && "done" in undone ? undone.done : undefined).toBe(false);
+    expect(runSliceCommand(api, "soup.open", ctx)).toHaveLength(1);
+
+    const soup = soupCtx({ receipt: created.receipt });
     expect(soupEnabled("soup.tab-1", soup)).toBe(true);
     expect(soupEnabled("soup.open", soup)).toBe(true);
     expect(soupEnabled("soup-entity.mark-done", soup)).toBe(true);
@@ -240,19 +259,17 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(soupEnabled("soup-entity.status", soup)).toBe(true);
 
     const registry = new CommandRegistry();
+    bindSliceCommands(
+      registry,
+      api,
+      () => requestContext(ownerActor(), { correlationId: "c-t" }),
+      () => ({ title: "From chord" }),
+    );
     registry.activateLeader("c");
-    registry.register({
-      id: "create-menu.task",
-      scope: "command-scope-create-menu",
-      chord: "t",
-      priority: 0,
-      registrationType: "override",
-      runWithInputFocused: true,
-      handle: () => true,
-    });
     expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
       "create-menu.task",
     );
+    expect(slice.toSnapshot().docs.map((doc) => doc.title)).toContain("From chord");
   });
 
   it("renders the task list and compose popover on the custom React shell", () => {

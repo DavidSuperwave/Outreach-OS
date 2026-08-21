@@ -16,11 +16,17 @@ const testEnv = env as unknown as {
 };
 
 const tenant = fixtureId("team", 1);
+const tenantB = fixtureId("team", 2);
 const ownerId = fixtureId("user", 1);
 const teammateId = fixtureId("user", 2);
+const ownerBId = fixtureId("user", 3);
 
 function ownerActor() {
   return actorContext(userPrincipal(ownerId, tenant));
+}
+
+function ownerBActor() {
+  return actorContext(userPrincipal(ownerBId, tenantB));
 }
 
 afterEach(async () => {
@@ -86,12 +92,50 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(missed).toHaveLength(1);
   });
 
+  it("pushes live websocket deltas and replays from cursor", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const { receipt } = await api.createTask("Wired", requestContext(ownerActor(), { correlationId: "ws1" }));
+    const cursor = await api.seq();
+    const res = await api.subscribe(cursor);
+    expect(res.status).toBe(101);
+    const ws = res.webSocket;
+    expect(ws).toBeTruthy();
+    if (!ws) throw new Error("expected websocket");
+    const messages: Array<{ type: string; deltas?: Array<{ item: { title: string } }> }> = [];
+    ws.accept();
+    const got = new Promise<void>((resolve) => {
+      ws.addEventListener("message", (event) => {
+        messages.push(JSON.parse(String(event.data)) as (typeof messages)[number]);
+        if (messages.some((msg) => msg.deltas?.some((delta) => delta.item.title === "Wired v2"))) resolve();
+      });
+    });
+    await api.updateTitle("Wired v2", requestContext(ownerActor(), { receipt, correlationId: "ws2" }));
+    await Promise.race([
+      got,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("no websocket delta")), 2000)),
+    ]);
+    const titles = messages.flatMap((msg) => (msg.deltas ?? []).map((delta) => delta.item.title));
+    expect(titles).toContain("Wired v2");
+  });
+
   it("rebuilds D1 from the outbox after a projection drop", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "r1" }));
     await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
     expect(await api.listTasks([receipt])).toHaveLength(0);
+    await api.rebuildProjection();
+    expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
+  });
+
+  it("poisons failing publishes on the DO and skips them on rebuild", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "poi" }));
+    expect(await api.poisonPending(5)).toBe(1);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    await evictDurableObject(stub);
     await api.rebuildProjection();
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
   });
@@ -111,23 +155,46 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(await api.listTasks([first.receipt])).toHaveLength(1);
   });
 
-  it("share then revoke hides the D1 row (SEC-1)", async () => {
+  it("share then revoke hides the D1 row (SEC-1); non-owners cannot overwrite ACL", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
     const { task, receipt } = await api.createTask("Secret", requestContext(ownerActor(), { correlationId: "sec" }));
     const shared = grantShare(emptyAccess(ownerId, tenant), teammateId, "comment");
-    await stub.shareState(task.id, shared);
+    const deniedShare = await stub.shareState(task.id, shared, actorContext(userPrincipal(teammateId, tenant)));
+    expect(deniedShare.ok).toBe(false);
+    if (deniedShare.ok) throw new Error("expected owner-only share");
+    expect(deniedShare.message).toMatch(/lacks owner/);
+    const sharedOk = await stub.shareState(task.id, shared, ownerActor());
+    expect(sharedOk.ok).toBe(true);
     const teammateMint = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
     expect(teammateMint.ok).toBe(true);
     if (!teammateMint.ok) throw new Error("expected teammate view");
     expect(await api.listTasks([teammateMint.receipt])).toHaveLength(1);
-    await stub.shareState(task.id, emptyAccess(ownerId, tenant));
+    await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
     const denied = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
     expect(denied.ok).toBe(false);
     if (denied.ok) throw new Error("expected deny");
     expect(denied.message).toMatch(/lacks view/);
     expect(await api.listTasks([])).toHaveLength(0);
     expect(await api.listTasks([receipt])).toHaveLength(1);
+  });
+
+  it("tenant A projection does not wipe tenant B D1 rows", async () => {
+    resetIdSequence();
+    const apiA = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const apiB = new DurableTaskApi(testEnv.TASK_SLICE, tenantB);
+    const a = await apiA.createTask("Alpha", requestContext(ownerActor(), { correlationId: "a1" }));
+    const b = await apiB.createTask("Bravo", requestContext(ownerBActor(), { correlationId: "b1" }));
+    await apiA.updateTitle("Alpha v2", requestContext(ownerActor(), { receipt: a.receipt, correlationId: "a2" }));
+    expect((await apiA.listTasks([a.receipt])).map((item) => item.title)).toEqual(["Alpha v2"]);
+    expect((await apiB.listTasks([b.receipt])).map((item) => item.title)).toEqual(["Bravo"]);
+    const { results } = await testEnv.SOUP.prepare(
+      "SELECT tenant_id, title FROM entity_row WHERE facet = 'task' ORDER BY title",
+    ).all<{ tenant_id: string; title: string }>();
+    expect(results.map((row) => `${row.tenant_id}:${row.title}`)).toEqual([
+      `${tenant}:Alpha v2`,
+      `${tenantB}:Bravo`,
+    ]);
   });
 });
