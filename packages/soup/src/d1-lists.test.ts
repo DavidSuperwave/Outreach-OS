@@ -44,6 +44,10 @@ class MemoryD1 implements SoupD1 {
               unread,
               done,
               tombstoned,
+              status,
+              priority,
+              assignee_ids,
+              tags,
             ] = values;
             this.#rows.set(String(entity_id), {
               entity_id,
@@ -59,6 +63,10 @@ class MemoryD1 implements SoupD1 {
               unread,
               done,
               tombstoned,
+              status,
+              priority,
+              assignee_ids,
+              tags,
             });
           }
         },
@@ -93,6 +101,10 @@ describe("D1 lists projector (OD-27)", () => {
       unread: false,
       done: false,
       tombstoned: false,
+      status: "todo",
+      priority: "high",
+      assigneeIds: [fixtureId("user", 1)],
+      tags: ["acceptance"],
     };
     await projectListSnapshot(db, [item]);
     const listed = await queryFacetRows(db, item.tenantId, "task");

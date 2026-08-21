@@ -3,7 +3,17 @@ import { filterVisible, requireReceipt, type Receipt } from "authz";
 import type { AccessState } from "authz";
 import type { ActorContext } from "identity/principal";
 import { envelope, type RequestContext } from "control-plane";
-import { ensureListSchema, projectListSnapshot, queryFacetRows, type SoupD1, type SoupDelta, type SoupItem } from "soup";
+import {
+  ensureListSchema,
+  projectListSnapshot,
+  queryFacetRows,
+  queryVisibleEntityIds,
+  queryVisibleFacetRows,
+  type AccessProjectionRow,
+  type SoupD1,
+  type SoupDelta,
+  type SoupItem,
+} from "soup";
 import { operatorAlertsFromPoison, type OperatorAlert } from "./operator-alerts.js";
 import {
   TaskSlice,
@@ -107,28 +117,15 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     if (bound && bound !== claimed) throw new Error("tenant mismatch");
   }
 
-  #viewReceipts(slice: TaskSlice, actor: ActorContext): Receipt[] {
-    const receipts: Receipt[] = [];
-    for (const doc of slice.toSnapshot().docs) {
-      try {
-        receipts.push(
-          slice.engine.mint({
-            actor,
-            entityType: "document",
-            entityId: doc.id,
-            need: "view",
-          }),
-        );
-      } catch {
-        // Actor cannot view this document (SEC-1).
-      }
-    }
-    return receipts;
+  #accessProjection(slice: TaskSlice, tenantId: string): AccessProjectionRow[] {
+    return slice.accessProjection(tenantId);
   }
 
-  #visibleDeltas(slice: TaskSlice, actor: ActorContext, fromSeq: number): SoupDelta[] {
-    const receipts = this.#viewReceipts(slice, actor);
-    return slice.plane.lists.replayFrom(fromSeq).filter((delta) => filterVisible([delta.item], receipts).length > 0);
+  async #visibleDeltas(slice: TaskSlice, actor: ActorContext, fromSeq: number): Promise<SoupDelta[]> {
+    const tenantId = this.#tenantId(slice);
+    if (!tenantId) return [];
+    const visible = new Set(await queryVisibleEntityIds(this.env.SOUP, tenantId, actor.actor.id));
+    return slice.plane.lists.replayFrom(fromSeq).filter((delta) => visible.has(delta.item.entityId));
   }
 
   #consumeSubscribeTicket(ticket: string): ActorContext | null {
@@ -210,9 +207,14 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     enqueue: boolean,
   ): Promise<void> {
     if (enqueue) await this.#enqueueProjection(pending.tenantId);
-    await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), pending.tenantId);
+    await projectListSnapshot(
+      this.env.SOUP,
+      slice.plane.lists.snapshot(),
+      pending.tenantId,
+      this.#accessProjection(slice, pending.tenantId),
+    );
     await this.#completeProjection(pending.generation);
-    this.#broadcast(slice);
+    await this.#broadcast(slice);
   }
 
   async #save(slice: TaskSlice): Promise<void> {
@@ -245,8 +247,13 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         await this.#deliverProjection(slice, pending, false);
       } else {
         const tenantId = this.#tenantId(slice);
-        await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
-        this.#broadcast(slice);
+        await projectListSnapshot(
+          this.env.SOUP,
+          slice.plane.lists.snapshot(),
+          tenantId,
+          tenantId ? this.#accessProjection(slice, tenantId) : [],
+        );
+        await this.#broadcast(slice);
       }
       return { pending: slice.outbox.pending().length };
     });
@@ -270,11 +277,11 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     });
   }
 
-  #broadcast(slice: TaskSlice): void {
+  async #broadcast(slice: TaskSlice): Promise<void> {
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as SubscribeAttachment | null;
       if (!att?.actor) continue;
-      const deltas = this.#visibleDeltas(slice, att.actor, att.cursor);
+      const deltas = await this.#visibleDeltas(slice, att.actor, att.cursor);
       if (deltas.length === 0) {
         ws.serializeAttachment({ cursor: slice.plane.lists.seq, actor: att.actor } satisfies SubscribeAttachment);
         continue;
@@ -306,7 +313,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       const cursor = Number(url.searchParams.get("cursor") ?? "0");
       const from = Number.isFinite(cursor) ? cursor : 0;
       this.ctx.acceptWebSocket(server);
-      const deltas = this.#visibleDeltas(slice, actor, from);
+      const deltas = await this.#visibleDeltas(slice, actor, from);
       server.serializeAttachment({ cursor: slice.plane.lists.seq, actor } satisfies SubscribeAttachment);
       server.send(JSON.stringify({ type: "replay", deltas, seq: slice.plane.lists.seq }));
       return new Response(null, { status: 101, webSocket: client });
@@ -373,38 +380,33 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     if (!tenantId) return [];
     await ensureListSchema(this.env.SOUP);
     const rows = await queryFacetRows(this.env.SOUP, tenantId, "task");
-    return filterVisible(rows, receipts).map((item) => {
-      const task = slice.get(item.entityId);
-      if (!task) return item;
-      return {
-        ...item,
-        status: task.status,
-        priority: task.priority,
-        done: task.done,
-        title: task.title,
-        assigneeIds: task.assigneeIds,
-        tags: task.tags,
-      };
-    });
+    return filterVisible(rows, receipts);
   }
 
   async listVisible(actor: ActorContext): Promise<SoupItem[]> {
     const slice = this.#load();
     this.#assertTenant(actor, slice);
-    return this.listTasks(this.#viewReceipts(slice, actor));
+    const tenantId = this.#tenantId(slice);
+    if (!tenantId) return [];
+    await ensureListSchema(this.env.SOUP);
+    return queryVisibleFacetRows(this.env.SOUP, tenantId, actor.actor.id, "task");
   }
 
   async listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]> {
     const slice = this.#load();
     this.#assertTenant(actor, slice);
-    const visible = new Set(this.#viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+    const tenantId = this.#tenantId(slice);
+    if (!tenantId) return [];
+    const visible = new Set(await queryVisibleEntityIds(this.env.SOUP, tenantId, actor.actor.id));
     return slice.activity.list().filter((fact) => visible.has(fact.entityId));
   }
 
   async listAlerts(actor: ActorContext): Promise<OperatorAlert[]> {
     const slice = this.#load();
     this.#assertTenant(actor, slice);
-    const visible = new Set(this.#viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+    const tenantId = this.#tenantId(slice);
+    if (!tenantId) return [];
+    const visible = new Set(await queryVisibleEntityIds(this.env.SOUP, tenantId, actor.actor.id));
     return operatorAlertsFromPoison(slice.outbox.poison(), visible);
   }
 
@@ -496,6 +498,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         });
         requireReceipt(receipt, "owner", entityId);
         slice.access.put(entityId, state);
+        slice.rebuildAccessProjection();
         await this.#save(slice);
         return { ok: true as const };
       });

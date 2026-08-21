@@ -14,6 +14,7 @@ export {
   SCHEMA_FAMILY_CONTRACTS,
   SEARCH_ENTITY_TYPES,
   LIST_SCHEMA_DDL,
+  LIST_SCHEMA_MIGRATIONS,
   SEARCH_SCHEMA_DDL,
   isSearchEntityType,
 } from "./schemas.js";
@@ -22,10 +23,13 @@ export {
   upsertEntityRow,
   clearEntityRows,
   queryFacetRows,
+  queryVisibleFacetRows,
+  queryVisibleEntityIds,
+  replaceAccessProjection,
   projectListSnapshot,
   rowToItem,
 } from "./d1-lists.js";
-export type { SoupD1, EntityRowRecord } from "./d1-lists.js";
+export type { SoupD1, EntityRowRecord, AccessProjectionRow } from "./d1-lists.js";
 export type { SchemaFamilyName, SchemaFamilyContract, SearchEntityType } from "./schemas.js";
 export { groupItems, flattenGroups, toggleCollapsed, groupKey } from "./grouping.js";
 export type { SoupGroup, SoupGroupBy } from "./grouping.js";

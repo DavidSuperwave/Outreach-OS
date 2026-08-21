@@ -83,6 +83,13 @@ export class TaskSlice {
   readonly activity = new ActivityLog();
   readonly idempotency = new IdempotencyStore();
   #docs = new Map<string, TaskRecord>();
+  #accessRows: Array<{
+    actorId: string;
+    entityId: string;
+    entityType: "document";
+    tenantId: string;
+    level: string;
+  }> = [];
   #clock = 0;
 
   openApi(): TaskApi {
@@ -105,6 +112,7 @@ export class TaskSlice {
       const id = nextId("document");
       this.registry.register({ type: "document", id, tenantId, createdAt: this.#now(), facet: "task" });
       this.access.put(id, emptyAccess(ctx.actor.actor.id, tenantId));
+      this.rebuildAccessProjection();
       const task: TaskRecord = {
         id,
         tenantId,
@@ -152,19 +160,44 @@ export class TaskSlice {
   }
 
   listTasks(receipts: readonly Receipt[]): SoupItem[] {
-    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items.map((item) => {
-      const task = this.#docs.get(item.entityId);
-      if (!task) return item;
-      return {
-        ...item,
-        status: task.status,
-        priority: task.priority,
-        done: task.done,
-        title: task.title,
-        assigneeIds: task.assigneeIds,
-        tags: task.tags,
-      };
-    });
+    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items;
+  }
+
+  listVisible(actor: ActorContext): SoupItem[] {
+    const tenantId = actor.actor.tenantId;
+    if (!tenantId) return [];
+    const visible = new Set(
+      this.#accessRows
+        .filter((row) => row.tenantId === tenantId && row.actorId === actor.actor.id)
+        .map((row) => row.entityId),
+    );
+    return this.plane.lists
+      .snapshot()
+      .filter((item) => item.facet === "task" && item.tenantId === tenantId && visible.has(item.entityId));
+  }
+
+  accessProjection(tenantId: string) {
+    return this.#accessRows.filter((row) => row.tenantId === tenantId).map((row) => ({ ...row }));
+  }
+
+  /** Project policy outcomes after authoritative ACL writes or snapshot restore. */
+  rebuildAccessProjection(): void {
+    this.#accessRows = this.access.snapshot().flatMap(({ entityId, state }) => [
+      {
+        actorId: state.ownerId,
+        entityId,
+        entityType: "document" as const,
+        tenantId: state.tenantId,
+        level: "owner",
+      },
+      ...state.shares.map((share) => ({
+        actorId: share.actorId,
+        entityId,
+        entityType: "document" as const,
+        tenantId: state.tenantId,
+        level: share.level,
+      })),
+    ]);
   }
 
   get(id: string): TaskRecord | undefined {
@@ -268,6 +301,7 @@ export class TaskSlice {
     const slice = new TaskSlice();
     slice.registry.restore(snapshot.registry);
     slice.access.restore(snapshot.access);
+    slice.rebuildAccessProjection();
     slice.outbox.restore(snapshot.outbox);
     slice.activity.restore(snapshot.activity);
     slice.idempotency.restore(snapshot.idempotency);

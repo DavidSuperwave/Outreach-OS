@@ -71,6 +71,23 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect((await api.listTasks([receipt]))[0]?.assigneeIds).toEqual([ownerId]);
     expect((await stub.get(task.id, ownerActor()))?.done).toBe(true);
     expect(await api.listTasks([])).toHaveLength(0);
+    const row = await testEnv.SOUP.prepare(
+      `SELECT title, status, priority, version, assignee_ids
+       FROM entity_row WHERE tenant_id = ? AND entity_id = ?`,
+    ).bind(tenant, task.id).first<{
+      title: string;
+      status: string;
+      priority: string;
+      version: number;
+      assignee_ids: string;
+    }>();
+    expect(row).toEqual({
+      title: "Ship the slice v2",
+      status: "in_progress",
+      priority: "high",
+      version: 6,
+      assignee_ids: JSON.stringify([ownerId]),
+    });
   });
 
   it("authoritative writes and D1 projection survive DO eviction", async () => {
@@ -131,10 +148,22 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
   it("rebuilds D1 from the outbox after a projection drop", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
-    const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "r1" }));
+    const { task, receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "r1" }));
+    const edit = requestContext(ownerActor(), { receipt, correlationId: "r2" });
+    await api.setStatus("in_progress", edit);
+    await api.setPriority("urgent", edit);
     await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
+    await testEnv.SOUP.prepare("DELETE FROM entity_access_index").run();
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    await evictDurableObject(stub);
     await api.rebuildProjection(ownerActor());
-    expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
+    expect((await api.listVisible(ownerActor()))[0]).toMatchObject({
+      entityId: task.id,
+      title: "Keep me",
+      status: "in_progress",
+      priority: "urgent",
+      version: 3,
+    });
   });
 
   it("re-projects D1 when the outbox queue consumer drains the DO", async () => {
@@ -192,38 +221,59 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(retried).toEqual([tenant]);
   });
 
-  it("recovers a committed authority snapshot by alarm after queue send fails", async () => {
+  it("recovers projected task properties by alarm after queue send fails", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const { task, receipt } = await api.createTask(
+      "Alarm recovery",
+      requestContext(ownerActor(), { correlationId: "alarm-create" }),
+    );
+    await api.setStatus(
+      "in_progress",
+      requestContext(ownerActor(), { receipt, correlationId: "alarm-status" }),
+    );
     await stub.failNextOutboxSend();
 
-    const failedCreate = api.createTask(
-      "Alarm recovery",
+    const failedPriority = api.setPriority(
+      "high",
       requestContext(ownerActor(), {
-        correlationId: "alarm-create",
-        idempotencyKey: "alarm-create",
+        receipt,
+        correlationId: "alarm-priority",
+        idempotencyKey: "alarm-priority",
       }),
     ).then(
       () => "created",
       (error: Error) => error.message,
     );
-    expect(await failedCreate).toMatch(/TASK_OUTBOX/);
+    expect(await failedPriority).toMatch(/TASK_OUTBOX/);
 
-    const entityId = fixtureId("document", 1);
-    expect((await stub.get(entityId, ownerActor()))?.title).toBe("Alarm recovery");
-    const minted = await stub.mintView(ownerActor(), entityId, "view");
-    expect(minted.ok).toBe(true);
-    if (!minted.ok) throw new Error("expected owner receipt");
-    expect(await api.listTasks([minted.receipt])).toEqual([]);
+    expect((await stub.get(task.id, ownerActor()))?.priority).toBe("high");
+    expect((await api.listVisible(ownerActor()))[0]?.priority).toBeNull();
 
     expect(await runDurableObjectAlarm(stub)).toBe(true);
-    expect((await api.listTasks([minted.receipt])).map((item) => item.title)).toEqual(["Alarm recovery"]);
+    expect((await api.listVisible(ownerActor()))[0]).toMatchObject({
+      title: "Alarm recovery",
+      status: "in_progress",
+      priority: "high",
+      version: 3,
+    });
     await runInDurableObject(stub, (instance) => instance.alarm());
     const row = await testEnv.SOUP.prepare(
-      "SELECT COUNT(*) AS count FROM entity_row WHERE tenant_id = ? AND entity_id = ?",
-    ).bind(tenant, entityId).first<{ count: number }>();
-    expect(row?.count).toBe(1);
+      `SELECT title, status, priority, version FROM entity_row
+       WHERE tenant_id = ? AND entity_id = ?`,
+    ).bind(tenant, task.id).first<{
+      title: string;
+      status: string;
+      priority: string;
+      version: number;
+    }>();
+    expect(row).toEqual({
+      title: "Alarm recovery",
+      status: "in_progress",
+      priority: "high",
+      version: 3,
+    });
   });
 
   it("keeps a newer mutation when it arrives while alarm recovery is pending", async () => {
@@ -314,13 +364,23 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(teammateMint.ok).toBe(true);
     if (!teammateMint.ok) throw new Error("expected teammate view");
     await api.drainOutbox();
-    expect(await api.listTasks([teammateMint.receipt])).toHaveLength(1);
+    expect(await api.listVisible(teammateActor())).toHaveLength(1);
+    await testEnv.SOUP.prepare("DELETE FROM entity_access_index").run();
+    await evictDurableObject(stub);
+    await api.rebuildProjection(ownerActor());
+    expect(await api.listVisible(teammateActor())).toHaveLength(1);
     await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
     const denied = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
     expect(denied.ok).toBe(false);
     if (denied.ok) throw new Error("expected deny");
     expect(denied.message).toMatch(/lacks view/);
-    expect(await api.listTasks([])).toHaveLength(0);
+    await evictDurableObject(stub);
+    expect(await api.listVisible(teammateActor())).toHaveLength(0);
+    const projected = await testEnv.SOUP.prepare(
+      `SELECT COUNT(*) AS count FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, teammateId, task.id).first<{ count: number }>();
+    expect(projected?.count).toBe(0);
     expect(await api.listTasks([receipt])).toHaveLength(1);
   });
 

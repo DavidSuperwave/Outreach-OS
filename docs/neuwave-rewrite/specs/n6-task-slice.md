@@ -30,6 +30,13 @@ session token in the URL). Command identities invoke
 `TaskApi` mutations through `runSliceCommand` / `bindSliceCommands`. Poison publishes
 are marked-and-skipped on the DO outbox. In-process maps remain the unit-test core.
 
+The frozen N4 D1 DDL remains the v1 baseline. N6 applies additive, idempotent
+list-schema migrations for `status`, `priority`, normalized JSON
+`assignee_ids`/`tags`, and tenant-scoped `entity_access_index` lookup. Existing
+rows receive null/empty defaults and are then reconciled from each tenant's
+authority/outbox; rollback is drop-and-rebuild of these derived tables, not an
+authority migration.
+
 
 ## RPC/API contract
 

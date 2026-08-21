@@ -70,6 +70,21 @@ CREATE TABLE entity_access_index (
 );
 `.trim();
 
+/**
+ * Additive compatibility migrations for deployments that already applied the
+ * N4 list schema above. Keep LIST_SCHEMA_DDL as the frozen v1 contract: new
+ * list fields are introduced here so an existing D1 database is upgraded
+ * without a destructive table rewrite.
+ */
+export const LIST_SCHEMA_MIGRATIONS = [
+  "ALTER TABLE entity_row ADD COLUMN status TEXT",
+  "ALTER TABLE entity_row ADD COLUMN priority TEXT",
+  "ALTER TABLE entity_row ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE entity_row ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE entity_access_index ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''",
+  "CREATE INDEX IF NOT EXISTS entity_access_actor ON entity_access_index (tenant_id, actor_id, entity_id)",
+] as const;
+
 export const SEARCH_SCHEMA_DDL = `
 CREATE TABLE search_doc (
   entity_id TEXT PRIMARY KEY,

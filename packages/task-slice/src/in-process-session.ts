@@ -38,13 +38,13 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
         idempotencyKey: `${actor.actor.id}:create:${operationId}`,
       }));
     },
-    listTasks: async () => slice.listTasks(viewReceipts(slice, actor)),
+    listTasks: async () => slice.listVisible(actor),
     listActivity: async () => {
-      const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+      const visible = new Set(slice.listVisible(actor).map((item) => item.entityId));
       return slice.activity.list().filter((fact) => visible.has(fact.entityId));
     },
     listAlerts: async () => {
-      const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+      const visible = new Set(slice.listVisible(actor).map((item) => item.entityId));
       return operatorAlertsFromPoison(slice.outbox.poison(), visible);
     },
     updateTitle: (entityId, title, operationId) =>
@@ -63,9 +63,9 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
     }),
     seq: async () => slice.plane.lists.seq,
     replayFrom: async (seq) => {
-      const receipts = viewReceipts(slice, actor);
+      const visible = new Set(slice.listVisible(actor).map((item) => item.entityId));
       return slice.plane.lists.replayFrom(seq).filter((delta: SoupDelta) =>
-        receipts.some((receipt) => receipt.entityId === delta.item.entityId),
+        visible.has(delta.item.entityId),
       );
     },
     rebuildProjection: async () => {
@@ -77,25 +77,6 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
       return tenantId;
     },
   };
-}
-
-function viewReceipts(slice: TaskSlice, actor: ActorContext) {
-  const receipts = [];
-  for (const doc of slice.toSnapshot().docs) {
-    try {
-      receipts.push(
-        slice.engine.mint({
-          actor,
-          entityType: "document",
-          entityId: doc.id,
-          need: "view",
-        }),
-      );
-    } catch {
-      // Actor cannot view this document (SEC-1).
-    }
-  }
-  return receipts;
 }
 
 export { loadTaskSurface, submitTaskCompose };
