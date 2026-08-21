@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { Shell } from "shell";
+import { Shell, panesFromPath } from "shell";
 import type { TaskPaneActivity, TaskPaneAlert, TaskPaneItem } from "shell";
 import { outreachBootConfig } from "./live-session.js";
 
@@ -17,6 +17,7 @@ export function renderOutreachDocument(input: {
   const body = renderToString(
     createElement(Shell, {
       path: input.path,
+      panes: panesFromPath(input.path),
       theme: "outreach-dark",
       username: input.username ?? "signed-out",
       taskItems: input.items ?? [],

@@ -10,6 +10,7 @@ import { handleTaskOutboxBatch, type TaskOutboxMessage } from "./outbox-queue.js
 export class AdminSettings extends DurableObject {}
 
 export default {
+  /** Origin compositor + Cap’n Web domain/session. */
   async fetch(request: Request, env: TaskWorkerEnv): Promise<Response> {
     return handleOutreachFetch(request, env);
   },
