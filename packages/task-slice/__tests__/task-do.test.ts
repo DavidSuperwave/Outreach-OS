@@ -225,20 +225,42 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
-    const { task, receipt } = await api.createTask(
+    await stub.failNextOutboxSend();
+    const failedCreate = api.createTask(
       "Alarm recovery",
-      requestContext(ownerActor(), { correlationId: "alarm-create" }),
+      requestContext(ownerActor(), {
+        correlationId: "alarm-create",
+        idempotencyKey: "alarm-create",
+      }),
+    ).then(
+      () => "created",
+      (error: Error) => error.message,
     );
-    await api.setStatus(
+    expect(await failedCreate).toMatch(/TASK_OUTBOX/);
+    const entityId = fixtureId("document", 1);
+    const minted = await stub.mintView(ownerActor(), entityId, "edit");
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error("expected edit receipt");
+
+    await stub.failNextOutboxSend();
+    const failedStatus = api.setStatus(
       "in_progress",
-      requestContext(ownerActor(), { receipt, correlationId: "alarm-status" }),
+      requestContext(ownerActor(), {
+        receipt: minted.receipt,
+        correlationId: "alarm-status",
+        idempotencyKey: "alarm-status",
+      }),
+    ).then(
+      () => "updated",
+      (error: Error) => error.message,
     );
+    expect(await failedStatus).toMatch(/TASK_OUTBOX/);
     await stub.failNextOutboxSend();
 
     const failedPriority = api.setPriority(
       "high",
       requestContext(ownerActor(), {
-        receipt,
+        receipt: minted.receipt,
         correlationId: "alarm-priority",
         idempotencyKey: "alarm-priority",
       }),
@@ -248,8 +270,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     );
     expect(await failedPriority).toMatch(/TASK_OUTBOX/);
 
-    expect((await stub.get(task.id, ownerActor()))?.priority).toBe("high");
-    expect((await api.listVisible(ownerActor()))[0]?.priority).toBeNull();
+    expect((await stub.get(entityId, ownerActor()))?.priority).toBe("high");
 
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect((await api.listVisible(ownerActor()))[0]).toMatchObject({
@@ -262,7 +283,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const row = await testEnv.SOUP.prepare(
       `SELECT title, status, priority, version FROM entity_row
        WHERE tenant_id = ? AND entity_id = ?`,
-    ).bind(tenant, task.id).first<{
+    ).bind(tenant, entityId).first<{
       title: string;
       status: string;
       priority: string;
