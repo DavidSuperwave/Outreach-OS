@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useState, type ReactNode } from "react";
+import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { newWebSocketRpcSession, type RpcStub } from "capnweb";
 import { CommandRegistry } from "shell";
 import { Shell } from "shell";
@@ -54,7 +54,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [items, setItems] = useState<TaskPaneItem[]>([]);
   const [activity, setActivity] = useState<TaskPaneActivity[]>([]);
   const [alerts, setAlerts] = useState<TaskPaneAlert[]>([]);
-  const [session, setSession] = useState<TaskSessionApi | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  // RpcStub is thenable (Cap'n Web pipelining). React 19 useState unwraps thenables, so
+  // the session must live on a ref — not in state — or create/markDone see a null session.
+  const sessionRef = useRef<TaskSessionApi | null>(null);
 
   const applySurface = useCallback(async (live: TaskSessionApi) => {
     const surface = await loadTaskSurface(live);
@@ -68,6 +71,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     let cancelled = false;
     let domain: RpcStub<TaskDomainPublicApi> | undefined;
     let sub: WebSocket | undefined;
+    sessionRef.current = null;
+    setSessionReady(false);
     const storedTenant = localStorage.getItem(boot.tenantKey) ?? "";
     void (async () => {
       domain = newWebSocketRpcSession<TaskDomainPublicApi>(wsUrl(boot.domainApi));
@@ -75,7 +80,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       if (cancelled) return;
       const nextTenant = await live.tenantId();
       localStorage.setItem(boot.tenantKey, nextTenant);
-      setSession(live);
+      sessionRef.current = live;
+      setSessionReady(true);
       setUsername(token.slice(0, token.indexOf(":")) || "signed-in");
       await applySurface(live);
       const cursor = await live.seq();
@@ -90,6 +96,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     });
     return () => {
       cancelled = true;
+      sessionRef.current = null;
       sub?.close();
       domain?.[Symbol.dispose]();
     };
@@ -162,17 +169,33 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   };
 
   const onCreateTask = async (title: string) => {
-    if (!session) return;
-    const surface = await submitTaskCompose(session, title);
-    setItems(surfaceItems(surface.items));
-    setActivity(surface.activity);
-    setAlerts(surface.alerts);
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      const surface = await submitTaskCompose(session, title);
+      setItems(surfaceItems(surface.items));
+      setActivity(surface.activity);
+      setAlerts(surface.alerts);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "create failed");
+    }
   };
 
   const onMarkDone = async (entityId: string, done: boolean) => {
-    if (!session) return;
-    await session.markDone(entityId, done);
-    await applySurface(session);
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      await session.markDone(entityId, done);
+      await applySurface(session);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "update failed");
+    }
   };
 
   return createElement(Shell, {
@@ -184,6 +207,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     activityFacts: activity,
     operatorAlerts: alerts,
     kernelAuthError: authError,
+    sessionReady,
     onKernelAuth,
     onCreateTask,
     onMarkDone,

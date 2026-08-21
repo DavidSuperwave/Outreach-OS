@@ -62,6 +62,7 @@ describe("origin compositor client boot", () => {
     const session = await bootLiveTaskSession(domain, "admin:secret");
     expect(openedDefault).toBe(true);
     expect(await session.tenantId()).toBe(tenant);
+    expect(await session.createTask("still alive", "hold-1")).toMatchObject({ task: { title: "still alive" } });
   });
 
   it("mints a kernel session token through PublicApi.login / createAccount", async () => {

@@ -40,6 +40,17 @@ export interface KernelPasswordPublicApi {
   ): Promise<string | null>;
 }
 
+/**
+ * Cap'n Web reaps a child stub when its parent capability is dropped. The browser
+ * hydrate must keep `authenticate()`'s return value alive for as long as the session.
+ */
+const capnpParents = new WeakMap<object, object>();
+
+function pinCapnpParent<T>(child: T, parent: object): T {
+  if (child && typeof child === "object") capnpParents.set(child, parent);
+  return child;
+}
+
 /** Browser/client boot: kernel session token → TaskSessionApi. Actor never leaves the server. */
 export async function bootLiveTaskSession(
   domain: TaskDomainPublicApi,
@@ -48,8 +59,8 @@ export async function bootLiveTaskSession(
 ): Promise<TaskSessionApi> {
   if (!token) throw new Error("session required");
   const authed: TaskAuthenticatedApi = await domain.authenticate(token);
-  if (tenantId) return authed.openTenant(tenantId);
-  return authed.openDefaultTenant();
+  const session = tenantId ? await authed.openTenant(tenantId) : await authed.openDefaultTenant();
+  return pinCapnpParent(session, authed);
 }
 
 export async function loginViaKernelPublicApi(

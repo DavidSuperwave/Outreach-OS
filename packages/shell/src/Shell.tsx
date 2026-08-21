@@ -22,6 +22,7 @@ export interface ShellProps {
   onMarkDone?: (entityId: string, done: boolean) => void;
   kernelAuthError?: string;
   onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
+  sessionReady?: boolean;
 }
 
 const NAV = [
@@ -57,6 +58,7 @@ export function Shell({
   onMarkDone,
   kernelAuthError,
   onKernelAuth,
+  sessionReady,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -71,6 +73,7 @@ export function Shell({
       data-theme={theme}
       data-theme-label={THEME_LABELS[theme] ?? theme}
       data-path={encodeSplits(layout)}
+      data-session-ready={sessionReady ? "true" : "false"}
       style={{
         minHeight: "100vh",
         fontFamily: "ui-sans-serif, system-ui, sans-serif",
@@ -104,6 +107,11 @@ export function Shell({
         </nav>
       </header>
       <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem" }}>
+        {kernelAuthError ? (
+          <p data-auth-error="" role="alert">
+            {kernelAuthError}
+          </p>
+        ) : null}
         {layout.map((pane) => (
           <section key={`${pane.type}:${pane.id}`} data-split={pane.type} data-split-id={pane.id}>
             {pane.type === "home" && path === "/" ? (
