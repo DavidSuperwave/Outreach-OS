@@ -8,6 +8,10 @@ export type ScopeId =
   | "command-scope-favorites"
   | "split"
   | "block"
+  | "launcher"
+  | "command-menu"
+  | "settings"
+  | "popover-split"
   | "detached";
 
 export type RegistrationType = "override" | "add";
@@ -43,7 +47,12 @@ const PARENT: Record<ScopeId, ScopeId | null> = {
   "command-scope-favorites": "global",
   split: "global",
   block: "split",
-  detached: null,
+  launcher: null,
+  "command-menu": null,
+  settings: null,
+  "popover-split": null,
+  // Compatibility alias for N6 callers compiled before modal scopes were split.
+  detached: "settings",
 };
 
 const MODIFIER_CODES = new Set([

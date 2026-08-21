@@ -1,10 +1,18 @@
 import type { N5CommandId } from "./n5-command-ids.js";
+import { commandHasRuntime, N5_COMMAND_COVERAGE_BY_ID } from "./n5-command-coverage.js";
 import { N5_KEYED_BINDINGS } from "./n5-ledger.js";
 import { commandEnabled, defaultChromeContext, type ChromeCommandContext } from "./commands.js";
 import { appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
 import type { CommandRegistry, LeaderKey, ScopeId } from "./registry.js";
-import { SETTINGS_TABS } from "./settings.js";
-import { STORAGE_KEYS, THEME_IDS, THEME_LABELS, type ThemeId } from "./theme.js";
+import { SETTINGS_TABS, settingsTabPath as settingsPathForTab } from "./settings.js";
+import {
+  STORAGE_KEYS,
+  THEME_IDS,
+  THEME_LABELS,
+  readUserThemes,
+  type ThemeId,
+  type UserTheme,
+} from "./theme.js";
 
 const LEADER_IDS = new Set(["global.create", "global.go-to-leader", "global.open-category-leader"]);
 
@@ -51,42 +59,12 @@ export const SIDEBAR_NAV: readonly { id: keyof typeof GO_TO_PATH; href: string; 
 ];
 
 const CREATE_OR_LAUNCH: Record<string, string> = {
-  "create-menu.email": "/mail",
-  "create-menu.chat": "/agents",
-  "create-menu.automation": "/settings",
-  "create-menu.skill": "/settings",
-  "create-menu.md": "/documents",
   "create-menu.task": "/tasks",
-  "create-menu.snippet": "/documents",
-  "create-menu.channel-message": "/channels",
-  "create-menu.channel": "/channels",
-  "create-menu.canvas": "/documents",
-  "create-menu.project": "/documents",
-  "create-menu.code": "/documents",
-  "launcher.email": "/mail",
-  "launcher.email-new-split": "/mail",
-  "launcher.chat": "/agents",
-  "launcher.chat-new-split": "/agents",
-  "launcher.automation": "/settings",
-  "launcher.skill": "/settings",
-  "launcher.md": "/documents",
-  "launcher.md-new-split": "/documents",
   "launcher.task": "/tasks",
   "launcher.task-new-split": "/tasks",
-  "launcher.snippet": "/documents",
-  "launcher.snippet-new-split": "/documents",
-  "launcher.channel-message": "/channels",
-  "launcher.channel-new-split-message": "/channels",
-  "launcher.channel": "/channels",
-  "launcher.canvas": "/documents",
-  "launcher.canvas-new-split": "/documents",
-  "launcher.project": "/documents",
-  "launcher.project-new-split": "/documents",
-  "launcher.code": "/documents",
-  "launcher.code-new-split": "/documents",
 };
 
-export const CREATE_MENU_ITEMS: readonly { id: N5CommandId; label: string; chord: string }[] = [
+const CREATE_MENU_SOURCE: readonly { id: N5CommandId; label: string; chord: string }[] = [
   { id: "create-menu.task", label: "Create task", chord: "t" },
   { id: "create-menu.md", label: "Create document", chord: "d" },
   { id: "create-menu.email", label: "Create email", chord: "e" },
@@ -100,6 +78,18 @@ export const CREATE_MENU_ITEMS: readonly { id: N5CommandId; label: string; chord
   { id: "create-menu.skill", label: "Create skill", chord: "k" },
   { id: "create-menu.snippet", label: "Create snippet", chord: "s" },
 ];
+
+export const CREATE_MENU_ITEMS: readonly {
+  id: N5CommandId;
+  label: string;
+  chord: string;
+  disabledReason?: string;
+}[] = CREATE_MENU_SOURCE.map((item) => {
+  const coverage = N5_COMMAND_COVERAGE_BY_ID.get(item.id)!;
+  return coverage.disposition === "downstream-gated"
+    ? { ...item, disabledReason: coverage.reason }
+    : item;
+});
 
 export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] = [
   { id: "go-to.home", label: "Home" },
@@ -123,6 +113,7 @@ export const COMMAND_MENU_ITEMS: readonly { id: N5CommandId; label: string }[] =
   { id: "global.change-theme", label: "Change theme" },
   { id: "global.set-default-light-theme", label: "Set default light theme" },
   { id: "global.set-default-dark-theme", label: "Set default dark theme" },
+  { id: "global.auto-detect-color-scheme", label: "Auto-detect color scheme" },
   { id: "global.logout", label: "Log out" },
 ];
 
@@ -185,10 +176,21 @@ function themePrefix(scope: Exclude<CommandMenuScope, "root">): "theme.set-visib
   return "theme.default-dark.";
 }
 
-export function commandMenuItemsForScope(scope: CommandMenuScope = "root"): readonly { id: N5CommandId; label: string }[] {
+export interface CommandMenuItem {
+  id: string;
+  label: string;
+}
+
+export function commandMenuItemsForScope(
+  scope: CommandMenuScope = "root",
+  userThemes: readonly UserTheme[] = readUserThemes(),
+): readonly CommandMenuItem[] {
   if (scope === "root") return COMMAND_MENU_ITEMS;
   const prefix = themePrefix(scope);
-  const themes = THEME_IDS.map((id) => ({ id: `${prefix}${id}` as N5CommandId, label: THEME_LABELS[id] }));
+  const themes: CommandMenuItem[] = [
+    ...THEME_IDS.map((id) => ({ id: `${prefix}${id}`, label: THEME_LABELS[id] })),
+    ...userThemes.map((theme) => ({ id: `${prefix}${theme.id}`, label: theme.label })),
+  ];
   if (scope === "change-theme") {
     return [{ id: "theme.system-preference", label: "System preference" }, ...themes];
   }
@@ -215,9 +217,10 @@ export function filterCommandMenuItems(
   query = "",
   category: CommandMenuCategory = "all",
   scope: CommandMenuScope = "root",
-): readonly { id: N5CommandId; label: string }[] {
+  userThemes: readonly UserTheme[] = readUserThemes(),
+): readonly CommandMenuItem[] {
   const needle = query.trim().toLowerCase();
-  return commandMenuItemsForScope(scope).filter((item) => {
+  return commandMenuItemsForScope(scope, userThemes).filter((item) => {
     if (scope === "root") {
       const cat = commandMenuItemCategory(item.id);
       if (category !== "all" && cat !== category) return false;
@@ -229,13 +232,13 @@ export function filterCommandMenuItems(
 
 export function chromeActiveScope(
   path: string,
-  flags: { commandMenuOpen?: boolean; createMenuOpen?: boolean } = {},
+  flags: { commandMenuOpen?: boolean; createMenuOpen?: boolean; createMenuViaLeader?: boolean } = {},
 ): ScopeId {
-  if (flags.commandMenuOpen) return "detached";
+  if (flags.commandMenuOpen) return "command-menu";
   // Visual launcher stays on create-menu scope so `c` then `t` is create-menu.task,
   // not detached launcher.task (ledger L8). Mouse Create also activateLeader("c").
-  if (flags.createMenuOpen) return "command-scope-create-menu";
-  if (path === "/settings" || path === "/mcp" || path.startsWith("/settings")) return "detached";
+  if (flags.createMenuOpen) return flags.createMenuViaLeader ? "command-scope-create-menu" : "launcher";
+  if (path === "/settings" || path === "/mcp" || path.startsWith("/settings")) return "settings";
   return "split";
 }
 
@@ -243,10 +246,7 @@ export function settingsTabPath(id: string): string | null {
   const match = /^settings\.tab-(\d)$/.exec(id);
   if (!match) return null;
   const tab = Number(match[1]);
-  if (tab === 1) return "/settings";
-  if (tab === 2) return "/mcp";
-  if (tab === 3) return "/settings?tab=bots";
-  return "/settings";
+  return settingsPathForTab(SETTINGS_TABS[tab - 1]!);
 }
 
 export function themeIdFromCommand(id: string): ThemeId | null {
@@ -258,12 +258,20 @@ export function themeIdFromCommand(id: string): ThemeId | null {
   return (THEME_IDS as readonly string[]).includes(name) ? (name as ThemeId) : null;
 }
 
+export function userThemeIdFromCommand(id: string, userThemes: readonly UserTheme[]): string | null {
+  const visible = /^theme\.set-visible\.(.+)$/.exec(id);
+  const light = /^theme\.default-light\.(.+)$/.exec(id);
+  const dark = /^theme\.default-dark\.(.+)$/.exec(id);
+  const name = visible?.[1] ?? light?.[1] ?? dark?.[1];
+  return name && userThemes.some((theme) => theme.id === name) ? name : null;
+}
+
 /** Path the chrome handler would assign, or null when the row is in-place / no-op. */
 export function chromeNavigatePath(id: string, path = "/"): string | null {
   if (GO_TO_PATH[id]) return GO_TO_PATH[id];
   if (CREATE_OR_LAUNCH[id]) return CREATE_OR_LAUNCH[id];
   if (id === "global.toggle-settings") return path === "/settings" || path.startsWith("/settings") ? "/" : "/settings";
-  if (id === "global.account" || id === "global.instructions") return "/settings";
+  if (id === "global.account") return "/settings?tab=account";
   if (id === "global.mcp-setup") return "/mcp";
   if (id === "global.logout") return "/login";
   if (id === "settings.close") return "/";
@@ -272,74 +280,64 @@ export function chromeNavigatePath(id: string, path = "/"): string | null {
   const tab = settingsTabPath(id);
   if (tab) return tab;
   if (id === "settings.next-tab" || id === "settings.prev-tab") {
-    const current = path === "/mcp" ? 1 : path.includes("bots") ? 2 : 0;
-    const next = id === "settings.next-tab" ? (current + 1) % SETTINGS_TABS.length : (current + SETTINGS_TABS.length - 1) % SETTINGS_TABS.length;
+    const current = SETTINGS_TABS.findIndex((tab) => settingsPathForTab(tab) === path);
+    const safeCurrent = current < 0 ? 0 : current;
+    const next = id === "settings.next-tab" ? (safeCurrent + 1) % SETTINGS_TABS.length : (safeCurrent + SETTINGS_TABS.length - 1) % SETTINGS_TABS.length;
     return settingsTabPath(`settings.tab-${next + 1}`);
   }
-  if (id === "command-menu.open-category.tasks") return "/tasks";
-  if (id === "command-menu.open-category.documents") return "/documents";
-  if (id === "command-menu.open-category.channels") return "/channels";
-  if (id === "command-menu.open-category.chats") return "/agents";
-  if (id === "go-to.search") return "/search";
   return null;
 }
 
 export interface ChromeHotkeyHandle {
   (id: string): boolean;
+  supports?: (id: N5CommandId) => boolean;
 }
-
-const INERT = new Set<string>([
-  "global.hotkey-debugger",
-  "global.undo",
-  "global.redo",
-  "global.upload-files",
-  "global.upload-folders",
-  "split.toggle-preview",
-  "split.close-drawer",
-  "split.spotlight",
-  "split.back",
-  "split.forward",
-  "split.focus-right",
-  "split.focus-left",
-  "popover-split.close",
-  "block.share",
-]);
 
 export function defaultChromeHotkeyHandle(
   navigate: (path: string) => void,
   extras: {
     toggleCommandMenu?: () => boolean;
     toggleCreateMenu?: () => boolean;
-    openTaskCompose?: () => boolean;
+    openTaskCompose?: (preferNewSplit?: boolean) => boolean;
     openCommandCategory?: (id: string) => boolean;
     cycleCommandCategory?: (delta: number) => boolean;
     moveCommandSelection?: (delta: number) => boolean;
-    confirmCommandSelection?: () => boolean;
+    confirmCommandSelection?: (preferNewSplit?: boolean) => boolean;
     closeMenus?: () => boolean;
     openCommandScope?: (id: string) => boolean;
     backCommandScope?: () => boolean;
     commandQueryEmpty?: () => boolean;
-    applyTheme?: (theme: ThemeId, kind?: "visible" | "light" | "dark") => boolean;
+    applyTheme?: (theme: string, kind?: "visible" | "light" | "dark") => boolean;
+    userThemes?: readonly UserTheme[];
     logout?: () => boolean;
     toggleSidebar?: () => boolean;
     focusHomeChat?: () => boolean;
+    toggleAutoColorScheme?: () => boolean;
+    closeSplit?: () => boolean;
+    toggleSplitSpotlight?: () => boolean;
+    splitHistory?: (delta: -1 | 1) => boolean;
+    focusSplit?: (delta: -1 | 1) => boolean;
+    toggleSplitPreview?: () => boolean;
+    closeSplitDrawer?: () => boolean;
+    closePopoverSplit?: () => boolean;
     currentPath?: string | (() => string);
     enabled?: ChromeCommandContext | (() => ChromeCommandContext);
   } = {},
 ): ChromeHotkeyHandle {
-  return (id) => {
+  const handle: ChromeHotkeyHandle = (id) => {
     const ctx = typeof extras.enabled === "function" ? extras.enabled() : (extras.enabled ?? defaultChromeContext());
     const current =
       typeof extras.currentPath === "function" ? extras.currentPath() : (extras.currentPath ?? "/");
-    if (id === "global.hotkey-debugger") return false;
-    if (!commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
-    if (id === "global.create") return extras.toggleCreateMenu?.() ?? true;
+    const dynamicUserTheme = userThemeIdFromCommand(id, extras.userThemes ?? readUserThemes());
+    if (!dynamicUserTheme && !commandHasRuntime(id as N5CommandId)) return false;
+    if (!dynamicUserTheme && !commandEnabled(id as N5CommandId, ctx) && id !== "global.command-menu") return false;
+    if (id === "global.create") return extras.toggleCreateMenu?.() ?? false;
     if (id === "home.focus-chat-input") return extras.focusHomeChat?.() ?? false;
     if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
-      return extras.openTaskCompose?.() ?? (navigate("/tasks"), extras.closeMenus?.(), true);
+      return extras.openTaskCompose?.(id === "launcher.task-new-split") ?? (navigate("/tasks"), extras.closeMenus?.(), true);
     }
-    if (id === "global.command-menu") return extras.toggleCommandMenu?.() ?? true;
-    if (COMMAND_MENU_NESTED_LEADERS[id]) return extras.openCommandScope?.(id) ?? true;
+    if (id === "global.command-menu") return extras.toggleCommandMenu?.() ?? false;
+    if (COMMAND_MENU_NESTED_LEADERS[id]) return extras.openCommandScope?.(id) ?? false;
     if (id === "command-menu.backspace-back") {
       if (extras.commandQueryEmpty && !extras.commandQueryEmpty()) return false;
       return extras.backCommandScope?.() ?? false;
@@ -352,64 +350,129 @@ export function defaultChromeHotkeyHandle(
       id === "popover-split.close"
     ) {
       if (id === "command-menu.escape" && extras.backCommandScope?.()) return true;
-      return extras.closeMenus?.() ?? true;
+      if (id === "popover-split.close") return extras.closePopoverSplit?.() ?? false;
+      return extras.closeMenus?.() ?? false;
     }
     if (id === "global.logout") return extras.logout?.() ?? (navigate("/login"), true);
-    if (id === "global.toggle-sidebar") return extras.toggleSidebar?.() ?? true;
+    if (id === "global.toggle-sidebar") return extras.toggleSidebar?.() ?? false;
+    if (id === "global.auto-detect-color-scheme") {
+      if (extras.toggleAutoColorScheme) return extras.toggleAutoColorScheme();
+      if (!extras.applyTheme || typeof localStorage === "undefined") return false;
+      const system = localStorage.getItem(STORAGE_KEYS.themeMode) !== "system";
+      localStorage.setItem(STORAGE_KEYS.themeMode, system ? "system" : "pinned");
+      if (system) {
+        const dark =
+          typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)").matches : true;
+        extras.applyTheme(dark ? "outreach-dark" : "outreach-light", "visible");
+      }
+      return true;
+    }
+    if (id === "split.spotlight") return extras.toggleSplitSpotlight?.() ?? false;
+    if (id === "split.back") return extras.splitHistory?.(-1) ?? false;
+    if (id === "split.forward") return extras.splitHistory?.(1) ?? false;
+    if (id === "split.focus-right") return extras.focusSplit?.(1) ?? false;
+    if (id === "split.focus-left") return extras.focusSplit?.(-1) ?? false;
+    if (id === "split.toggle-preview") return extras.toggleSplitPreview?.() ?? false;
+    if (id === "split.close-drawer") return extras.closeSplitDrawer?.() ?? false;
+    if (id === "split.close-or-home" && extras.closeSplit) return extras.closeSplit();
     if (id === "theme.system-preference") {
       const dark =
         typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)").matches : true;
-      extras.applyTheme?.(dark ? "outreach-dark" : "outreach-light", "visible");
+      if (!extras.applyTheme) return false;
+      extras.applyTheme(dark ? "outreach-dark" : "outreach-light", "visible");
       extras.closeMenus?.();
       return true;
     }
     if (id.startsWith("theme.set-visible.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
-      extras.applyTheme?.(theme, "visible");
+      if (!extras.applyTheme) return false;
+      extras.applyTheme(theme, "visible");
       extras.closeMenus?.();
       return true;
     }
     if (id.startsWith("theme.default-light.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
-      extras.applyTheme?.(theme, "light");
+      if (!extras.applyTheme) return false;
+      extras.applyTheme(theme, "light");
       extras.closeMenus?.();
       return true;
     }
     if (id.startsWith("theme.default-dark.")) {
-      const theme = themeIdFromCommand(id);
+      const theme = themeIdFromCommand(id) ?? dynamicUserTheme;
       if (!theme) return false;
-      extras.applyTheme?.(theme, "dark");
+      if (!extras.applyTheme) return false;
+      extras.applyTheme(theme, "dark");
       extras.closeMenus?.();
       return true;
     }
     if (id.startsWith("command-menu.open-category.")) {
-      return extras.openCommandCategory?.(id) ?? (chromeNavigatePath(id) ? (navigate(chromeNavigatePath(id)!), true) : true);
+      return extras.openCommandCategory?.(id) ?? false;
     }
-    if (id === "command-menu.next-category") return extras.cycleCommandCategory?.(1) ?? true;
-    if (id === "command-menu.prev-category") return extras.cycleCommandCategory?.(-1) ?? true;
+    if (id === "command-menu.next-category") return extras.cycleCommandCategory?.(1) ?? false;
+    if (id === "command-menu.prev-category") return extras.cycleCommandCategory?.(-1) ?? false;
     if (id === "command-menu.nav-down" || id === "launcher.nav-down") {
-      return extras.moveCommandSelection?.(1) ?? Boolean(extras.toggleCommandMenu);
+      return extras.moveCommandSelection?.(1) ?? false;
     }
     if (id === "command-menu.nav-up" || id === "launcher.nav-up") {
-      return extras.moveCommandSelection?.(-1) ?? Boolean(extras.toggleCommandMenu);
+      return extras.moveCommandSelection?.(-1) ?? false;
     }
-    if (id === "command-menu.confirm" || id === "command-menu.confirm-new-split" || id === "launcher.confirm") {
-      if (extras.confirmCommandSelection) return extras.confirmCommandSelection();
-      navigate("/tasks");
-      extras.closeMenus?.();
-      return true;
+    if (
+      id === "command-menu.confirm" ||
+      id === "command-menu.confirm-new-split" ||
+      id === "launcher.confirm" ||
+      id === "launcher.open-new-split"
+    ) {
+      return extras.confirmCommandSelection?.(
+        id === "command-menu.confirm-new-split" || id === "launcher.open-new-split",
+      ) ?? false;
     }
-    if (INERT.has(id)) return false;
     const path = chromeNavigatePath(id, current);
     if (path) {
       navigate(path);
       extras.closeMenus?.();
       return true;
     }
-    return id.startsWith("command-menu.open-category.") || id.startsWith("scope.");
+    return false;
   };
+  handle.supports = (id) => {
+    if (!commandHasRuntime(id)) return false;
+    if (LEADER_IDS.has(id)) return true;
+    if (chromeNavigatePath(id, typeof extras.currentPath === "string" ? extras.currentPath : "/")) return true;
+    if (id === "global.command-menu") return Boolean(extras.toggleCommandMenu);
+    if (id === "global.create") return Boolean(extras.toggleCreateMenu);
+    if (id === "home.focus-chat-input") return Boolean(extras.focusHomeChat);
+    if (id === "create-menu.task" || id === "launcher.task" || id === "launcher.task-new-split") {
+      return Boolean(extras.openTaskCompose);
+    }
+    if (COMMAND_MENU_NESTED_LEADERS[id]) return Boolean(extras.openCommandScope);
+    if (id === "command-menu.backspace-back") return Boolean(extras.backCommandScope);
+    if (["create-menu.close", "launcher.close-c", "launcher.exit"].includes(id)) return Boolean(extras.closeMenus);
+    if (id === "command-menu.escape") return Boolean(extras.backCommandScope || extras.closeMenus);
+    if (id === "global.logout") return Boolean(extras.logout);
+    if (id === "global.toggle-sidebar") return Boolean(extras.toggleSidebar);
+    if (id === "global.auto-detect-color-scheme") return Boolean(extras.toggleAutoColorScheme || extras.applyTheme);
+    if (id === "split.spotlight") return Boolean(extras.toggleSplitSpotlight);
+    if (id === "split.back" || id === "split.forward") return Boolean(extras.splitHistory);
+    if (id === "split.focus-right" || id === "split.focus-left") return Boolean(extras.focusSplit);
+    if (id === "split.toggle-preview") return Boolean(extras.toggleSplitPreview);
+    if (id === "split.close-drawer") return Boolean(extras.closeSplitDrawer);
+    if (id === "popover-split.close") return Boolean(extras.closePopoverSplit);
+    if (id === "theme.system-preference" || id.startsWith("theme.")) return Boolean(extras.applyTheme);
+    if (id.startsWith("command-menu.open-category.")) return Boolean(extras.openCommandCategory);
+    if (id === "command-menu.next-category" || id === "command-menu.prev-category") {
+      return Boolean(extras.cycleCommandCategory);
+    }
+    if (id === "command-menu.nav-down" || id === "command-menu.nav-up" || id === "launcher.nav-down" || id === "launcher.nav-up") {
+      return Boolean(extras.moveCommandSelection);
+    }
+    if (id === "command-menu.confirm" || id === "command-menu.confirm-new-split" || id === "launcher.confirm" || id === "launcher.open-new-split") {
+      return Boolean(extras.confirmCommandSelection);
+    }
+    return false;
+  };
+  return handle;
 }
 
 /**
@@ -434,6 +497,8 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   }
   for (const row of N5_KEYED_BINDINGS) {
     if (LEADER_IDS.has(row.id)) continue;
+    if (!commandHasRuntime(row.id)) continue;
+    if (handle.supports?.(row.id) === false) continue;
     registry.register({
       id: row.id,
       scope: row.scope,
@@ -446,7 +511,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   }
   registry.register({
     id: "global.command-menu",
-    scope: "detached",
+    scope: "command-menu",
     chord: "cmd+k",
     priority: 10,
     registrationType: "override",
@@ -455,7 +520,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   });
   registry.register({
     id: "command-menu.escape",
-    scope: "detached",
+    scope: "command-menu",
     chord: "escape",
     priority: 10,
     registrationType: "add",
@@ -464,7 +529,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   });
   registry.register({
     id: "command-menu.next-category",
-    scope: "detached",
+    scope: "command-menu",
     chord: "tab",
     priority: 10,
     registrationType: "add",
@@ -473,7 +538,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   });
   registry.register({
     id: "command-menu.prev-category",
-    scope: "detached",
+    scope: "command-menu",
     chord: "shift+tab",
     priority: 10,
     registrationType: "add",
@@ -482,7 +547,7 @@ export function registerChromeHotkeys(registry: CommandRegistry, handle: ChromeH
   });
 }
 
-export function persistTheme(theme: ThemeId, kind: "visible" | "light" | "dark" = "visible"): void {
+export function persistTheme(theme: string, kind: "visible" | "light" | "dark" = "visible"): void {
   if (typeof localStorage === "undefined") return;
   if (kind === "light") localStorage.setItem(STORAGE_KEYS.defaultLight, theme);
   else if (kind === "dark") localStorage.setItem(STORAGE_KEYS.defaultDark, theme);

@@ -43,18 +43,22 @@ after `registerChromeHotkeys` (slice overrides win):
 
 `packages/shell/src/n5-hotkeys.ts` registers every keyed row from
 `03-command-hotkey-ledger.csv` (`N5_KEYED_BINDINGS`). Unkeyed rows
-(command-menu only, including killed `global.hotkey-debugger`) stay in
-`N5_UNKEYED_IDS`. Settings tabs `1`–`9` register on `detached` so they do not
+(command-menu-only, downstream-gated, owner-gated, or structural) stay in
+`N5_UNKEYED_IDS`. Settings tabs `1`–`9` register on `settings` so they do not
 steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu` (search + 7 category tabs).
 `o` then `t` opens that palette on the Tasks category (ledger L22), it does not
 navigate. Arrow keys move `data-selected`; Enter confirms the highlight.
 Tab / Shift+Tab cycle the 7 category tabs while the palette is on the root
-scope (priority 10 on detached so they beat settings.next-tab). `cmd+k` is
+scope (priority 10 on `command-menu`). Nested scopes fall through to the dialog
+focus trap. `cmd+k` is
 dispatched in the capture phase so the registry can preempt the browser find
 bar when the event reaches the page.
 `global.change-theme` pushes a nested palette scope listing THEME_IDS;
 each id has its own OKLCH token set (`tokenVars`). Hydrate restores any
 stored `THEME_IDS` value, not only outreach-dark/light.
+The three user-theme runtime markers materialize visible/default-light/
+default-dark children from `outreach-user-themes` at mount and persist the
+selected id.
 Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. Pressing `g` sets `data-leader=g` on the
 sidebar, shows `data-surface=go-to-hints`, and arms go-to kbd hints
@@ -67,10 +71,12 @@ Soup property chips are not input-gated; remaining soup/compose fields still
 use `chromeInputFocused` so `g`/`o`/`c` can arm on `/tasks`. `o` shows
 `data-surface=open-category-hints` until a category chord or the same 2s reset;
 `o` then `t` opens the command menu on Tasks. `c` then `t` stays on
-`command-scope-create-menu`
-(`chromeActiveScope` does not flip the launcher to `detached`). Slice
-registration still wins on `/tasks`. Compose starts closed; `c` opens
-`data-surface=create-menu` and `t` opens `task-compose-popover`.
+`command-scope-create-menu`; mouse Create activates the separate `launcher`
+scope. Slice registration still wins on `/tasks`. Compose starts closed; `c`
+opens `data-surface=create-menu` and `t` opens `task-compose-popover`.
+Launcher `shift+t` and palette Shift+Enter append/focus a distinct task split
+through the URL codec. Escape backs one nested command scope before closing
+and restoring the opener.
 Left chrome is `aside[data-chrome=sidebar]` (not a top header). Search and
 markdown-documents stay `hiddenFromSidebar`. Login/settings/mcp unmount the
 sidebar (`data-layout=full-cover`); `cmd+.` is dead there.

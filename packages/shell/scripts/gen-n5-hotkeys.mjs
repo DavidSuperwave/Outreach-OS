@@ -54,11 +54,11 @@ function remapId(id) {
 }
 
 function mapScope(id, csvScope) {
-  if (id.startsWith("settings.")) return "detached";
-  if (id.startsWith("launcher.")) return "detached";
-  if (id === "popover-split.close") return "detached";
+  if (id.startsWith("settings.")) return "settings";
+  if (id.startsWith("launcher.")) return "launcher";
+  if (id === "popover-split.close") return "popover-split";
   if (id.startsWith("command-menu.open-category.")) return "command-scope-command-menu-category";
-  if (id.startsWith("command-menu.")) return "detached";
+  if (id.startsWith("command-menu.")) return "command-menu";
   if (id.startsWith("create-menu.")) return "command-scope-create-menu";
   if (id.startsWith("go-to.") && id !== "go-to.search") return "command-scope-go-to";
   if (id.startsWith("split.")) return "split";

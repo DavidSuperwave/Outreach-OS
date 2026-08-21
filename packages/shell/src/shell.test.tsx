@@ -3,8 +3,8 @@ import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute, isAuthCoverPath, POST_AUTH_PATH } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
-import { PATH_SPLIT, panesFromPath, pathFromPanes, appendInboxSplitPath, closeFocusedSplitPath } from "./path-panes.js";
-import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, isThemeId, assertNoMacroBrand } from "./theme.js";
+import { PATH_SPLIT, panesFromPath, pathFromPanes, appendInboxSplitPath, appendTaskSplitPath, closeFocusedSplitPath, closeSplitAtPath } from "./path-panes.js";
+import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, tokenVarsForTheme, readUserThemes, isThemeId, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 import { CommandRegistry, chordFromEvent } from "./registry.js";
@@ -23,6 +23,7 @@ import {
   chromeInputFocused,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
+import { commandHasRuntime } from "./n5-command-coverage.js";
 
 describe("27-route map", () => {
   it("freezes 26 path routes plus LAYOUT_ROUTE /*splits", () => {
@@ -107,6 +108,27 @@ describe("OD-24 brand tripwire", () => {
     expect(ember).toContain(tokenVars("ember")["--outreach-surface"]);
     expect(N5_COMMAND_IDS.join("\n")).not.toMatch(/macro/i);
   });
+
+  it("loads and applies Outreach user-theme tokens from local storage", () => {
+    const tokens = {
+      surface: "oklch(0.2 0.1 20)",
+      text: "oklch(0.9 0.1 20)",
+      border: "oklch(0.4 0.1 20)",
+      accent: "oklch(0.7 0.2 20)",
+      status: "oklch(0.7 0.2 140)",
+      muted: "oklch(0.6 0.1 20)",
+      overlay: "oklch(0.1 0.1 20 / 0.7)",
+      popover: "oklch(0.3 0.1 20)",
+    };
+    const themes = readUserThemes({
+      getItem: () => JSON.stringify([{ id: "sunset", label: "Sunset", tokens }]),
+    });
+    expect(themes).toHaveLength(1);
+    expect(tokenVarsForTheme("sunset", themes)["--outreach-surface"]).toBe(tokens.surface);
+    const html = renderToString(createElement(Shell, { path: "/", theme: "sunset", userThemes: themes }));
+    expect(html).toContain('data-theme="sunset"');
+    expect(html).toContain('data-theme-label="Sunset"');
+  });
 });
 
 describe("N5 chrome commands (160)", () => {
@@ -127,7 +149,7 @@ describe("N5 chrome commands (160)", () => {
     );
     expect(commandEnabled("go-to.getting-started", defaultChromeContext({ gettingStartedEnabled: false }))).toBe(false);
     expect(commandEnabled("settings.tab-9", defaultChromeContext({ settingsOpen: true, settingsTabCount: 3 }))).toBe(
-      false,
+      true,
     );
     expect(commandEnabled("global.toggle-sidebar", defaultChromeContext({ fullCoverRoute: true }))).toBe(false);
     expect(commandEnabled("global.create", defaultChromeContext({ touch: true }))).toBe(false);
@@ -147,9 +169,12 @@ describe("N5 chrome commands (160)", () => {
     expect(chromeNavigatePath("global.new-split.cmd", "/tasks")).toBe("/tasks/_/inbox/_");
     expect(chromeNavigatePath("split.close-or-home", "/home/_/inbox/_")).toBe("/");
     expect(chromeActiveScope("/tasks")).toBe("split");
-    expect(chromeActiveScope("/settings")).toBe("detached");
-    expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
-    expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("command-scope-create-menu");
+    expect(chromeActiveScope("/settings")).toBe("settings");
+    expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("command-menu");
+    expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("launcher");
+    expect(chromeActiveScope("/tasks", { createMenuOpen: true, createMenuViaLeader: true })).toBe(
+      "command-scope-create-menu",
+    );
     expect(isFullCoverRoute("/login")).toBe(true);
     expect(isFullCoverRoute("/settings")).toBe(true);
     expect(isFullCoverRoute("/tasks")).toBe(false);
@@ -162,7 +187,7 @@ describe("N5 chrome commands (160)", () => {
     expect(SIDEBAR_NAV.find((row) => row.id === "go-to.documents")?.label).toBe("Files");
   });
 
-  it("registers keyed chrome chords; settings 1/2/3 stay off the soup split", () => {
+  it("registers keyed chrome chords; settings 1–9 stay off the soup split", () => {
     const registry = new CommandRegistry();
     const hits: string[] = [];
     registerChromeHotkeys(registry, (id) => {
@@ -173,6 +198,7 @@ describe("N5 chrome commands (160)", () => {
     const overrideSlot = new Map<string, string>();
     const expected = new Set<string>(["global.create", "global.go-to-leader", "global.open-category-leader"]);
     for (const row of N5_KEYED_BINDINGS) {
+      if (!commandHasRuntime(row.id)) continue;
       if (row.id === "global.create" || row.id === "global.go-to-leader" || row.id === "global.open-category-leader") {
         continue;
       }
@@ -222,9 +248,10 @@ describe("N5 chrome commands (160)", () => {
         platform: "mac",
       }),
     ).toBe("global.toggle-sidebar");
-    registry.setActive("detached");
+    registry.setActive("settings");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-1");
     expect(registry.dispatch({ chord: "2", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-2");
+    expect(registry.dispatch({ chord: "9", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-9");
     expect(hits).toContain("global.command-menu");
     expect(COMMAND_MENU_ITEMS.some((item) => item.id === "go-to.tasks")).toBe(true);
   });
@@ -413,6 +440,9 @@ describe("path → split layout", () => {
     expect(closeFocusedSplitPath("/")).toBe("/");
     expect(closeFocusedSplitPath("/home/_/inbox/_")).toBe("/");
     expect(closeFocusedSplitPath("/tasks/_/inbox/_")).toBe("/tasks");
+    expect(closeSplitAtPath("/home/_/tasks/_/inbox/_", 1)).toBe("/home/_/inbox/_");
+    expect(appendTaskSplitPath("/")).toBe("/home/_/tasks/_");
+    expect(appendTaskSplitPath("/tasks")).toBe("/tasks/_/tasks/_");
   });
 
   it("dispatches global.new-split on \\ and cmd+\\; bare is gated while typing", () => {
@@ -665,7 +695,7 @@ describe("Shell boots", () => {
     );
     expect(category).toBe("tasks");
     expect(paths).toEqual([]);
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(registry.dispatch({ chord: "arrowdown", inputFocused: true, touch: false, platform: "mac" })).toBe(
       "command-menu.nav-down",
     );
@@ -714,7 +744,7 @@ describe("Shell boots", () => {
         enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
       }),
     );
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(defaultChromeHotkeyHandle(() => undefined, {
       openCommandScope: (id) => {
         scope = id === "global.change-theme" ? "change-theme" : scope;
@@ -890,7 +920,7 @@ describe("Shell boots", () => {
         enabled: () => defaultChromeContext({ commandMenuOpen: true, signedIn: true }),
       }),
     );
-    registry.setActive("detached");
+    registry.setActive("command-menu");
     expect(registry.dispatch({ chord: "tab", inputFocused: true, touch: false, platform: "mac" })).toBe(
       "command-menu.next-category",
     );

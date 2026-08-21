@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   theme: "outreach-theme",
   defaultLight: "outreach-default-light",
   defaultDark: "outreach-default-dark",
+  themeMode: "outreach-theme-mode",
   sidebarCollapsed: "outreach-sidebar-collapsed",
 } as const;
 
@@ -50,6 +51,12 @@ export type TokenSet = {
   overlay: string;
   popover: string;
 };
+
+export interface UserTheme {
+  id: string;
+  label: string;
+  tokens: TokenSet;
+}
 
 /** One OKLCH palette per THEME_IDS row. Names are Outreach-governed (OD-24). */
 export const OKLCH_TOKENS: Record<ThemeId, TokenSet> = {
@@ -179,6 +186,39 @@ export function isThemeId(value: string | null | undefined): value is ThemeId {
   return Boolean(value && (THEME_IDS as readonly string[]).includes(value));
 }
 
+const TOKEN_KEYS = ["surface", "text", "border", "accent", "status", "muted", "overlay", "popover"] as const;
+
+function isUserTheme(value: unknown): value is UserTheme {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== "string" || !/^[a-z\d][a-z\d._-]*$/i.test(row.id)) return false;
+  if (typeof row.label !== "string" || !row.label.trim()) return false;
+  if (!row.tokens || typeof row.tokens !== "object" || Array.isArray(row.tokens)) return false;
+  const tokens = row.tokens as Record<string, unknown>;
+  return TOKEN_KEYS.every((key) => typeof tokens[key] === "string" && Boolean((tokens[key] as string).trim()));
+}
+
+/** Non-reactive mount-time user-theme read, matching the frozen ledger loop. */
+export function readUserThemes(storage?: Pick<Storage, "getItem">): UserTheme[] {
+  const source = storage ?? (typeof localStorage === "undefined" ? undefined : localStorage);
+  if (!source) return [];
+  try {
+    const value: unknown = JSON.parse(source.getItem(STORAGE_KEYS.userThemes) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter(isUserTheme).filter((theme) => {
+      assertNoMacroBrand(theme.id);
+      assertNoMacroBrand(theme.label);
+      return !isThemeId(theme.id);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function isUserThemeId(value: string | null | undefined, themes: readonly UserTheme[]): boolean {
+  return Boolean(value && themes.some((theme) => theme.id === value));
+}
+
 /** Semantic token custom properties applied once on the shell root (07-UI-UX). */
 export function tokenVars(theme: ThemeId): Record<`--outreach-${string}`, string> {
   const tokens = OKLCH_TOKENS[theme];
@@ -192,6 +232,30 @@ export function tokenVars(theme: ThemeId): Record<`--outreach-${string}`, string
     "--outreach-overlay": tokens.overlay,
     "--outreach-popover": tokens.popover,
   };
+}
+
+export function tokenVarsForTheme(
+  theme: string,
+  userThemes: readonly UserTheme[] = [],
+): Record<`--outreach-${string}`, string> {
+  if (isThemeId(theme)) return tokenVars(theme);
+  const tokens = userThemes.find((item) => item.id === theme)?.tokens;
+  if (!tokens) return tokenVars("outreach-dark");
+  return {
+    "--outreach-surface": tokens.surface,
+    "--outreach-text": tokens.text,
+    "--outreach-border": tokens.border,
+    "--outreach-accent": tokens.accent,
+    "--outreach-status": tokens.status,
+    "--outreach-muted": tokens.muted,
+    "--outreach-overlay": tokens.overlay,
+    "--outreach-popover": tokens.popover,
+  };
+}
+
+export function themeLabel(theme: string, userThemes: readonly UserTheme[] = []): string {
+  if (isThemeId(theme)) return THEME_LABELS[theme];
+  return userThemes.find((item) => item.id === theme)?.label ?? theme;
 }
 
 export function assertNoMacroBrand(value: string): void {

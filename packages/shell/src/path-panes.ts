@@ -49,6 +49,7 @@ export function panesFromPath(path: string): SplitPane[] {
 }
 
 const INBOX_PANE: SplitPane = { type: "inbox", id: "_" };
+const TASK_PANE: SplitPane = { type: "tasks", id: "_" };
 
 /**
  * Product URL for a layout. A lone always-split with empty id maps back onto the
@@ -74,10 +75,25 @@ export function appendInboxSplitPath(path: string): string | null {
   return pathFromPanes(manager.panes);
 }
 
+/** Task create with `preferNewSplit`: append and focus a distinct task pane. */
+export function appendTaskSplitPath(path: string): string | null {
+  const manager = new SplitManager([...panesFromPath(path)]);
+  if (!manager.append(TASK_PANE, true)) return null;
+  return pathFromPanes(manager.panes);
+}
+
 /** `split.close-or-home` — last close lands on `/`. The codec does not encode focus, so a multi-split URL drops the rightmost pane. */
 export function closeFocusedSplitPath(path: string): string {
+  return closeSplitAtPath(path, panesFromPath(path).length - 1);
+}
+
+/** Close the actual focused pane supplied by hydrate component state. */
+export function closeSplitAtPath(path: string, focusedIndex: number): string {
   const manager = new SplitManager([...panesFromPath(path)]);
-  if (manager.panes.length > 1) manager.focusDelta(manager.panes.length - 1);
+  if (manager.panes.length > 1) {
+    const normalized = Math.min(Math.max(0, focusedIndex), manager.panes.length - 1);
+    manager.focusDelta(normalized);
+  }
   manager.closeFocused();
   return pathFromPanes(manager.panes);
 }

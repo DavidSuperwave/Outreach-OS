@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
 import { panesFromPath, pathnameOf, PATH_SPLIT } from "./path-panes.js";
@@ -6,7 +6,7 @@ import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { HomePane } from "./home-pane.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
-import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
+import { themeLabel, tokenVarsForTheme, type UserTheme } from "./theme.js";
 import type { LeaderKey } from "./registry.js";
 import {
   COMMAND_MENU_CATEGORIES,
@@ -21,7 +21,8 @@ import {
 export interface ShellProps {
   path: string;
   panes?: readonly SplitPane[];
-  theme?: ThemeId;
+  theme?: string;
+  userThemes?: readonly UserTheme[];
   username?: string;
   children?: ReactNode;
   taskItems?: readonly TaskPaneItem[];
@@ -48,6 +49,10 @@ export interface ShellProps {
   onCommandMenuSelect?: (id: string) => void;
   onCreateMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
+  focusedSplitIndex?: number;
+  spotlightSplitIndex?: number | null;
+  previewOpen?: boolean;
+  drawerOpen?: boolean;
   armedLeader?: LeaderKey | null;
   onToggleCommandMenu?: () => void;
   onToggleCreateMenu?: () => void;
@@ -68,6 +73,7 @@ export function Shell({
   path,
   panes,
   theme = "outreach-dark",
+  userThemes = [],
   username = "admin",
   children,
   taskItems = [],
@@ -94,18 +100,68 @@ export function Shell({
   onCommandMenuSelect,
   onCreateMenuSelect,
   sidebarCollapsed = false,
+  focusedSplitIndex = 0,
+  spotlightSplitIndex = null,
+  previewOpen = false,
+  drawerOpen = false,
   armedLeader = null,
   onToggleCommandMenu,
   onToggleCreateMenu,
   onToggleSidebar,
 }: ShellProps) {
+  const commandDialogRef = useRef<HTMLDivElement>(null);
+  const commandSearchRef = useRef<HTMLInputElement>(null);
+  const restoreCommandFocusRef = useRef<HTMLElement | null>(null);
+  const commandWasOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (commandMenuOpen && !commandWasOpenRef.current) {
+      restoreCommandFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      commandSearchRef.current?.focus();
+    } else if (!commandMenuOpen && commandWasOpenRef.current) {
+      const target = restoreCommandFocusRef.current;
+      if (target?.isConnected) target.focus();
+      restoreCommandFocusRef.current = null;
+    }
+    commandWasOpenRef.current = commandMenuOpen;
+    return () => {
+      if (commandWasOpenRef.current && restoreCommandFocusRef.current?.isConnected) {
+        restoreCommandFocusRef.current.focus();
+      }
+    };
+  }, [commandMenuOpen]);
+
+  const trapCommandFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab" || event.defaultPrevented) return;
+    const dialog = commandDialogRef.current;
+    if (!dialog) return;
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    )).filter((node) => !node.hasAttribute("hidden"));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
   const layout = panes ?? panesFromPath(path);
   const pathname = pathnameOf(path);
   const multiSplit = layout.length > 1;
-  const vars = tokenVars(theme);
+  const vars = tokenVarsForTheme(theme, userThemes);
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
   const authPath = path === "/login" || path === "/signup";
   const chromeButton: CSSProperties = {
@@ -135,7 +191,7 @@ export function Shell({
     padding: "0.85rem 1rem",
     boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
   };
-  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope);
+  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope, userThemes);
   const selectedIndex =
     paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
   const fullCover = isFullCoverRoute(path);
@@ -177,11 +233,13 @@ export function Shell({
     <div
       data-shell="outreach-os"
       data-theme={theme}
-      data-theme-label={THEME_LABELS[theme] ?? theme}
+      data-theme-label={themeLabel(theme, userThemes)}
       data-path={encodeSplits(layout)}
       data-session-ready={sessionReady ? "true" : "false"}
       data-layout={fullCover ? "full-cover" : "app"}
       data-armed-leader={armedLeader ?? undefined}
+      data-focused-split={String(focusedSplitIndex)}
+      data-spotlight-split={spotlightSplitIndex === null ? undefined : String(spotlightSplitIndex)}
       style={
         {
           ...vars,
@@ -338,6 +396,11 @@ export function Shell({
             key={`${pane.type}:${pane.id}:${index}`}
             data-split={pane.type}
             data-split-id={pane.id}
+            data-split-index={String(index)}
+            data-focused={index === focusedSplitIndex ? "true" : "false"}
+            data-spotlight={index === spotlightSplitIndex ? "true" : "false"}
+            hidden={spotlightSplitIndex !== null && index !== spotlightSplitIndex}
+            tabIndex={-1}
             style={
               multiSplit
                 ? {
@@ -409,6 +472,16 @@ export function Shell({
           </section>
         ))}
         </div>
+        {previewOpen ? (
+          <aside data-surface="split.preview" aria-label="Split preview">
+            Preview
+          </aside>
+        ) : null}
+        {drawerOpen ? (
+          <aside data-surface="split.drawer" aria-label="References drawer">
+            References
+          </aside>
+        ) : null}
         {children}
         {path === "/onboarding" || path === "/getting-started" ? (
           <section data-surface="n19.parked" data-spec="needed" data-path={path}>
@@ -465,15 +538,20 @@ export function Shell({
           </div>
         ) : null}
         {createMenuOpen ? (
-          <div data-surface="create-menu" role="dialog" aria-label="Create" style={overlay}>
+          <div data-surface="create-menu" role="dialog" aria-modal="true" aria-label="Create" style={overlay}>
             <div style={popover}>
               <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Create</p>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {CREATE_MENU_ITEMS.map((item) => (
+                {CREATE_MENU_ITEMS.map((item, index) => (
                   <li key={item.id}>
                     <button
                       type="button"
                       data-command={item.id}
+                      disabled={Boolean(item.disabledReason)}
+                      aria-disabled={item.disabledReason ? "true" : undefined}
+                      aria-current={index === commandSelectedIndex ? "true" : undefined}
+                      data-selected={index === commandSelectedIndex ? "true" : "false"}
+                      title={item.disabledReason}
                       onClick={() => onCreateMenuSelect?.(item.id)}
                       style={{
                         ...chromeButton,
@@ -493,9 +571,21 @@ export function Shell({
           </div>
         ) : null}
         {commandMenuOpen ? (
-          <div data-surface="command-menu" data-command-scope={commandScope} role="dialog" aria-label="Command menu" style={overlay}>
+          <div
+            ref={commandDialogRef}
+            data-surface="command-menu"
+            data-command-scope={commandScope}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="command-menu-title"
+            tabIndex={-1}
+            onKeyDown={trapCommandFocus}
+            style={overlay}
+          >
             <div style={{ ...popover, maxWidth: "32rem" }}>
-              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>{commandMenuScopeLabel(commandScope)}</p>
+              <h2 id="command-menu-title" style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem", fontSize: "1rem" }}>
+                {commandMenuScopeLabel(commandScope)}
+              </h2>
               {commandScope !== "root" ? (
                 <button
                   type="button"
@@ -507,6 +597,7 @@ export function Shell({
                 </button>
               ) : null}
               <input
+                ref={commandSearchRef}
                 name="command-query"
                 aria-label="Command search"
                 value={commandQuery}
@@ -546,29 +637,30 @@ export function Shell({
                 ))}
               </div>
               ) : null}
-              <ul role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
+              <div id="command-menu-results" role="group" aria-label="Command results" style={{ margin: "0.75rem 0 0", padding: 0 }}>
                 {paletteItems.map((item, index) => (
-                  <li key={item.id} role="option" aria-selected={index === selectedIndex}>
-                    <button
-                      type="button"
-                      data-command={item.id}
-                      data-selected={index === selectedIndex ? "true" : "false"}
-                      onClick={() => onCommandMenuSelect?.(item.id)}
-                      style={{
-                        ...chromeButton,
-                        display: "block",
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.45rem 0.35rem",
-                        background: index === selectedIndex ? "var(--outreach-surface)" : "none",
-                        borderRadius: "0.35rem",
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  </li>
+                  <button
+                    id={`command-option-${index}`}
+                    key={item.id}
+                    type="button"
+                    data-command={item.id}
+                    data-selected={index === selectedIndex ? "true" : "false"}
+                    aria-current={index === selectedIndex ? "true" : undefined}
+                    onClick={() => onCommandMenuSelect?.(item.id)}
+                    style={{
+                      ...chromeButton,
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.45rem 0.35rem",
+                      background: index === selectedIndex ? "var(--outreach-surface)" : "none",
+                      borderRadius: "0.35rem",
+                    }}
+                  >
+                    {item.label}
+                  </button>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
         ) : null}
