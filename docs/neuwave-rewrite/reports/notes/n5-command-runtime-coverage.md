@@ -12,8 +12,8 @@ of the 160 N5 registry/chrome identities:
 | Disposition | Identities | Runtime treatment |
 |---|---:|---|
 | `functional` | 70 | 80 keyed bindings are registered; each identity dispatches through `CommandRegistry` to a route, modal, selection, settings, theme, sidebar, focus, or split state transition. |
-| `command-menu-only` | 47 | 44 unkeyed commands execute from the palette; 3 `scope.*` rows are structural scope registrations and intentionally have no handler. |
-| `downstream-gated` | 42 | 33 keyed and 9 unkeyed rows are disabled and unregistered until the named domain supplies the required authority/state. |
+| `command-menu-only` | 50 | 44 fixed unkeyed commands execute from the palette; 3 `scope.*` rows are structural, and 3 user-theme markers generate executable runtime children. |
+| `downstream-gated` | 39 | 33 keyed and 6 unkeyed rows are disabled and unregistered until the named domain supplies the required authority/state. |
 | `owner-gated` | 1 | `global.hotkey-debugger` remains killed while OD-23(b) is unruled. |
 
 Total: **160**, exactly once. There are no enabled handlers that intentionally
@@ -27,8 +27,10 @@ return a no-op.
   drawer/popover controls; sidebar; settings close/cycle/direct keys `1`–`9`;
   home ask focus; logout/account/MCP; all 12 static visible/default theme choices;
   system theme and auto-detect.
-- Command-menu-only by ledger: account/logout/MCP/theme leaders and static theme
-  choices plus the three structural leader scopes.
+- Command-menu-only by ledger: account/logout/MCP/theme leaders, static theme
+  choices, three structural leader scopes, and three runtime markers that
+  materialize visible/default-light/default-dark children from
+  `outreach-user-themes`.
 - Downstream-gated: non-task creation and launcher actions (N7/N9/N10/N11);
   dynamic user themes; instructions (N7); uploads (N14); mutation undo/redo;
   favorites (N17); invites (N1); block sharing (N2).
@@ -44,7 +46,8 @@ the same three-tab surface.
 
 The command palette is an `aria-modal` labelled dialog. Opening it stores the
 opener and focuses search; closing restores the opener. Focus wraps inside the
-dialog. Search exposes the result list and active option. Registry-backed
+dialog. Results use a labelled button group with one `aria-current` selection,
+avoiding interactive descendants inside listbox options. Registry-backed
 Arrow/Ctrl-J/K selection, Enter/Shift-Enter confirmation, Tab/Shift-Tab category
 navigation, and Escape/Backspace nested-scope navigation remain executable.
 
@@ -63,6 +66,9 @@ Retry/idempotency belongs to each downstream domain and is not invented here.
   functional keyed identity through the real registry, verifies its specified
   observable effect, proves gated keyed rows are absent, executes all unkeyed
   commands, and exercises focus lifecycle/modal semantics.
+- `client-hydrate.test.tsx` installs the production capture listener and proves
+  split URL/component state, launcher scope, current/new task split behavior,
+  category cycling, nested focus trapping, Escape, and focus restoration.
 - `shell.test.tsx` retains scope-tree, shadowing, codec, route, theme, settings,
   and shell SSR coverage.
 - No wire/storage migration. Rollback is a wrapper-only revert.
@@ -76,10 +82,7 @@ are inaccessible to the cloud principal. Real Workshop binding remains open.
 Downstream-gated commands require their owning domains to expose authorized
 runtime callbacks; this pass does not cross those ownership boundaries.
 
-The N6 hydrate currently imports the shell registrar but does not bind N5 split
-state. Per the task-slice ownership boundary, this pass does not edit it. The
-exact shell callback interface it must supply in a separate integration change
-is:
+The N6 hydrate now binds the exact seven-callback split interface:
 
 ```ts
 {
@@ -93,7 +96,7 @@ is:
 }
 ```
 
-`registerChromeHotkeys` detects missing callbacks and omits those registrations,
-so the present hydrate has no accidental capturing no-op. The handler contract
-and every effect are executable in shell tests; real Workshop integration stays
-an explicit blocker rather than being simulated in `packages/task-slice/**`.
+The callbacks operate on URL codec state, browser history, focused/spotlight
+split component state, preview/drawer state, and the task popover. Missing
+callbacks remain unregistered, so other hosts cannot acquire a capturing no-op.
+Real Workshop binding and visual parity remain explicit blockers.
