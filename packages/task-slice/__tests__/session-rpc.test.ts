@@ -120,15 +120,19 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     );
     expect(denied.status).toBe(401);
 
+    const subscribeUrl = `https://task-slice/subscribe?cursor=${cursor}&ticket=${ticket}&tenant=${team.id}`;
+    const normalHttp = await handleOutreachFetch(new Request(subscribeUrl), testEnv);
+    expect(normalHttp.status).toBe(426);
+
     const sub = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${ticket}&tenant=${team.id}`, {
+      new Request(subscribeUrl, {
         headers: { Upgrade: "websocket" },
       }),
       testEnv,
     );
     expect(sub.status).toBe(101);
     const replay = await handleOutreachFetch(
-      new Request(`https://task-slice/subscribe?cursor=${cursor}&ticket=${ticket}&tenant=${team.id}`, {
+      new Request(subscribeUrl, {
         headers: { Upgrade: "websocket" },
       }),
       testEnv,

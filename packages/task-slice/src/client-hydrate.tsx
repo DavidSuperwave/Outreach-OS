@@ -43,6 +43,7 @@ import {
   type KernelPasswordPublicApi,
 } from "./live-session.js";
 import type { OutreachBootConfig } from "./live-session.js";
+import { TaskOperationController } from "./task-operation-controller.js";
 
 export const OPEN_TASK_COMPOSE_KEY = "outreach-open-task-compose";
 
@@ -205,6 +206,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   // RpcStub is thenable (Cap'n Web pipelining). React 19 useState unwraps thenables, so
   // the session must live on a ref — not in state — or create/markDone see a null session.
   const sessionRef = useRef<TaskSessionApi | null>(null);
+  const taskOperationsRef = useRef(new TaskOperationController(newTaskOperationId));
   const registryRef = useRef<CommandRegistry | null>(null);
   const commandMenuOpenRef = useRef(commandMenuOpen);
   const commandQueryRef = useRef(commandQuery);
@@ -633,7 +635,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      const surface = await submitTaskCompose(session, title, newTaskOperationId());
+      const surface = await taskOperationsRef.current.run(
+        { kind: "create", title },
+        (operationId) => submitTaskCompose(session, title, operationId),
+      );
       setItems(surfaceItems(surface.items));
       setActivity(surface.activity);
       setAlerts(surface.alerts);
@@ -651,8 +656,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.markDone(entityId, done, newTaskOperationId());
-      await applySurface(session);
+      await taskOperationsRef.current.run({ kind: "done", entityId, done }, async (operationId) => {
+        await session.markDone(entityId, done, operationId);
+        await applySurface(session);
+      });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "update failed");
     }
@@ -665,8 +672,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.updateTitle(entityId, title, newTaskOperationId());
-      await applySurface(session);
+      await taskOperationsRef.current.run({ kind: "title", entityId, title }, async (operationId) => {
+        await session.updateTitle(entityId, title, operationId);
+        await applySurface(session);
+      });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "rename failed");
     }
@@ -679,8 +688,10 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setStatus(entityId, status, newTaskOperationId());
-      await applySurface(session);
+      await taskOperationsRef.current.run({ kind: "status", entityId, status }, async (operationId) => {
+        await session.setStatus(entityId, status, operationId);
+        await applySurface(session);
+      });
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "status failed");
     }
@@ -693,8 +704,14 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setPriority(entityId, priority === "none" ? "none" : priority, newTaskOperationId());
-      await applySurface(session);
+      const nextPriority = priority === "none" ? "none" : priority;
+      await taskOperationsRef.current.run(
+        { kind: "priority", entityId, priority: nextPriority },
+        async (operationId) => {
+          await session.setPriority(entityId, nextPriority, operationId);
+          await applySurface(session);
+        },
+      );
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "priority failed");
     }
@@ -707,8 +724,13 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return;
     }
     try {
-      await session.setAssignee(entityId, assigneeId, newTaskOperationId());
-      await applySurface(session);
+      await taskOperationsRef.current.run(
+        { kind: "assignee", entityId, assigneeId },
+        async (operationId) => {
+          await session.setAssignee(entityId, assigneeId, operationId);
+          await applySurface(session);
+        },
+      );
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "assignee failed");
     }

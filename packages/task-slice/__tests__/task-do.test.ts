@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { evictDurableObject, reset } from "cloudflare:test";
+import { evictDurableObject, reset, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { emptyAccess, grantShare } from "authz";
 import { requestContext } from "control-plane";
@@ -190,6 +190,67 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     );
     expect(acked).toEqual([]);
     expect(retried).toEqual([tenant]);
+  });
+
+  it("recovers a committed authority snapshot by alarm after queue send fails", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    await stub.failNextOutboxSend();
+
+    await expect(
+      api.createTask("Alarm recovery", requestContext(ownerActor(), {
+        correlationId: "alarm-create",
+        idempotencyKey: "alarm-create",
+      })),
+    ).rejects.toThrow(/TASK_OUTBOX/);
+
+    const entityId = fixtureId("document", 1);
+    expect((await stub.get(entityId, ownerActor()))?.title).toBe("Alarm recovery");
+    const minted = await stub.mintView(ownerActor(), entityId, "view");
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error("expected owner receipt");
+    expect(await api.listTasks([minted.receipt])).toEqual([]);
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect((await api.listTasks([minted.receipt])).map((item) => item.title)).toEqual(["Alarm recovery"]);
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    const row = await testEnv.SOUP.prepare(
+      "SELECT COUNT(*) AS count FROM entity_row WHERE tenant_id = ? AND entity_id = ?",
+    ).bind(tenant, entityId).first<{ count: number }>();
+    expect(row?.count).toBe(1);
+  });
+
+  it("keeps a newer mutation when it arrives while alarm recovery is pending", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    await stub.failNextOutboxSend();
+    await expect(
+      api.createTask("First snapshot", requestContext(ownerActor(), {
+        correlationId: "pending-create",
+        idempotencyKey: "pending-create",
+      })),
+    ).rejects.toThrow(/TASK_OUTBOX/);
+
+    const entityId = fixtureId("document", 1);
+    const minted = await stub.mintView(ownerActor(), entityId, "edit");
+    expect(minted.ok).toBe(true);
+    if (!minted.ok) throw new Error("expected edit receipt");
+    const updated = await api.updateTitle(
+      "Newest snapshot",
+      requestContext(ownerActor(), {
+        receipt: minted.receipt,
+        correlationId: "newer-edit",
+        idempotencyKey: "newer-edit",
+      }),
+    );
+    expect(updated.version).toBe(2);
+
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    expect((await api.listTasks([minted.receipt]))[0]?.title).toBe("Newest snapshot");
+    expect((await stub.get(entityId, ownerActor()))?.version).toBe(2);
   });
 
   it("poisons failing publishes on the DO and skips them on rebuild", async () => {

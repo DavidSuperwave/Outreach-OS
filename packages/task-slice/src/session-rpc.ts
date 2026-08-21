@@ -278,6 +278,12 @@ export class TaskDomainTarget extends RpcTarget implements TaskDomainPublicApi {
 }
 
 async function subscribeFromSession(request: Request, env: TaskWorkerEnv): Promise<Response> {
+  if (request.method !== "GET") {
+    return new Response("method not allowed", { status: 405 });
+  }
+  if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+    return new Response("websocket upgrade required", { status: 426 });
+  }
   const url = new URL(request.url);
   const ticket = url.searchParams.get("ticket");
   const tenantId = url.searchParams.get("tenant");

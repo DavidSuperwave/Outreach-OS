@@ -9,15 +9,6 @@ interface OutboxQueueEnv {
   };
 }
 
-/** A synchronous projection may start only after its durable re-drive exists. */
-export async function projectAfterRedrive(
-  enqueue: () => Promise<unknown>,
-  project: () => Promise<void>,
-): Promise<void> {
-  await enqueue();
-  await project();
-}
-
 /** Durable fan-out: each tenant message re-drives TaskSliceDurableObject.drainOutbox. */
 export async function handleTaskOutboxBatch(
   batch: { messages: Array<{ body: TaskOutboxMessage; ack(): void; retry(): void }> },

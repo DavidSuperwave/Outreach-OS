@@ -12,7 +12,6 @@ import {
   type TaskSliceSnapshot,
   type TaskView,
 } from "./slice.js";
-import { projectAfterRedrive } from "./outbox-queue.js";
 
 export interface TaskSliceEnv {
   SOUP: SoupD1;
@@ -26,6 +25,12 @@ interface SubscribeAttachment {
 }
 
 export const SUBSCRIBE_TICKET_TTL_MS = 30_000;
+export const PROJECTION_ALARM_RETRY_MS = 1_000;
+
+interface PendingProjection {
+  generation: number;
+  tenantId: string;
+}
 
 /**
  * Authoritative task store (OD-7 document + facet task) on SQLite DO storage.
@@ -33,6 +38,8 @@ export const SUBSCRIBE_TICKET_TTL_MS = 30_000;
  * Live subscribers attach via hibernation WebSockets on `/subscribe`.
  */
 export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implements TaskRpc {
+  #writeTail: Promise<void> = Promise.resolve();
+
   constructor(ctx: DurableObjectState, env: TaskSliceEnv) {
     super(ctx, env);
     this.ctx.storage.sql.exec(`
@@ -54,6 +61,27 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         expires_at INTEGER NOT NULL
       )
     `);
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS projection_delivery (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        generation INTEGER NOT NULL,
+        tenant_id TEXT NOT NULL
+      )
+    `);
+  }
+
+  async #serializeWrite<T>(run: () => Promise<T>): Promise<T> {
+    const previous = this.#writeTail;
+    let release!: () => void;
+    this.#writeTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await run();
+    } finally {
+      release();
+    }
   }
 
   #load(): TaskSlice {
@@ -119,35 +147,127 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     }
   }
 
-  async #save(slice: TaskSlice, opts: { enqueue?: boolean } = {}): Promise<void> {
+  #pendingProjection(): PendingProjection | null {
+    const row = this.ctx.storage.sql
+      .exec<{ generation: number; tenant_id: string }>(
+        "SELECT generation, tenant_id FROM projection_delivery WHERE id = 1",
+      )
+      .toArray()[0];
+    return row ? { generation: row.generation, tenantId: row.tenant_id } : null;
+  }
+
+  #persistAuthority(slice: TaskSlice, tenantId: string): number {
+    const snapshot = JSON.stringify(slice.toSnapshot());
+    return this.ctx.storage.transactionSync(() => {
+      const current = this.ctx.storage.sql
+        .exec<{ v: string }>("SELECT v FROM meta WHERE k = 'projection_generation'")
+        .toArray()[0];
+      const generation = Number(current?.v ?? "0") + 1;
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
+        snapshot,
+      );
+      this.ctx.storage.sql.exec("INSERT OR REPLACE INTO meta (k, v) VALUES ('tenant_id', ?)", tenantId);
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('projection_generation', ?)",
+        String(generation),
+      );
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO projection_delivery (id, generation, tenant_id) VALUES (1, ?, ?)",
+        generation,
+        tenantId,
+      );
+      return generation;
+    });
+  }
+
+  #persistSnapshot(slice: TaskSlice): void {
     this.ctx.storage.sql.exec(
       "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
       JSON.stringify(slice.toSnapshot()),
     );
-    const tenantId = this.#tenantId(slice) ?? slice.toSnapshot().docs[0]?.tenantId;
-    if (tenantId) {
-      this.ctx.storage.sql.exec("INSERT OR REPLACE INTO meta (k, v) VALUES ('tenant_id', ?)", tenantId);
-    }
-    const project = () => projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
-    if (opts.enqueue !== false && tenantId) {
-      // Establish durable re-drive before the synchronous D1 projection. If D1
-      // fails after the authority commit, this message can rebuild it.
-      await projectAfterRedrive(
-        () => this.env.TASK_OUTBOX.send({ tenantId }),
-        project,
-      );
-    } else {
-      await project();
-    }
+  }
+
+  async #enqueueProjection(tenantId: string): Promise<void> {
+    const fail = this.ctx.storage.sql
+      .exec<{ v: string }>("DELETE FROM meta WHERE k = 'test_fail_next_outbox' RETURNING v")
+      .toArray()[0];
+    if (fail) throw new Error("injected TASK_OUTBOX.send failure");
+    await this.env.TASK_OUTBOX.send({ tenantId });
+  }
+
+  async #completeProjection(generation: number): Promise<void> {
+    this.ctx.storage.sql.exec(
+      "DELETE FROM projection_delivery WHERE id = 1 AND generation = ?",
+      generation,
+    );
+    if (!this.#pendingProjection()) await this.ctx.storage.deleteAlarm();
+  }
+
+  async #deliverProjection(
+    slice: TaskSlice,
+    pending: PendingProjection,
+    enqueue: boolean,
+  ): Promise<void> {
+    if (enqueue) await this.#enqueueProjection(pending.tenantId);
+    await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), pending.tenantId);
+    await this.#completeProjection(pending.generation);
     this.#broadcast(slice);
   }
 
-  /** Queue consumer entry — re-drains the outbox and rebuilds the D1 projection. */
+  async #save(slice: TaskSlice): Promise<void> {
+    const tenantId = this.#tenantId(slice) ?? slice.toSnapshot().docs[0]?.tenantId;
+    if (!tenantId) {
+      this.#persistSnapshot(slice);
+      return;
+    }
+
+    // Schedule recovery before committing authority. With writes serialized, an
+    // alarm cannot clear this recovery path before its matching marker exists.
+    await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+    const generation = this.#persistAuthority(slice, tenantId);
+    try {
+      await this.#deliverProjection(slice, { generation, tenantId }, true);
+    } catch (error) {
+      await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+      throw error;
+    }
+  }
+
+  /** Queue consumer entry — re-drains the outbox and rebuilds the latest D1 projection. */
   async drainOutbox(): Promise<{ pending: number }> {
-    const slice = this.#load();
-    slice.drain();
-    await this.#save(slice, { enqueue: false });
-    return { pending: slice.outbox.pending().length };
+    return this.#serializeWrite(async () => {
+      const slice = this.#load();
+      slice.drain();
+      this.#persistSnapshot(slice);
+      const pending = this.#pendingProjection();
+      if (pending) {
+        await this.#deliverProjection(slice, pending, false);
+      } else {
+        const tenantId = this.#tenantId(slice);
+        await projectListSnapshot(this.env.SOUP, slice.plane.lists.snapshot(), tenantId);
+        this.#broadcast(slice);
+      }
+      return { pending: slice.outbox.pending().length };
+    });
+  }
+
+  async alarm(): Promise<void> {
+    await this.#serializeWrite(async () => {
+      const pending = this.#pendingProjection();
+      if (!pending) {
+        await this.ctx.storage.deleteAlarm();
+        return;
+      }
+      const slice = this.#load();
+      slice.drain();
+      this.#persistSnapshot(slice);
+      try {
+        await this.#deliverProjection(slice, pending, true);
+      } catch {
+        await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
+      }
+    });
   }
 
   #broadcast(slice: TaskSlice): void {
@@ -167,6 +287,12 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/subscribe") {
+      if (request.method !== "GET") {
+        return new Response("method not allowed", { status: 405 });
+      }
+      if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+        return new Response("websocket upgrade required", { status: 426 });
+      }
       const actor = this.#consumeSubscribeTicket(url.searchParams.get("ticket") ?? "");
       if (!actor) return new Response("invalid or spent subscribe ticket", { status: 401 });
       const slice = this.#load();
@@ -197,11 +323,13 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   }
 
   async createTask(title: string, ctx: RequestContext): Promise<TaskView> {
-    const slice = this.#load();
-    this.#assertTenant(ctx.actor, slice);
-    const view = slice.createTask(title, ctx);
-    await this.#save(slice);
-    return view;
+    return this.#serializeWrite(async () => {
+      const slice = this.#load();
+      this.#assertTenant(ctx.actor, slice);
+      const view = slice.createTask(title, ctx);
+      await this.#save(slice);
+      return view;
+    });
   }
 
   async createSubscribeTicket(actor: ActorContext): Promise<import("./domain-api.js").SubscribeTicket> {
@@ -291,43 +419,53 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   }
 
   async rebuildProjection(actor: ActorContext): Promise<void> {
-    const slice = this.#load();
-    this.#assertTenant(actor, slice);
-    slice.rebuildProjection();
-    await this.#save(slice);
+    await this.#serializeWrite(async () => {
+      const slice = this.#load();
+      this.#assertTenant(actor, slice);
+      slice.rebuildProjection();
+      await this.#save(slice);
+    });
   }
 
   /** Test/debug helper — not part of TaskRpc. */
   async poisonPending(attempts = 5): Promise<number> {
-    const slice = this.#load();
-    const task = slice.toSnapshot().docs[0];
-    if (!task) return 0;
-    slice.outbox.append(
-      envelope({
-        topic: "documents",
-        entityType: "document",
-        entityId: task.id,
-        tenantId: task.tenantId,
-        actorId: task.id,
-        onBehalfOfId: null,
-        occurredAt: 99,
-        version: 99,
-        payload: { title: "never", facet: "task" },
-        receipt: null,
-        correlationId: "poison",
-        eventId: `poison-${task.id}-${slice.toSnapshot().clock}`,
-      }),
-    );
-    for (let i = 0; i < attempts; i += 1) {
-      slice.outbox.drain(() => {
-        throw new Error("projector down");
-      });
-    }
-    this.ctx.storage.sql.exec(
-      "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
-      JSON.stringify(slice.toSnapshot()),
-    );
-    return slice.outbox.poison().length;
+    return this.#serializeWrite(async () => {
+      const slice = this.#load();
+      const task = slice.toSnapshot().docs[0];
+      if (!task) return 0;
+      slice.outbox.append(
+        envelope({
+          topic: "documents",
+          entityType: "document",
+          entityId: task.id,
+          tenantId: task.tenantId,
+          actorId: task.id,
+          onBehalfOfId: null,
+          occurredAt: 99,
+          version: 99,
+          payload: { title: "never", facet: "task" },
+          receipt: null,
+          correlationId: "poison",
+          eventId: `poison-${task.id}-${slice.toSnapshot().clock}`,
+        }),
+      );
+      for (let i = 0; i < attempts; i += 1) {
+        slice.outbox.drain(() => {
+          throw new Error("projector down");
+        });
+      }
+      this.#persistSnapshot(slice);
+      return slice.outbox.poison().length;
+    });
+  }
+
+  /** Fault injection for Workers tests; service binding only, never browser-exposed. */
+  async failNextOutboxSend(): Promise<void> {
+    await this.#serializeWrite(async () => {
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('test_fail_next_outbox', '1')",
+      );
+    });
   }
 
   async get(id: string, actor: ActorContext): Promise<TaskRecord | null> {
@@ -347,18 +485,20 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     actor: ActorContext,
   ): Promise<{ ok: true } | { ok: false; message: string }> {
     try {
-      const slice = this.#load();
-      this.#assertTenant(actor, slice);
-      const receipt = slice.engine.mint({
-        actor,
-        entityType: "document",
-        entityId,
-        need: "owner",
+      return await this.#serializeWrite(async () => {
+        const slice = this.#load();
+        this.#assertTenant(actor, slice);
+        const receipt = slice.engine.mint({
+          actor,
+          entityType: "document",
+          entityId,
+          need: "owner",
+        });
+        requireReceipt(receipt, "owner", entityId);
+        slice.access.put(entityId, state);
+        await this.#save(slice);
+        return { ok: true as const };
       });
-      requireReceipt(receipt, "owner", entityId);
-      slice.access.put(entityId, state);
-      await this.#save(slice);
-      return { ok: true };
     } catch (error) {
       return { ok: false, message: error instanceof Error ? error.message : "share failed" };
     }
@@ -391,19 +531,21 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     need: "edit" | "owner",
     run: (slice: TaskSlice, gated: RequestContext) => TaskRecord,
   ): Promise<TaskRecord> {
-    const slice = this.#load();
-    this.#assertTenant(ctx.actor, slice);
-    const entityId = ctx.receipt?.entityId;
-    if (!entityId) throw new Error("task mutation requires a receipt");
-    const receipt = slice.engine.mint({
-      actor: ctx.actor,
-      entityType: "document",
-      entityId,
-      need,
+    return this.#serializeWrite(async () => {
+      const slice = this.#load();
+      this.#assertTenant(ctx.actor, slice);
+      const entityId = ctx.receipt?.entityId;
+      if (!entityId) throw new Error("task mutation requires a receipt");
+      const receipt = slice.engine.mint({
+        actor: ctx.actor,
+        entityType: "document",
+        entityId,
+        need,
+      });
+      const gated: RequestContext = { ...ctx, receipt };
+      const next = run(slice, gated);
+      await this.#save(slice);
+      return next;
     });
-    const gated: RequestContext = { ...ctx, receipt };
-    const next = run(slice, gated);
-    await this.#save(slice);
-    return next;
   }
 }

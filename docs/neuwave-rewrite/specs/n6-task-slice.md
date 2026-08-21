@@ -36,7 +36,9 @@ are marked-and-skipped on the DO outbox. In-process maps remain the unit-test co
 Typed `TaskApi` / `TaskSessionApi` capability (ADR-002). Not added to kernel `api.ts`.
 No Instantly send/activate methods.
 Every browser mutation carries a stable operation id, mapped server-side to
-`RequestContext.idempotencyKey`; create and edit retries are no-ops.
+`RequestContext.idempotencyKey`; the browser retains that id after a transient
+failure so retrying the same create/edit/status/priority/assignee/done action is
+a no-op, while a distinct user action receives a fresh id.
 
 Kernel `PublicApi` stays on Workshop `/api` (unpatched). The wrapper origin composes beside it:
 the custom React shell as HTML for the 27-route map, Cap'n Web `TaskDomainApi` on `/domain`
@@ -69,5 +71,8 @@ cursor reconnect, D1 rebuild, idempotency, SEC-1.
 ## Failure modes and rollback
 
 `AuthzError` / missing receipt. Projection rollback = drop + `rebuildProjection()`.
-The authority snapshot queues durable re-drive before synchronous D1 projection;
-transient queue-consumer DO/D1 failures retry instead of ACKing.
+The authority snapshot and a generation-stamped pending-delivery marker commit
+atomically after a recovery alarm is scheduled. Producer-send or D1 failures leave
+the marker/alarm for serialized, idempotent recovery; successful enqueue/projection
+clears only its own generation. Transient queue-consumer DO/D1 failures retry
+instead of ACKing.
