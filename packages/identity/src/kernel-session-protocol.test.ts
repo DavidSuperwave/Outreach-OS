@@ -30,3 +30,14 @@ describe("kernel password/session protocol", () => {
     expect(parseKernelSessionToken(token)).toEqual({ username: "admin", secret });
   });
 });
+
+describe("stable typed ids", () => {
+  it("derives the same team id for a home-team seed", async () => {
+    const { stableId } = await import("./ids.js");
+    const a = await stableId("team", "home-team:admin");
+    const b = await stableId("team", "home-team:admin");
+    expect(a).toBe(b);
+    expect(a.startsWith("team_")).toBe(true);
+    expect(a).not.toBe(await stableId("team", "home-team:member"));
+  });
+});

@@ -19,6 +19,9 @@ export interface ShellProps {
   activityFacts?: readonly TaskPaneActivity[];
   operatorAlerts?: readonly TaskPaneAlert[];
   onCreateTask?: (title: string) => void;
+  onMarkDone?: (entityId: string, done: boolean) => void;
+  kernelAuthError?: string;
+  onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
 }
 
 const NAV = [
@@ -51,6 +54,9 @@ export function Shell({
   activityFacts = [],
   operatorAlerts = [],
   onCreateTask,
+  onMarkDone,
+  kernelAuthError,
+  onKernelAuth,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -103,7 +109,13 @@ export function Shell({
             {pane.type === "home" && path === "/" ? (
               <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
             ) : null}
-            {authPath ? <LoginPane mode={path === "/signup" ? "signup" : "login"} /> : null}
+            {authPath ? (
+              <LoginPane
+                mode={path === "/signup" ? "signup" : "login"}
+                error={kernelAuthError}
+                onAuth={onKernelAuth}
+              />
+            ) : null}
             {pane.type === "tasks" && !children ? (
               <TaskPane
                 items={taskItems}
@@ -112,6 +124,7 @@ export function Shell({
                 activity={activityFacts}
                 alerts={operatorAlerts}
                 onCreate={onCreateTask}
+                onMarkDone={onMarkDone}
               />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}

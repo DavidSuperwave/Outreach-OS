@@ -1,4 +1,4 @@
-import { randomId } from "./ids.js";
+import { randomId, stableId } from "./ids.js";
 import {
   isDeploymentAdmin,
   userPrincipal,
@@ -104,5 +104,31 @@ export class DurableTeamsApi {
 
   async resolveEffectiveRole(session: KernelSession, teamId: string): Promise<TeamRole | null> {
     return this.#stub(teamId).roleOf(session.userId);
+  }
+
+  /**
+   * Per-user home tenant (OD-1). Idempotent: first call bootstraps owner membership,
+   * later calls return the existing Team DO record.
+   */
+  async ensureHomeTeam(session: KernelSession, name = "Outreach"): Promise<TeamRecord> {
+    const id = await stableId("team", `home-team:${session.username}`);
+    const stub = this.#stub(id);
+    try {
+      return await stub.initialize({ id, name, createdAt: Date.now() }, session.userId);
+    } catch {
+      return stub.getRecord();
+    }
+  }
+
+  /** Register a wrapper principal for a kernel username that is not a seed fixture. */
+  async ensureKernelUser(username: string): Promise<KernelSession> {
+    const existing = this.users.get(username);
+    if (existing) return existing;
+    const session: KernelSession = {
+      username,
+      userId: await stableId("user", `wrapper-user:${username}`),
+    };
+    this.registerKernelUser(session);
+    return session;
   }
 }

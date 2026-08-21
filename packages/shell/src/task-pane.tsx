@@ -30,6 +30,7 @@ export function TaskPane({
   activity = [],
   alerts = [],
   onCreate,
+  onMarkDone,
 }: {
   items?: readonly TaskPaneItem[];
   composeOpen?: boolean;
@@ -37,6 +38,7 @@ export function TaskPane({
   activity?: readonly TaskPaneActivity[];
   alerts?: readonly TaskPaneAlert[];
   onCreate?: (title: string) => void;
+  onMarkDone?: (entityId: string, done: boolean) => void;
 }): ReactNode {
   return (
     <div data-slice="task">
@@ -81,9 +83,13 @@ export function TaskPane({
               data-command-scope="soup-entity"
             >
               <td>
-                <span data-command={item.done ? "soup-entity.mark-not-done" : "soup-entity.mark-done"}>
+                <button
+                  type="button"
+                  data-command={item.done ? "soup-entity.mark-not-done" : "soup-entity.mark-done"}
+                  onClick={() => onMarkDone?.(item.entityId, !item.done)}
+                >
                   {item.done ? "done" : "open"}
-                </span>
+                </button>
               </td>
               <td>{item.title}</td>
               <td data-command="soup-entity.status">{item.status ?? ""}</td>

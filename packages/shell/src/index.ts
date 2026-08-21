@@ -2,6 +2,7 @@ export { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, WEB_UNSERVED_ROUTES, isWebServed, we
 export { ALWAYS_SPLITS, KILLED_DEV_SPLITS, encodeSplits, decodeSplits, SplitManager, isProductSplit, isKilledSplit } from "./splits.js";
 export { PATH_SPLIT, pathnameOf, panesFromPath } from "./path-panes.js";
 export { LoginPane } from "./login-pane.js";
+export type { KernelAuthFields } from "./login-pane.js";
 export type { SplitType, SplitPane } from "./splits.js";
 export { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
 export type { ThemeId } from "./theme.js";

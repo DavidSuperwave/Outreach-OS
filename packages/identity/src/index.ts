@@ -1,4 +1,4 @@
-export { typedId, parseTypedId, fixtureId, nextId, resetIdSequence, randomId } from "./ids.js";
+export { typedId, parseTypedId, fixtureId, nextId, resetIdSequence, randomId, stableId } from "./ids.js";
 export {
   TEAM_ROLES,
   ROLE_RANK,
