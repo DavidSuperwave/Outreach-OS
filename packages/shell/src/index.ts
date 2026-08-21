@@ -10,6 +10,16 @@ export { CommandRegistry, chordFromEvent } from "./registry.js";
 export type { KeyEvent, CommandHandler, ScopeId, LeaderKey } from "./registry.js";
 export { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 export type { N5CommandId, ChromeCommandContext } from "./commands.js";
+export {
+  registerChromeHotkeys,
+  defaultChromeHotkeyHandle,
+  chromeActiveScope,
+  chromeNavigatePath,
+  COMMAND_MENU_ITEMS,
+  GO_TO_PATH,
+  persistTheme,
+} from "./n5-hotkeys.js";
+export { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 export { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 export type { KernelConsumedRpc } from "./kernel-surface.js";
 export { Shell } from "./Shell.js";

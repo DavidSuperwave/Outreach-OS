@@ -79,6 +79,17 @@ export function chordFromEvent(event: {
   else if (event.code === "Escape") key = "escape";
   else if (event.code === "ArrowDown") key = "arrowdown";
   else if (event.code === "ArrowUp") key = "arrowup";
+  else if (event.code === "ArrowLeft") key = "arrowleft";
+  else if (event.code === "ArrowRight") key = "arrowright";
+  else if (event.code === "Slash") key = "/";
+  else if (event.code === "Backslash") key = "\\";
+  else if (event.code === "Semicolon") key = ";";
+  else if (event.code === "Period") key = ".";
+  else if (event.code === "Comma") key = ",";
+  else if (event.code === "BracketLeft") key = "[";
+  else if (event.code === "BracketRight") key = "]";
+  else if (event.code === "Tab") key = "tab";
+  else if (event.code === "Backspace") key = "backspace";
   else key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
   const parts: string[] = [];
   if (event.altKey) parts.push("opt");
@@ -123,6 +134,10 @@ export class CommandRegistry {
         current.filter((item) => item !== handler),
       );
     };
+  }
+
+  handlers(): CommandHandler[] {
+    return [...this.#handlers.values()].flat();
   }
 
   setActive(scope: ScopeId): void {

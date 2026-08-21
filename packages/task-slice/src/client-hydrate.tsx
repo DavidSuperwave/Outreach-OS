@@ -3,6 +3,16 @@ import { newWebSocketRpcSession, type RpcStub } from "capnweb";
 import { CommandRegistry, chordFromEvent } from "shell";
 import { Shell } from "shell";
 import type { TaskPaneActivity, TaskPaneAlert, TaskPaneItem } from "shell";
+import {
+  chromeActiveScope,
+  defaultChromeContext,
+  defaultChromeHotkeyHandle,
+  persistTheme,
+  registerChromeHotkeys,
+  STORAGE_KEYS,
+  type ThemeId,
+} from "shell";
+import { registerSliceHotkeys } from "./slice-hotkeys.js";
 import type { TaskDomainPublicApi, TaskSessionApi } from "./domain-api.js";
 import { hashPasswordForKernel } from "./kernel-password.js";
 import {
@@ -18,7 +28,10 @@ import {
   type KernelPasswordPublicApi,
 } from "./live-session.js";
 import type { OutreachBootConfig } from "./live-session.js";
-import { registerSliceHotkeys } from "./slice-hotkeys.js";
+
+function isTaskPath(path: string): boolean {
+  return path === "/tasks" || path.startsWith("/tasks/");
+}
 
 function wsUrl(path: string): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -138,6 +151,12 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [activity, setActivity] = useState<TaskPaneActivity[]>([]);
   const [alerts, setAlerts] = useState<TaskPaneAlert[]>([]);
   const [sessionReady, setSessionReady] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.theme);
+    return stored === "outreach-light" || stored === "outreach-dark" ? stored : "outreach-dark";
+  });
   // RpcStub is thenable (Cap'n Web pipelining). React 19 useState unwraps thenables, so
   // the session must live on a ref — not in state — or create/markDone see a null session.
   const sessionRef = useRef<TaskSessionApi | null>(null);
@@ -195,8 +214,50 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
 
   useEffect(() => {
     const registry = new CommandRegistry();
-    registry.setActive("split");
-    registerSliceHotkeys(registry, handleLiveSliceHotkey);
+    registry.setActive(chromeActiveScope(boot.path, { commandMenuOpen }));
+    const navigate = (path: string) => {
+      if (window.location.pathname + window.location.search !== path) window.location.assign(path);
+    };
+    const handleChrome = defaultChromeHotkeyHandle(navigate, {
+      enabled: () =>
+        defaultChromeContext({
+          signedIn: Boolean(token),
+          commandMenuOpen,
+          settingsOpen: boot.path === "/settings" || boot.path === "/mcp" || boot.path.startsWith("/settings"),
+          settingsTabCount: 3,
+          createMenuOpen: false,
+          splitCount: 1,
+          canAppendSplit: true,
+          leader: registry.leader,
+        }),
+      toggleCommandMenu: () => {
+        setCommandMenuOpen((open) => !open);
+        return true;
+      },
+      closeMenus: () => {
+        setCommandMenuOpen(false);
+        return true;
+      },
+      logout: () => {
+        localStorage.removeItem(boot.authTokenKey);
+        localStorage.removeItem(boot.tenantKey);
+        window.location.assign("/login");
+        return true;
+      },
+      applyTheme: (next, kind = "visible") => {
+        persistTheme(next, kind);
+        if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
+        return true;
+      },
+      toggleSidebar: () => {
+        setSidebarCollapsed((value) => !value);
+        return true;
+      },
+    });
+    registerChromeHotkeys(registry, handleChrome);
+    if (isTaskPath(boot.path) && !commandMenuOpen) {
+      registerSliceHotkeys(registry, handleLiveSliceHotkey);
+    }
     const onKey = (event: KeyboardEvent) => {
       const inputFocused =
         event.target instanceof HTMLInputElement ||
@@ -212,7 +273,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [boot.authTokenKey, boot.path, boot.tenantKey, commandMenuOpen, token]);
 
   const onKernelAuth = async (fields: { username: string; password: string; displayName: string }) => {
     setAuthError("");
@@ -327,7 +388,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
 
   return createElement(Shell, {
     path: boot.path,
-    theme: "outreach-dark",
+    theme,
     username,
     taskItems: items,
     taskComposeOpen: true,
@@ -335,6 +396,32 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     operatorAlerts: alerts,
     kernelAuthError: authError,
     sessionReady,
+    commandMenuOpen,
+    sidebarCollapsed,
+    onCommandMenuSelect: (id) => {
+      defaultChromeHotkeyHandle(
+        (path) => window.location.assign(path),
+        {
+          enabled: defaultChromeContext({ signedIn: Boolean(token), commandMenuOpen: true }),
+          logout: () => {
+            localStorage.removeItem(boot.authTokenKey);
+            localStorage.removeItem(boot.tenantKey);
+            window.location.assign("/login");
+            return true;
+          },
+          applyTheme: (next, kind = "visible") => {
+            persistTheme(next, kind);
+            if (kind === "visible") setTheme(next === "outreach-light" ? "outreach-light" : "outreach-dark");
+            return true;
+          },
+          closeMenus: () => {
+            setCommandMenuOpen(false);
+            return true;
+          },
+        },
+      )(id);
+      if (id !== "global.command-menu") setCommandMenuOpen(false);
+    },
     onKernelAuth,
     onCreateTask,
     onMarkDone,

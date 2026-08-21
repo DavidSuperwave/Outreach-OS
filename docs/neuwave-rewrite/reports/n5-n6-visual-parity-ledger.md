@@ -20,7 +20,8 @@ the command ledger (`03-command-hotkey-ledger.csv`) plus live shell tests.
 ## Keyboard (gate 6) — slice identities
 
 Proven in `packages/task-slice/src/slice.test.tsx` (15 ids dispatched through
-`CommandRegistry` + `chordFromEvent`) and live hydrate `registerSliceHotkeys`:
+`CommandRegistry` + `chordFromEvent`) and live hydrate `registerSliceHotkeys`
+after `registerChromeHotkeys` (slice overrides win):
 
 - `global.create` (`c` leader)
 - `create-menu.task` (`t` in create-menu — live focuses compose; in-process creates)
@@ -34,3 +35,12 @@ Proven in `packages/task-slice/src/slice.test.tsx` (15 ids dispatched through
 - `soup-entity.rename` (`r`)
 - `soup-entity.status` (`shift+cmd+s`) / `priority` (`shift+cmd+p`) / `assignee` (`shift+cmd+a`)
 - `soup-entity.properties` (`shift+cmd+o`) / `tags` (`t` on the soup split)
+
+## Keyboard (gate 6) — N5 chrome
+
+`packages/shell/src/n5-hotkeys.ts` registers every keyed row from
+`03-command-hotkey-ledger.csv` (`N5_KEYED_BINDINGS`). Unkeyed rows
+(command-menu only, including killed `global.hotkey-debugger`) stay in
+`N5_UNKEYED_IDS`. Settings tabs `1`–`9` register on `detached` so they do not
+steal soup tabs on a split. `cmd+k` toggles `data-surface=command-menu`.
+`g` then `t` is `go-to.tasks`. Slice registration still wins on `/tasks`.

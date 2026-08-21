@@ -6,6 +6,7 @@ import { userPrincipal } from "identity/principal";
 import { grantShare, emptyAccess } from "authz";
 import { envelope } from "control-plane";
 import { commandEnabled as chromeEnabled, defaultChromeContext, CommandRegistry, chordFromEvent } from "shell";
+import { registerChromeHotkeys } from "shell";
 import { commandEnabled as soupEnabled, type SoupCommandContext } from "soup";
 import { TaskSlice, actorContext, requestContext } from "./slice.js";
 import { dryRunIdentityMapping } from "./mapping.js";
@@ -338,6 +339,32 @@ describe("N6 task vertical slice (11 gates)", () => {
     );
     registry.setActive("detached");
     expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe("launcher.task");
+  });
+
+  it("lets N6 slice chords win after chrome registration (settings tabs stay detached)", () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const api = slice.openApi();
+    const { receipt } = api.createTask("Existing", requestContext(ownerActor(), { correlationId: "chrome-seed" }));
+    const registry = new CommandRegistry();
+    registerChromeHotkeys(registry, () => true);
+    bindSliceCommands(
+      registry,
+      api,
+      () => requestContext(ownerActor(), { receipt, correlationId: "chrome-slice" }),
+      () => ({ title: "Chord task" }),
+    );
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.tab-1");
+    expect(registry.dispatch({ chord: "e", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.mark-done",
+    );
+    expect(registry.dispatch({ chord: "c", inputFocused: false, touch: false, platform: "mac" })).toBe("global.create");
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "create-menu.task",
+    );
+    registry.setActive("detached");
+    expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-1");
   });
 
   it("renders the task list and compose popover on the custom React shell", () => {

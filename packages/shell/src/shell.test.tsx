@@ -9,6 +9,13 @@ import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 import { CommandRegistry, chordFromEvent } from "./registry.js";
 import { Shell } from "./Shell.js";
+import {
+  chromeActiveScope,
+  chromeNavigatePath,
+  registerChromeHotkeys,
+  COMMAND_MENU_ITEMS,
+} from "./n5-hotkeys.js";
+import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
 describe("27-route map", () => {
   it("freezes 26 path routes plus LAYOUT_ROUTE /*splits", () => {
@@ -101,6 +108,73 @@ describe("N5 chrome commands (160)", () => {
     );
     expect(commandEnabled("global.toggle-sidebar", defaultChromeContext({ fullCoverRoute: true }))).toBe(false);
     expect(commandEnabled("global.create", defaultChromeContext({ touch: true }))).toBe(false);
+  });
+
+  it("covers every N5 id as keyed or unkeyed; debugger stays unkeyed/killed", () => {
+    const keyedIds = new Set(N5_KEYED_BINDINGS.map((row) => row.id));
+    expect(keyedIds.size + N5_UNKEYED_IDS.length).toBe(160);
+    expect(new Set([...keyedIds, ...N5_UNKEYED_IDS]).size).toBe(160);
+    expect(N5_UNKEYED_IDS).toContain("global.hotkey-debugger");
+    expect(N5_UNKEYED_IDS).toContain("global.logout");
+    expect(keyedIds.has("global.command-menu")).toBe(true);
+    expect(chromeNavigatePath("go-to.tasks")).toBe("/tasks");
+    expect(chromeNavigatePath("global.toggle-settings")).toBe("/settings");
+    expect(chromeNavigatePath("settings.tab-2")).toBe("/mcp");
+    expect(chromeActiveScope("/tasks")).toBe("split");
+    expect(chromeActiveScope("/settings")).toBe("detached");
+    expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
+  });
+
+  it("registers keyed chrome chords; settings 1/2/3 stay off the soup split", () => {
+    const registry = new CommandRegistry();
+    const hits: string[] = [];
+    registerChromeHotkeys(registry, (id) => {
+      hits.push(id);
+      return true;
+    });
+    const registered = new Set(registry.handlers().map((row) => row.id));
+    const overrideSlot = new Map<string, string>();
+    const expected = new Set<string>(["global.create", "global.go-to-leader", "global.open-category-leader"]);
+    for (const row of N5_KEYED_BINDINGS) {
+      if (row.id === "global.create" || row.id === "global.go-to-leader" || row.id === "global.open-category-leader") {
+        continue;
+      }
+      if (row.registrationType === "add") expected.add(row.id);
+      else overrideSlot.set(`${row.scope}\0${row.chord}`, row.id);
+    }
+    for (const id of overrideSlot.values()) expected.add(id);
+    expect([...expected].filter((id) => !registered.has(id))).toEqual([]);
+    expect(registered.has("global.hotkey-debugger")).toBe(false);
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBeNull();
+    expect(registry.dispatch({ chord: "cmd+k", inputFocused: true, touch: false, platform: "mac" })).toBe(
+      "global.command-menu",
+    );
+    expect(
+      registry.dispatch({
+        chord: chordFromEvent({
+          key: ";",
+          code: "Semicolon",
+          altKey: false,
+          shiftKey: false,
+          metaKey: true,
+          ctrlKey: false,
+        }),
+        inputFocused: false,
+        touch: false,
+        platform: "mac",
+      }),
+    ).toBe("global.toggle-settings");
+    expect(registry.dispatch({ chord: "g", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "global.go-to-leader",
+    );
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe("go-to.tasks");
+    expect(registry.dispatch({ chord: "/", inputFocused: false, touch: false, platform: "mac" })).toBe("go-to.search");
+    registry.setActive("detached");
+    expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-1");
+    expect(registry.dispatch({ chord: "2", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-2");
+    expect(hits).toContain("global.command-menu");
+    expect(COMMAND_MENU_ITEMS.some((item) => item.id === "go-to.tasks")).toBe(true);
   });
 });
 
@@ -235,8 +309,14 @@ describe("command registry scope tree", () => {
       chordFromEvent({ key: "!", code: "Digit1", altKey: false, shiftKey: true, metaKey: false, ctrlKey: false }),
     ).toBe("shift+1");
     expect(
-      chordFromEvent({ key: "Enter", code: "Enter", altKey: false, shiftKey: false, metaKey: false, ctrlKey: false }),
-    ).toBe("enter");
+      chordFromEvent({ key: ";", code: "Semicolon", altKey: false, shiftKey: false, metaKey: true, ctrlKey: false }),
+    ).toBe("cmd+;");
+    expect(
+      chordFromEvent({ key: ".", code: "Period", altKey: false, shiftKey: false, metaKey: true, ctrlKey: false }),
+    ).toBe("cmd+.");
+    expect(
+      chordFromEvent({ key: "/", code: "Slash", altKey: false, shiftKey: false, metaKey: false, ctrlKey: false }),
+    ).toBe("/");
     const registry = new CommandRegistry();
     registry.register({
       id: "soup-entity.status",
@@ -358,5 +438,15 @@ describe("Shell boots", () => {
     expect(onboarding).not.toContain("<form");
     const started = renderToString(createElement(Shell, { path: "/getting-started", panes: [{ type: "home", id: "_" }] }));
     expect(started).toContain("data-surface=\"n19.parked\"");
+  });
+
+  it("renders the command menu overlay for cmd+k", () => {
+    const html = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", commandMenuOpen: true }),
+    );
+    expect(html).toContain("data-surface=\"command-menu\"");
+    expect(html).toContain("data-command=\"go-to.tasks\"");
+    expect(html).toContain("data-command=\"global.logout\"");
+    expect(html).not.toMatch(/macro/i);
   });
 });

@@ -6,6 +6,7 @@ import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
+import { COMMAND_MENU_ITEMS } from "./n5-hotkeys.js";
 
 export interface ShellProps {
   path: string;
@@ -27,6 +28,9 @@ export interface ShellProps {
   kernelAuthError?: string;
   onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
   sessionReady?: boolean;
+  commandMenuOpen?: boolean;
+  onCommandMenuSelect?: (id: string) => void;
+  sidebarCollapsed?: boolean;
 }
 
 const NAV = [
@@ -67,6 +71,9 @@ export function Shell({
   kernelAuthError,
   onKernelAuth,
   sessionReady,
+  commandMenuOpen = false,
+  onCommandMenuSelect,
+  sidebarCollapsed = false,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -92,6 +99,7 @@ export function Shell({
     >
       <header
         data-chrome="sidebar"
+        data-collapsed={sidebarCollapsed ? "true" : "false"}
         style={{
           display: "flex",
           gap: "1.25rem",
@@ -188,6 +196,20 @@ export function Shell({
           </section>
         ) : null}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
+        {commandMenuOpen ? (
+          <div data-surface="command-menu" role="dialog" aria-label="Command menu">
+            <p>Command menu</p>
+            <ul>
+              {COMMAND_MENU_ITEMS.map((item) => (
+                <li key={item.id}>
+                  <button type="button" data-command={item.id} onClick={() => onCommandMenuSelect?.(item.id)}>
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </main>
       <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: `1px solid ${tokens.border}` }}>
         {username}
