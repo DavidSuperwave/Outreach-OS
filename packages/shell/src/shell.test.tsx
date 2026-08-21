@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
 import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
-import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
+import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, tokenVars, isThemeId, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
 import { CommandRegistry, chordFromEvent } from "./registry.js";
@@ -90,6 +90,21 @@ describe("OD-24 brand tripwire", () => {
     }
     expect(OKLCH_TOKENS["outreach-dark"].surface.startsWith("oklch(")).toBe(true);
     expect(OKLCH_TOKENS["outreach-dark"].popover.startsWith("oklch(")).toBe(true);
+    expect(Object.keys(OKLCH_TOKENS).sort()).toEqual([...THEME_IDS].sort());
+    for (const id of THEME_IDS) {
+      expect(isThemeId(id)).toBe(true);
+      const vars = tokenVars(id);
+      expect(vars["--outreach-surface"].startsWith("oklch(")).toBe(true);
+      expect(vars["--outreach-accent"].startsWith("oklch(")).toBe(true);
+      assertNoMacroBrand(vars["--outreach-surface"]);
+    }
+    expect(isThemeId("macro-dark")).toBe(false);
+    expect(tokenVars("ember")["--outreach-surface"]).not.toBe(tokenVars("outreach-dark")["--outreach-surface"]);
+    expect(tokenVars("paper")["--outreach-surface"]).not.toBe(tokenVars("outreach-light")["--outreach-surface"]);
+    expect(tokenVars("void")["--outreach-surface"]).not.toBe(tokenVars("lapis")["--outreach-surface"]);
+    const ember = renderToString(createElement(Shell, { path: "/", theme: "ember" }));
+    expect(ember).toContain("data-theme=\"ember\"");
+    expect(ember).toContain(tokenVars("ember")["--outreach-surface"]);
     expect(N5_COMMAND_IDS.join("\n")).not.toMatch(/macro/i);
   });
 });

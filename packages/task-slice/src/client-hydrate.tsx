@@ -17,6 +17,7 @@ import {
   registerChromeHotkeys,
   STORAGE_KEYS,
   chromeInputFocused,
+  isThemeId,
   type CommandMenuCategory,
   type CommandMenuScope,
   type LeaderKey,
@@ -191,7 +192,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
   const [armedLeader, setArmedLeader] = useState<LeaderKey | null>(null);
   const [theme, setTheme] = useState<ThemeId>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.theme);
-    return stored === "outreach-light" || stored === "outreach-dark" ? stored : "outreach-dark";
+    return isThemeId(stored) ? stored : "outreach-dark";
   });
   // RpcStub is thenable (Cap'n Web pipelining). React 19 useState unwraps thenables, so
   // the session must live on a ref — not in state — or create/markDone see a null session.

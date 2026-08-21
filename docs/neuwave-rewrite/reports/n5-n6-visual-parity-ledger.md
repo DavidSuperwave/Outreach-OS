@@ -16,6 +16,7 @@ the command ledger (`03-command-hotkey-ledger.csv`) plus live shell tests.
 | Status / priority / assignee | `soup-entity.status` shift+cmd+s, `priority` shift+cmd+p, `assignee` shift+cmd+a, `properties` shift+cmd+o | cells + `chordFromEvent` → CommandRegistry | slice 15-identity dispatch; shell chord builder | Chromium selects persist (status/priority) | Tags field is read-only until N8 `setTags`. | partial |
 | Subscribe reconnect | WP-040 live update/reconnect | `/subscribe` replay from cursor; hydrate `attachTaskSubscribe` | workers Keep v2; unit drop → replayFrom → reopen | n/a | Query-token subscribe is browser-only (WS cannot set Authorization). | in-slice |
 | Left sidebar | Neuwave `AppSidebar` + go-to links | `aside[data-chrome=sidebar]` + ledger rows; `g` arms `data-leader=g` hints (2s) | shell SSR layout/collapse/full-cover + leader overlays | wrangler Chromium | No Macro icons. Search/markdown-docs hiddenFromSidebar. | partial |
+| Theme variants | OKLCH token layer (07-UI-UX); Change theme nested palette | `tokenVars` for all 12 `THEME_IDS`; hydrate restores any stored id | shell token map + SSR `data-theme=ember` | wrangler Chromium | Outreach-named palettes, not extracted Macro CSS. Gate 7 vs Neuwave pin still blocked. | partial |
 | Visual regression | 07 §Visual parity process | none yet | blocked | blocked | Reference screenshots cannot be captured without Neuwave @ 9f7a26b. | blocked |
 
 ## Keyboard (gate 6) — slice identities
@@ -51,6 +52,8 @@ scope (priority 10 on detached so they beat settings.next-tab). `cmd+k` is
 dispatched in the capture phase so the registry can preempt the browser find
 bar when the event reaches the page.
 `global.change-theme` pushes a nested palette scope listing THEME_IDS;
+each id has its own OKLCH token set (`tokenVars`). Hydrate restores any
+stored `THEME_IDS` value, not only outreach-dark/light.
 Escape / Backspace (empty query) returns to the root list.
 `g` then `t` is `go-to.tasks`. Pressing `g` sets `data-leader=g` on the
 sidebar, shows `data-surface=go-to-hints`, and arms go-to kbd hints
