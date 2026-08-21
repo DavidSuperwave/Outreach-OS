@@ -31,10 +31,14 @@ are marked-and-skipped on the DO outbox. In-process maps remain the unit-test co
 
 ## RPC/API contract
 
-Typed `TaskApi` capability (ADR-002 pattern). Not added to kernel `api.ts`. No Instantly
-send/activate methods. Worker `/rpc` binds the actor from a kernel session token
-(`Authorization: Bearer username:secret`) plus `x-neuwave-tenant` membership on Team DO.
-Client `x-neuwave-actor` / body `actor` is rejected.
+Typed `TaskApi` / `TaskSessionApi` capability (ADR-002). Not added to kernel `api.ts`.
+No Instantly send/activate methods.
+
+Kernel `PublicApi` stays on Workshop `/api` (unpatched). The wrapper origin composes beside it:
+Cap'n Web `TaskDomainApi` on `/domain` (`authenticate(token)` → `openTenant(tenantId)` →
+`TaskSessionApi`). Actor is minted from the kernel session + Team DO membership. Client
+`x-neuwave-actor` / REST `POST /rpc` are rejected. Live subscribe remains a streaming WebSocket
+on `/subscribe` (physical-protocol exception) after the same session bind.
 
 ## Commands and UI surfaces
 

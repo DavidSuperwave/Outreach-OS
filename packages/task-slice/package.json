@@ -17,6 +17,7 @@
     "@gadgets/typed-storage": "workspace:*",
     "@gadgets/workshop-shared": "workspace:*",
     "authz": "workspace:*",
+    "capnweb": "^0.8.0",
     "control-plane": "workspace:*",
     "identity": "workspace:*",
     "react": "^19.1.1",

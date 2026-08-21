@@ -1,5 +1,7 @@
 export { TaskSlice, actorContext, requestContext } from "./slice.js";
 export type { TaskApi, TaskRecord, TaskRpc, TaskSliceSnapshot, TaskView } from "./slice.js";
+export type { TaskAuthenticatedApi, TaskDomainPublicApi, TaskSessionApi } from "./domain-api.js";
+export { classifyOutreachPath, KERNEL_PUBLIC_API_PATH, TASK_DOMAIN_API_PATH } from "./routes.js";
 export { dryRunIdentityMapping, mapLegacyTaskId } from "./mapping.js";
 export type { LegacyTaskRef, IdentityMappingResult } from "./mapping.js";
 export { SLICE_COMMAND_IDS, runSliceCommand, bindSliceCommands } from "./commands.js";

@@ -838,6 +838,9 @@ importers:
       authz:
         specifier: workspace:*
         version: link:../authz
+      capnweb:
+        specifier: ^0.8.0
+        version: 0.8.0
       control-plane:
         specifier: workspace:*
         version: link:../control-plane
