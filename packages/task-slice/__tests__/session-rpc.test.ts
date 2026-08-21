@@ -6,6 +6,13 @@ import { DurableTeamsApi, SEED_ADMIN, SEED_MEMBER, formatKernelSessionToken } fr
 import type { TeamDurableObject } from "../../identity/src/team-do.js";
 import type { TaskAuthenticatedApi, TaskDomainPublicApi, TaskSessionApi } from "../src/domain-api.js";
 import { handleOutreachFetch } from "../src/session-rpc.js";
+import {
+  bootLiveTaskSession,
+  createAccountViaKernelPublicApi,
+  loadTaskSurface,
+  submitTaskCompose,
+} from "../src/live-session.js";
+import { workshopPublicApiFetcher } from "./workshop-public-api.js";
 import type { TaskSliceDurableObject } from "../src/task-do.js";
 
 type UserDo = {
@@ -228,5 +235,75 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     using domain = await connectDomain();
     const denied = await rejection(domain.authenticate("nocolon"));
     expect(denied.message).toMatch(/invalid/);
+  });
+
+  it("serves the custom React shell on /tasks and kernel login on /login", async () => {
+    const tasks = await handleOutreachFetch(new Request("https://task-slice/tasks"), testEnv);
+    expect(tasks.status).toBe(200);
+    expect(tasks.headers.get("x-outreach-origin")).toBe("compositor");
+    const html = await tasks.text();
+    expect(html).toContain("data-origin=\"compositor\"");
+    expect(html).toContain("data-shell=\"outreach-os\"");
+    expect(html).toContain("data-slice=\"task\"");
+    expect(html).toContain("data-scope=\"task-compose-popover\"");
+    expect(html).toContain("\"domainApi\":\"/domain\"");
+    expect(html).toContain("\"kernelApi\":\"/api\"");
+
+    const login = await handleOutreachFetch(new Request("https://task-slice/login"), testEnv);
+    expect(await login.text()).toContain("data-surface=\"kernel.login\"");
+
+    const home = await handleOutreachFetch(new Request("https://task-slice/"), testEnv);
+    expect(home.headers.get("x-outreach-origin")).toBe("compositor");
+    expect(await home.text()).toContain("data-shell=\"outreach-os\"");
+
+    const health = await handleOutreachFetch(new Request("https://task-slice/health"), testEnv);
+    expect(await health.text()).toBe("outreach origin compositor");
+
+    const wellKnown = await handleOutreachFetch(new Request("https://task-slice/.well-known"), testEnv);
+    expect(wellKnown.status).toBe(404);
+  });
+
+  it("boots TaskDomainApi after kernel PublicApi.createAccount on the origin compositor", async () => {
+    const env = { ...testEnv, WORKSHOP: workshopPublicApiFetcher(testEnv.USER) };
+    const apiRes = await handleOutreachFetch(
+      new Request("https://task-slice/api", { headers: { Upgrade: "websocket" } }),
+      env,
+    );
+    expect(apiRes.status).toBe(101);
+    const apiSocket = apiRes.webSocket;
+    if (!apiSocket) throw new TypeError("Expected kernel /api WebSocket.");
+    apiSocket.accept();
+    using publicApi = newWebSocketRpcSession<{
+      createAccount(
+        username: string,
+        displayName: string,
+        passwordHash: Uint8Array,
+      ): Promise<string | null>;
+    }>(apiSocket);
+    const token = await createAccountViaKernelPublicApi(publicApi, "admin", "Admin", adminPassword);
+
+    const teams = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
+    teams.registerKernelUser(SEED_ADMIN);
+    const team = await teams.createTeam(SEED_ADMIN, "Outreach");
+
+    using domain = await connectDomain();
+    using session = await bootLiveTaskSession(domain, token, team.id);
+    const created = await submitTaskCompose(session, "Origin compose", "origin-1");
+    expect(created.items.map((item) => item.title)).toEqual(["Origin compose"]);
+
+    const html = await handleOutreachFetch(
+      new Request("https://task-slice/tasks", {
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-neuwave-tenant": team.id,
+        },
+      }),
+      env,
+    );
+    const page = await html.text();
+    expect(page).toContain("Origin compose");
+    expect(page).toContain("data-surface=\"activity.facts\"");
+    expect(page).toContain("data-actor=\"admin\"");
+    expect((await loadTaskSurface(session)).alerts).toEqual([]);
   });
 });

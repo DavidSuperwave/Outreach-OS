@@ -8,4 +8,14 @@ export { SLICE_COMMAND_IDS, runSliceCommand, bindSliceCommands } from "./command
 export type { SliceCommandId, SliceCommandInput, SliceCommandResult } from "./commands.js";
 export { TaskComposePopover, TaskList, TaskWorkspace } from "./ui.js";
 export { inProcessTaskSession, loadTaskSurface, submitTaskCompose } from "./in-process-session.js";
+export {
+  bootLiveTaskSession,
+  createAccountViaKernelPublicApi,
+  loginViaKernelPublicApi,
+  KERNEL_AUTH_TOKEN_KEY,
+  ORIGIN_MOUNTS,
+  TASK_TENANT_STORAGE_KEY,
+} from "./live-session.js";
+export type { KernelPasswordPublicApi } from "./live-session.js";
+export { renderOutreachDocument, outreachBootConfig } from "./origin-html.js";
 export type { OperatorAlert } from "./operator-alerts.js";

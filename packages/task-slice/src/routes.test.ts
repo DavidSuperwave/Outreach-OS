@@ -7,7 +7,18 @@ describe("ADR-002 Outreach router", () => {
     expect(classifyOutreachPath("/domain")).toBe("domain-capnp");
     expect(classifyOutreachPath("/subscribe")).toBe("streaming");
     expect(classifyOutreachPath("/hooks/github")).toBe("webhook");
-    expect(classifyOutreachPath("/")).toBe("health");
+    expect(classifyOutreachPath("/health")).toBe("health");
+  });
+
+  it("serves the custom React shell on the 27-route map and split codec", () => {
+    expect(classifyOutreachPath("/")).toBe("shell");
+    expect(classifyOutreachPath("/tasks")).toBe("shell");
+    expect(classifyOutreachPath("/login")).toBe("shell");
+    expect(classifyOutreachPath("/signup")).toBe("shell");
+    expect(classifyOutreachPath("/tasks/_")).toBe("shell");
+    expect(classifyOutreachPath("/desktop-auth")).toBe("not-found");
+    expect(classifyOutreachPath("/.well-known")).toBe("not-found");
+    expect(classifyOutreachPath("/oauth/callback")).toBe("oauth");
   });
 
   it("rejects REST /rpc (negative: no wrapper HTTP recreation of Neuwave endpoints)", () => {

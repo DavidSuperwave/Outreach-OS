@@ -13,6 +13,8 @@ import {
 import type { ActorContext } from "identity/principal";
 import { DurableTaskApi } from "./durable-task-api.js";
 import type { TaskAuthenticatedApi, TaskDomainPublicApi, TaskSessionApi } from "./domain-api.js";
+import { loadTaskSurface } from "./in-process-session.js";
+import { renderOutreachDocument } from "./origin-html.js";
 import { classifyOutreachPath } from "./routes.js";
 
 interface KernelUserDo {
@@ -245,9 +247,42 @@ async function subscribeFromSession(request: Request, env: TaskWorkerEnv): Promi
   return new DurableTaskApi(env.TASK_SLICE as never, tenantId).subscribe(cursor, actor);
 }
 
+async function serveOutreachShell(request: Request, env: TaskWorkerEnv): Promise<Response> {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response("method not allowed", { status: 405 });
+  }
+  const path = new URL(request.url).pathname;
+  const token = bearerToken(request);
+  const tenantId = request.headers.get("x-neuwave-tenant");
+  let username = "signed-out";
+  let items: Awaited<ReturnType<typeof loadTaskSurface>>["items"] = [];
+  let activity: Awaited<ReturnType<typeof loadTaskSurface>>["activity"] = [];
+  let alerts: Awaited<ReturnType<typeof loadTaskSurface>>["alerts"] = [];
+  if (token && tenantId) {
+    try {
+      const actor = await actorFromSession(env, token, tenantId);
+      username = actor.kernelUsername;
+      const surface = await loadTaskSurface(new TaskSessionTarget(env, actor));
+      items = surface.items;
+      activity = surface.activity;
+      alerts = surface.alerts;
+    } catch {
+      username = "signed-out";
+    }
+  }
+  const html = renderOutreachDocument({ path, username, items, activity, alerts });
+  return new Response(request.method === "HEAD" ? null : html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "x-outreach-origin": "compositor",
+    },
+  });
+}
+
 /**
- * Outreach origin fetch: kernel PublicApi on `/api` (Workshop service binding, unpatched),
- * wrapper TaskDomainApi Cap'n Web on `/domain`, live subscribe as streaming bytes.
+ * Outreach origin fetch: custom React shell HTML, kernel PublicApi on `/api`
+ * (Workshop service binding, unpatched), wrapper TaskDomainApi Cap'n Web on `/domain`,
+ * live subscribe as streaming bytes.
  */
 export async function handleOutreachFetch(request: Request, env: TaskWorkerEnv): Promise<Response> {
   const url = new URL(request.url);
@@ -260,7 +295,7 @@ export async function handleOutreachFetch(request: Request, env: TaskWorkerEnv):
   switch (kind) {
     case "health":
       if (request.method === "GET") {
-        return new Response("outreach task-slice worker", { headers: { "content-type": "text/plain" } });
+        return new Response("outreach origin compositor", { headers: { "content-type": "text/plain" } });
       }
       return new Response("method not allowed", { status: 405 });
     case "rest-rejected":
@@ -276,6 +311,10 @@ export async function handleOutreachFetch(request: Request, env: TaskWorkerEnv):
       return subscribeFromSession(request, env);
     case "webhook":
       return new Response("webhooks are served by the github-hooks worker", { status: 404 });
+    case "oauth":
+      return new Response("oauth callbacks are not served by the task-slice origin", { status: 404 });
+    case "shell":
+      return serveOutreachShell(request, env);
     default:
       return new Response("not found", { status: 404 });
   }
