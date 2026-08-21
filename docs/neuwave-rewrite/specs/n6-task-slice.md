@@ -38,7 +38,9 @@ Kernel `PublicApi` stays on Workshop `/api` (unpatched). The wrapper origin comp
 Cap'n Web `TaskDomainApi` on `/domain` (`authenticate(token)` → `openTenant(tenantId)` →
 `TaskSessionApi`). Actor is minted from the kernel session + Team DO membership. Client
 `x-neuwave-actor` / REST `POST /rpc` are rejected. Live subscribe remains a streaming WebSocket
-on `/subscribe` (physical-protocol exception) after the same session bind.
+on `/subscribe` (physical-protocol exception) after the same session bind. Poisoned outbox
+rows surface as `TaskSessionApi.listAlerts()` / `operator.alerts` (gate 8 proof). Compose
+submit is `submitTaskCompose(session, title)`.
 
 ## Commands and UI surfaces
 

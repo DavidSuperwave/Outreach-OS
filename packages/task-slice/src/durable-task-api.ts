@@ -24,6 +24,7 @@ interface DurableObjectStub<T> {
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   listVisible(actor: ActorContext): Promise<SoupItem[]>;
   listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
+  listAlerts(actor: ActorContext): Promise<import("./operator-alerts.js").OperatorAlert[]>;
   seq(): Promise<number>;
   replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
   rebuildProjection(actor: ActorContext): Promise<void>;
@@ -89,6 +90,10 @@ export class DurableTaskApi implements TaskRpc {
 
   listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]> {
     return this.#stub().listActivity(actor);
+  }
+
+  listAlerts(actor: ActorContext): Promise<import("./operator-alerts.js").OperatorAlert[]> {
+    return this.#stub().listAlerts(actor);
   }
 
   seq(): Promise<number> {

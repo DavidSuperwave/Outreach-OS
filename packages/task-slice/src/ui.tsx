@@ -40,11 +40,15 @@ export function TaskWorkspace({
   composeOpen,
   draft,
   activity = [],
+  alerts = [],
+  onCreate,
 }: {
   items: readonly SoupItem[];
   composeOpen: boolean;
   draft: string;
   activity?: readonly { id: string; action: string; entityId: string }[];
+  alerts?: readonly { id: string; kind: string; reason: string; entityId: string }[];
+  onCreate?: (title: string) => void;
 }) {
   return (
     <Shell
@@ -60,6 +64,8 @@ export function TaskWorkspace({
       taskComposeOpen={composeOpen}
       taskDraft={draft}
       activityFacts={activity}
+      operatorAlerts={alerts}
+      onCreateTask={onCreate}
     />
   );
 }

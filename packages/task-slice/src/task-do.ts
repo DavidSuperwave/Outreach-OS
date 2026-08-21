@@ -4,6 +4,7 @@ import type { AccessState } from "authz";
 import type { ActorContext } from "identity/principal";
 import { envelope, type RequestContext } from "control-plane";
 import { ensureListSchema, projectListSnapshot, queryFacetRows, type SoupD1, type SoupDelta, type SoupItem } from "soup";
+import { operatorAlertsFromPoison, type OperatorAlert } from "./operator-alerts.js";
 import {
   TaskSlice,
   type TaskRecord,
@@ -207,6 +208,13 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     this.#assertTenant(actor, slice);
     const visible = new Set(this.#viewReceipts(slice, actor).map((receipt) => receipt.entityId));
     return slice.activity.list().filter((fact) => visible.has(fact.entityId));
+  }
+
+  async listAlerts(actor: ActorContext): Promise<OperatorAlert[]> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    const visible = new Set(this.#viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+    return operatorAlertsFromPoison(slice.outbox.poison(), visible);
   }
 
   async seq(): Promise<number> {

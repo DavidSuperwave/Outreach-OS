@@ -53,6 +53,7 @@ export interface TaskRpc {
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   listVisible(actor: ActorContext): Promise<SoupItem[]>;
   listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
+  listAlerts(actor: ActorContext): Promise<import("./operator-alerts.js").OperatorAlert[]>;
   seq(): Promise<number>;
   replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
   rebuildProjection(actor: ActorContext): Promise<void>;

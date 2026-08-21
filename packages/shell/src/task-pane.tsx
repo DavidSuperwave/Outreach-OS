@@ -15,17 +15,28 @@ export interface TaskPaneActivity {
   entityId: string;
 }
 
+export interface TaskPaneAlert {
+  id: string;
+  kind: string;
+  reason: string;
+  entityId: string;
+}
+
 /** N5/N6 task split: compose popover + Soup list surface, no Macro chrome. */
 export function TaskPane({
   items = [],
   composeOpen = true,
   draft = "",
   activity = [],
+  alerts = [],
+  onCreate,
 }: {
   items?: readonly TaskPaneItem[];
   composeOpen?: boolean;
   draft?: string;
   activity?: readonly TaskPaneActivity[];
+  alerts?: readonly TaskPaneAlert[];
+  onCreate?: (title: string) => void;
 }): ReactNode {
   return (
     <div data-slice="task">
@@ -33,7 +44,17 @@ export function TaskPane({
         <kbd>c</kbd> then <kbd>t</kbd> creates a task
       </p>
       {composeOpen ? (
-        <form data-scope="task-compose-popover" data-command="create-menu.task">
+        <form
+          data-scope="task-compose-popover"
+          data-command="create-menu.task"
+          onSubmit={(event) => {
+            if (!onCreate) return;
+            event.preventDefault();
+            const form = event.currentTarget;
+            const value = String(new FormData(form).get("title") ?? "").trim();
+            if (value) onCreate(value);
+          }}
+        >
           <label>
             Title
             <input name="title" defaultValue={draft} aria-label="Task title" />
@@ -79,6 +100,15 @@ export function TaskPane({
             </li>
           ))}
         </ol>
+      ) : null}
+      {alerts.length > 0 ? (
+        <ul data-surface="operator.alerts" role="status" aria-label="Operator alerts">
+          {alerts.map((alert) => (
+            <li key={alert.id} data-alert-kind={alert.kind} data-entity-id={alert.entityId}>
+              {alert.reason}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

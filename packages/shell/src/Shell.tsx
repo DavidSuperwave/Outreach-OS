@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
-import { TaskPane, type TaskPaneActivity, type TaskPaneItem } from "./task-pane.js";
+import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
 
 export interface ShellProps {
@@ -15,6 +15,8 @@ export interface ShellProps {
   taskComposeOpen?: boolean;
   taskDraft?: string;
   activityFacts?: readonly TaskPaneActivity[];
+  operatorAlerts?: readonly TaskPaneAlert[];
+  onCreateTask?: (title: string) => void;
 }
 
 const NAV = [
@@ -45,6 +47,8 @@ export function Shell({
   taskComposeOpen = true,
   taskDraft = "",
   activityFacts = [],
+  operatorAlerts = [],
+  onCreateTask,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -102,6 +106,8 @@ export function Shell({
                 composeOpen={taskComposeOpen}
                 draft={taskDraft}
                 activity={activityFacts}
+                alerts={operatorAlerts}
+                onCreate={onCreateTask}
               />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}

@@ -79,6 +79,73 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
 
     const facts = await session.listActivity();
     expect(facts.map((fact) => fact.action).sort()).toEqual(["created", "edited"]);
+    expect(await session.listAlerts()).toEqual([]);
+  });
+
+  it("subscribes over the worker streaming socket using the kernel session", async () => {
+    const token = await kernelToken("admin", adminPassword);
+    const teams = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
+    teams.registerKernelUser(SEED_ADMIN);
+    const team = await teams.createTeam(SEED_ADMIN, "Outreach");
+
+    using domain = await connectDomain();
+    using authed = await domain.authenticate(token) as RpcStub<TaskAuthenticatedApi>;
+    using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
+    const created = await session.createTask("Live", "live-1");
+    const cursor = await session.seq();
+
+    const denied = await handleOutreachFetch(
+      new Request("https://task-slice/subscribe?cursor=0", { headers: { Upgrade: "websocket" } }),
+      testEnv,
+    );
+    expect(denied.status).toBe(401);
+
+    const sub = await handleOutreachFetch(
+      new Request(`https://task-slice/subscribe?cursor=${cursor}`, {
+        headers: {
+          Upgrade: "websocket",
+          authorization: `Bearer ${token}`,
+          "x-neuwave-tenant": team.id,
+        },
+      }),
+      testEnv,
+    );
+    expect(sub.status).toBe(101);
+    const ws = sub.webSocket;
+    if (!ws) throw new TypeError("Expected a subscribe WebSocket.");
+    const messages: Array<{ type: string; deltas?: Array<{ item: { title: string } }> }> = [];
+    ws.accept();
+    const got = new Promise<void>((resolve) => {
+      ws.addEventListener("message", (event) => {
+        messages.push(JSON.parse(String(event.data)) as (typeof messages)[number]);
+        if (messages.some((msg) => msg.deltas?.some((delta) => delta.item.title === "Live v2"))) resolve();
+      });
+    });
+    await session.updateTitle(created.task.id, "Live v2", "live-2");
+    await Promise.race([
+      got,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("no session websocket delta")), 2000)),
+    ]);
+    const titles = messages.flatMap((msg) => (msg.deltas ?? []).map((delta) => delta.item.title));
+    expect(titles).toContain("Live v2");
+  });
+
+  it("lists operator alerts for poisoned outbox rows after kernel session", async () => {
+    const token = await kernelToken("admin", adminPassword);
+    const teams = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
+    teams.registerKernelUser(SEED_ADMIN);
+    const team = await teams.createTeam(SEED_ADMIN, "Outreach");
+
+    using domain = await connectDomain();
+    using authed = await domain.authenticate(token) as RpcStub<TaskAuthenticatedApi>;
+    using session = await authed.openTenant(team.id) as RpcStub<TaskSessionApi>;
+    await session.createTask("Keep me", "poi-1");
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(team.id));
+    expect(await stub.poisonPending(5)).toBe(1);
+    const alerts = await session.listAlerts();
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.kind).toBe("outbox_poison");
+    expect(alerts[0]?.reason).toMatch(/projector down/);
   });
 
   it("rejects client-supplied actor JSON on the Cap'n Web mount", async () => {

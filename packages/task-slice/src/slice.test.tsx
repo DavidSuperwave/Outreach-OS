@@ -11,7 +11,7 @@ import { TaskSlice, actorContext, requestContext } from "./slice.js";
 import { dryRunIdentityMapping } from "./mapping.js";
 import { SLICE_COMMAND_IDS, bindSliceCommands, runSliceCommand } from "./commands.js";
 import { TaskWorkspace } from "./ui.js";
-import { inProcessTaskSession, loadTaskSurface } from "./in-process-session.js";
+import { inProcessTaskSession, loadTaskSurface, submitTaskCompose } from "./in-process-session.js";
 
 const tenant = fixtureId("team", 1);
 const ownerId = fixtureId("user", 1);
@@ -314,10 +314,63 @@ describe("N6 task vertical slice (11 gates)", () => {
         composeOpen: true,
         draft: "Session task",
         activity: surface.activity,
+        alerts: surface.alerts,
       }),
     );
     expect(html).toContain("Session task");
     expect(html).toContain("data-surface=\"activity.facts\"");
     expect(html).toContain("data-activity-action=\"created\"");
+  });
+
+  it("compose submit writes through TaskSessionApi and lists the new row", async () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const session = inProcessTaskSession(slice, ownerActor());
+    const surface = await submitTaskCompose(session, "From compose", "compose-1");
+    expect(surface.items.map((item) => item.title)).toEqual(["From compose"]);
+    expect(surface.activity.map((fact) => fact.action)).toContain("created");
+  });
+
+  it("surfaces poisoned outbox rows as operator alerts (gate 8)", async () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const session = inProcessTaskSession(slice, ownerActor());
+    const { task } = await session.createTask("Keep me", "alert-1");
+    slice.outbox.append(
+      envelope({
+        topic: "documents",
+        entityType: "document",
+        entityId: task.id,
+        tenantId: tenant,
+        actorId: ownerId,
+        onBehalfOfId: null,
+        occurredAt: 99,
+        version: 99,
+        payload: { title: "never", facet: "task" },
+        receipt: null,
+        correlationId: "poison",
+        eventId: `poison-${task.id}`,
+      }),
+    );
+    for (let i = 0; i < 5; i += 1) {
+      slice.outbox.drain(() => {
+        throw new Error("projector down");
+      });
+    }
+    const surface = await loadTaskSurface(session);
+    expect(surface.alerts).toHaveLength(1);
+    expect(surface.alerts[0]?.kind).toBe("outbox_poison");
+    expect(surface.alerts[0]?.reason).toMatch(/projector down/);
+    const html = renderToString(
+      createElement(TaskWorkspace, {
+        items: surface.items,
+        composeOpen: false,
+        draft: "",
+        activity: surface.activity,
+        alerts: surface.alerts,
+      }),
+    );
+    expect(html).toContain("data-surface=\"operator.alerts\"");
+    expect(html).toContain("projector down");
   });
 });

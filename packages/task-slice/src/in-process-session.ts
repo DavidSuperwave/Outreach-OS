@@ -3,6 +3,7 @@ import { requestContext } from "control-plane";
 import type { ActorContext } from "identity/principal";
 import type { SoupDelta, SoupItem } from "soup";
 import type { TaskSessionApi } from "./domain-api.js";
+import { operatorAlertsFromPoison } from "./operator-alerts.js";
 import type { TaskRecord, TaskSlice } from "./slice.js";
 
 /** In-process TaskSessionApi over TaskSlice. Same methods as the Cap'n Web stub. */
@@ -29,6 +30,10 @@ export function inProcessTaskSession(slice: TaskSlice, actor: ActorContext): Tas
     listActivity: async () => {
       const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
       return slice.activity.list().filter((fact) => visible.has(fact.entityId));
+    },
+    listAlerts: async () => {
+      const visible = new Set(viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+      return operatorAlertsFromPoison(slice.outbox.poison(), visible);
     },
     updateTitle: (entityId, title, correlationId) =>
       mutate(entityId, "edit", correlationId, (ctx) => slice.updateTitle(title, ctx)),
@@ -75,8 +80,13 @@ function viewReceipts(slice: TaskSlice, actor: ActorContext) {
 export async function loadTaskSurface(session: TaskSessionApi): Promise<{
   items: SoupItem[];
   activity: Array<{ id: string; action: string; entityId: string }>;
+  alerts: Awaited<ReturnType<TaskSessionApi["listAlerts"]>>;
 }> {
-  const [items, facts] = await Promise.all([session.listTasks(), session.listActivity()]);
+  const [items, facts, alerts] = await Promise.all([
+    session.listTasks(),
+    session.listActivity(),
+    session.listAlerts(),
+  ]);
   return {
     items,
     activity: facts.map((fact: ActivityFact) => ({
@@ -84,5 +94,16 @@ export async function loadTaskSurface(session: TaskSessionApi): Promise<{
       action: fact.action,
       entityId: fact.entityId,
     })),
+    alerts,
   };
+}
+
+/** Compose popover submit — the same mutation `c` then `t` invokes. */
+export async function submitTaskCompose(
+  session: TaskSessionApi,
+  title: string,
+  correlationId?: string,
+): Promise<Awaited<ReturnType<typeof loadTaskSurface>>> {
+  await session.createTask(title, correlationId);
+  return loadTaskSurface(session);
 }

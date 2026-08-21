@@ -1,6 +1,9 @@
 import type { ActivityFact } from "control-plane";
 import type { SoupDelta, SoupItem } from "soup";
+import type { OperatorAlert } from "./operator-alerts.js";
 import type { TaskRecord, TaskView } from "./slice.js";
+
+export type { OperatorAlert } from "./operator-alerts.js";
 
 /**
  * Wrapper-owned Cap'n Web entry (ADR-002). Same authenticate-then-mint pattern as
@@ -23,6 +26,7 @@ export interface TaskSessionApi {
   createTask(title: string, correlationId?: string): Promise<TaskView>;
   listTasks(): Promise<SoupItem[]>;
   listActivity(): Promise<ActivityFact[]>;
+  listAlerts(): Promise<OperatorAlert[]>;
   updateTitle(entityId: string, title: string, correlationId?: string): Promise<TaskRecord>;
   setStatus(entityId: string, status: string, correlationId?: string): Promise<TaskRecord>;
   setPriority(entityId: string, priority: string, correlationId?: string): Promise<TaskRecord>;
