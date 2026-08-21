@@ -67,7 +67,7 @@ export async function ensureListSchema(db: SoupD1): Promise<void> {
     } catch (error) {
       // Frozen v1 DDL predates IF NOT EXISTS. Ignore only SQLite's precise
       // idempotent replay error; storage/SQL/permission failures propagate.
-      if (!/\balready exists\b/i.test(String(error))) throw error;
+      if (!/(?:table|index)\s+\S+\s+already exists\b/i.test(String(error))) throw error;
     }
   }
 

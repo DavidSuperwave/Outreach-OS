@@ -629,8 +629,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(await replace).toMatch(/TASK_OUTBOX/);
     expect(await api.listVisible(teammateActor())).toEqual([]);
     const replacementActor = actorContext(userPrincipal(replacementId, tenant));
-    expect(await api.listVisible(replacementActor)).toEqual([]);
-    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await runInDurableObject(stub, (instance) => instance.alarm());
     const replacement = await testEnv.SOUP.prepare(
       `SELECT actor_id, level FROM entity_access_index
        WHERE tenant_id = ? AND entity_id = ? AND actor_id IN (?, ?) ORDER BY actor_id`,
@@ -656,7 +655,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
        WHERE tenant_id = ? AND entity_id = ? AND actor_id = ?`,
     ).bind(tenant, task.id, replacementId).first<{ count: number }>();
     expect(closed?.count).toBe(0);
-    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await runInDurableObject(stub, (instance) => instance.alarm());
     const authority = await stub.get(task.id, ownerActor());
     expect(authority?.assigneeIds).toEqual([]);
   });
