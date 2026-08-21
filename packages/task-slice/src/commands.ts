@@ -82,6 +82,7 @@ export function bindSliceCommands(
     if (id === "global.create" || id === "global.go-to" || id === "global.open-category-leader") {
       return true;
     }
+    if (id.startsWith("soup-nav.")) return true;
     if (!(SLICE_COMMAND_IDS as readonly string[]).includes(id) && !id.startsWith("soup.tab-")) {
       return false;
     }

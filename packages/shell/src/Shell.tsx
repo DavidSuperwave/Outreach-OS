@@ -116,7 +116,11 @@ export function Shell({
       </header>
       <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem" }}>
         {kernelAuthError ? (
-          <p data-auth-error="" role="alert">
+          <p
+            data-auth-error=""
+            data-permission={/lacks |denied|receipt/i.test(kernelAuthError) ? "denied" : undefined}
+            role="alert"
+          >
             {kernelAuthError}
           </p>
         ) : null}

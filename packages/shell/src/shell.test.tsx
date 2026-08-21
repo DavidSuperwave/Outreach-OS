@@ -308,9 +308,14 @@ describe("Shell boots", () => {
     expect(html).toContain("aria-label=\"Task title\"");
     expect(html).toContain("data-hint=\"create-menu.task\"");
     expect(html).toContain("data-command=\"soup.tab-1\"");
+    expect(html).toContain("data-command=\"soup-nav.down-j\"");
     expect(html).toContain("data-empty=\"tasks\"");
     expect(html).toContain("aria-label=\"Tasks\"");
     expect(html).not.toMatch(/macro/i);
+    const denied = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", kernelAuthError: "usr_1 lacks edit on doc_1" }),
+    );
+    expect(denied).toContain("data-permission=\"denied\"");
     const populated = renderToString(
       createElement(Shell, {
         path: "/tasks",

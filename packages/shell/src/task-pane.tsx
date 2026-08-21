@@ -83,30 +83,6 @@ export function TaskPane({
       data-soup-tab={tab}
       data-focused-id={focused?.entityId ?? ""}
       data-opened-id={openedId ?? ""}
-      onKeyDown={(event) => {
-        const target = event.target;
-        const typing =
-          target instanceof HTMLInputElement ||
-          target instanceof HTMLTextAreaElement ||
-          target instanceof HTMLSelectElement;
-        if (typing) return;
-        if (event.key === "j" || event.key === "ArrowDown") {
-          event.preventDefault();
-          moveFocus(1);
-        } else if (event.key === "k" || event.key === "ArrowUp") {
-          event.preventDefault();
-          moveFocus(-1);
-        } else if (event.key === "e" && focused) {
-          event.preventDefault();
-          onMarkDone?.(focused.entityId, !focused.done);
-        } else if (event.key === "1" || event.key === "2" || event.key === "3") {
-          const next = SOUP_TASK_TABS.find((row) => row.chord === event.key);
-          if (next) setTab(next.id);
-        } else if (event.key === "Enter" && focused) {
-          event.preventDefault();
-          setOpenedId(focused.entityId);
-        }
-      }}
       tabIndex={0}
       role="region"
       aria-label="Tasks"
@@ -133,6 +109,14 @@ export function TaskPane({
           <button type="submit">Create task</button>
         </form>
       ) : null}
+      <div data-surface="soup-nav" role="toolbar" aria-label="Soup navigation">
+        <button type="button" data-command="soup-nav.up-k" aria-label="Previous task" onClick={() => moveFocus(-1)}>
+          k
+        </button>
+        <button type="button" data-command="soup-nav.down-j" aria-label="Next task" onClick={() => moveFocus(1)}>
+          j
+        </button>
+      </div>
       <div data-surface="soup.tabs" role="tablist" aria-label="Soup tabs">
         {SOUP_TASK_TABS.map((row) => (
           <button

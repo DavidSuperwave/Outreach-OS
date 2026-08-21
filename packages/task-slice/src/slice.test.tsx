@@ -289,6 +289,11 @@ describe("N6 task vertical slice (11 gates)", () => {
     chordCtx = requestContext(ownerActor(), { receipt: receiptForChords, correlationId: "chord-mut" });
     registry.setActive("split");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.tab-1");
+    expect(registry.dispatch({ chord: "j", inputFocused: false, touch: false, platform: "mac" })).toBe("soup-nav.down-j");
+    expect(registry.dispatch({ chord: "k", inputFocused: false, touch: false, platform: "mac" })).toBe("soup-nav.up-k");
+    expect(registry.dispatch({ chord: "arrowdown", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-nav.down-arrow",
+    );
     expect(registry.dispatch({ chord: "enter", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.open");
     expect(registry.dispatch({ chord: "shift+cmd+s", inputFocused: false, touch: false, platform: "mac" })).toBe(
       "soup-entity.status",

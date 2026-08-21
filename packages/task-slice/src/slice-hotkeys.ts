@@ -72,6 +72,13 @@ const EXTRA_TABS = [
   { id: "soup.tab-3", chord: "3" },
 ] as const;
 
+const SOUP_NAV = [
+  { id: "soup-nav.down-j", chord: "j" },
+  { id: "soup-nav.down-arrow", chord: "arrowdown" },
+  { id: "soup-nav.up-k", chord: "k" },
+  { id: "soup-nav.up-arrow", chord: "arrowup" },
+] as const;
+
 const LEADERS: readonly { id: string; leader: LeaderKey; chord: LeaderKey }[] = [
   { id: "global.create", leader: "c", chord: "c" },
   { id: "global.go-to", leader: "g", chord: "g" },
@@ -122,6 +129,17 @@ export function registerSliceHotkeys(
       registrationType: "override",
       runWithInputFocused: false,
       handle: () => handle(tab.id),
+    });
+  }
+  for (const nav of SOUP_NAV) {
+    registry.register({
+      id: nav.id,
+      scope: "split",
+      chord: nav.chord,
+      priority: 0,
+      registrationType: "override",
+      runWithInputFocused: false,
+      handle: () => handle(nav.id),
     });
   }
 }

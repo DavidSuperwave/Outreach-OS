@@ -29,7 +29,7 @@ Proven in `packages/task-slice/src/slice.test.tsx` (15 ids dispatched through
 - `go-to.tasks` (`g` then `t`)
 - `soup.tab-1/2/3` (All / Open / Done)
 - `soup.open` (`enter`)
-- `soup-nav` `j`/`k` focus (pane-local)
+- `soup-nav` `j`/`k`/`arrowdown`/`arrowup` through `CommandRegistry` (toolbar buttons `soup-nav.down-j` / `soup-nav.up-k`)
 - `soup-entity.mark-done` (`e`) / `mark-not-done` (`shift+e`)
 - `soup-entity.rename` (`r`)
 - `soup-entity.status` (`shift+cmd+s`) / `priority` (`shift+cmd+p`) / `assignee` (`shift+cmd+a`)

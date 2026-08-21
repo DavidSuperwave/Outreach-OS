@@ -55,6 +55,12 @@ function clickInFocusedRow(selector: string): boolean {
   return Boolean(node);
 }
 
+function clickSliceCommand(command: string): boolean {
+  const node = document.querySelector<HTMLElement>(`[data-slice='task'] [data-command='${command}']`);
+  node?.click();
+  return Boolean(node);
+}
+
 function handleLiveSliceHotkey(id: string): boolean {
   switch (id) {
     case "global.create":
@@ -75,11 +81,8 @@ function handleLiveSliceHotkey(id: string): boolean {
       return true;
     case "soup.tab-1":
     case "soup.tab-2":
-    case "soup.tab-3": {
-      const tab = document.querySelector<HTMLButtonElement>(`[data-slice='task'] [data-command='${id}']`);
-      tab?.click();
-      return Boolean(tab);
-    }
+    case "soup.tab-3":
+      return clickSliceCommand(id);
     case "soup.open": {
       const row = focusedTaskRow();
       row?.setAttribute("data-opened", "true");
@@ -101,6 +104,12 @@ function handleLiveSliceHotkey(id: string): boolean {
       return focusInFocusedRow("input[data-command='soup-entity.assignee']");
     case "soup-entity.tags":
       return focusInFocusedRow("input[data-command='soup-entity.tags']");
+    case "soup-nav.down-j":
+    case "soup-nav.down-arrow":
+      return clickSliceCommand("soup-nav.down-j");
+    case "soup-nav.up-k":
+    case "soup-nav.up-arrow":
+      return clickSliceCommand("soup-nav.up-k");
     default:
       return false;
   }
