@@ -106,7 +106,7 @@ describe("N21 Branch A cutover checklist", () => {
     }
   });
 
-  it("signs every 09 release gate across kept domain packages", () => {
+  it("contract-layer coverage index touches every 09 gate topic (NOT release-gate sign-off)", () => {
     expect(DOMAIN_RELEASE_SIGNOFF.map((row) => row.pkg).sort()).toEqual([...REQUIRED_DOMAIN_PACKAGES].sort());
     expect(signedGateIds()).toEqual([...RELEASE_GATE_IDS]);
     expect(STORAGE_OWNERS.length).toBeGreaterThan(0);

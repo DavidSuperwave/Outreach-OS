@@ -1,9 +1,15 @@
 import { REQUIRED_DOMAIN_PACKAGES } from "./catalog.js";
 
 /**
- * The ten wave release gates from `09-TESTING-PARITY-AND-RELEASE-GATES.md`.
- * N21 Branch A sign-off is per-domain at the N1–N6 in-process bar — not live
- * Cloudflare traffic.
+ * CONTRACT-LAYER VERIFICATION BAR — explicitly NOT the release gates.
+ *
+ * This table maps each in-memory domain package to the gate *topics* its
+ * contract-layer tests touch. It is a coverage index over the in-process
+ * model code in this repo, nothing more. It confers no release sign-off:
+ * the authoritative release gates are defined in
+ * `docs/neuwave-rewrite/09-TESTING-PARITY-AND-RELEASE-GATES.md` and are NOT
+ * passed by this code — no live Cloudflare substrate (DO/D1/R2/Queues),
+ * no deployed traffic, no production-shaped RPC boundary exists here.
  */
 export const RELEASE_GATE_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export type ReleaseGateId = (typeof RELEASE_GATE_IDS)[number];
@@ -29,7 +35,12 @@ export interface DomainReleaseSignoff {
   leftover: string;
 }
 
-/** Every kept domain node signs the gates it owns at the in-process Done bar. */
+/**
+ * Per-domain index of which gate topics the package's in-memory contract
+ * tests exercise, and what live substrate each domain still lacks. This is
+ * bookkeeping for the contract layer only — it is not a sign-off against the
+ * 09 release gates, which remain unmet for every row.
+ */
 export const DOMAIN_RELEASE_SIGNOFF: readonly DomainReleaseSignoff[] = [
   { domain: "identity", pkg: "identity", node: "N1", gates: [1, 2, 3], leftover: "live Cloudflare Access" },
   { domain: "registry", pkg: "registry", node: "N2", gates: [1, 2, 3], leftover: "none at this bar" },
