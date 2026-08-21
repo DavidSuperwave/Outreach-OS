@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
 import { evictDurableObject, reset, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import { emptyAccess, grantShare } from "authz";
+import { emptyAccess, grantShare, withMembers } from "authz";
 import { requestContext } from "control-plane";
 import { userPrincipal } from "identity/principal";
 import { fixtureId, resetIdSequence } from "registry";
+import { ensureListSchema } from "soup";
 import { actorContext } from "../src/slice.js";
 import { DurableTaskApi } from "../src/durable-task-api.js";
 import { dryRunIdentityMapping } from "../src/mapping.js";
@@ -21,6 +22,7 @@ const tenantB = fixtureId("team", 2);
 const ownerId = fixtureId("user", 1);
 const teammateId = fixtureId("user", 2);
 const ownerBId = fixtureId("user", 3);
+const replacementId = fixtureId("user", 4);
 
 function ownerActor() {
   return actorContext(userPrincipal(ownerId, tenant));
@@ -44,6 +46,74 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(mapped[0]?.wrote).toBe(false);
     expect(mapped[0]?.entityType).toBe("document");
     expect(mapped[0]?.facet).toBe("task");
+  });
+
+  it("migrates populated v1 rows and rebuilds the projection without orphan access", async () => {
+    await testEnv.SOUP.prepare(`CREATE TABLE entity_row (
+      entity_id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      version INTEGER NOT NULL,
+      facet TEXT,
+      project_id TEXT,
+      body TEXT NOT NULL DEFAULT '',
+      unread INTEGER NOT NULL DEFAULT 0,
+      done INTEGER NOT NULL DEFAULT 0,
+      tombstoned INTEGER NOT NULL DEFAULT 0
+    )`).run();
+    await testEnv.SOUP.prepare(`CREATE TABLE entity_access_index (
+      actor_id TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      level TEXT NOT NULL,
+      PRIMARY KEY (actor_id, entity_id)
+    )`).run();
+    await testEnv.SOUP.prepare(
+      `INSERT INTO entity_row
+        (entity_id, entity_type, tenant_id, title, updated_at, created_at, version, facet)
+       VALUES ('legacy-doc', 'document', ?, 'Legacy', 2, 1, 1, 'task')`,
+    ).bind(tenant).run();
+    await testEnv.SOUP.prepare(
+      `INSERT INTO entity_access_index (actor_id, entity_id, entity_type, level)
+       VALUES (?, 'legacy-doc', 'document', 'owner')`,
+    ).bind(ownerId).run();
+
+    await ensureListSchema(testEnv.SOUP);
+    const { results: accessInfo } = await testEnv.SOUP.prepare(
+      "PRAGMA table_info(entity_access_index)",
+    ).all<{ name: string; pk: number }>();
+    expect(
+      accessInfo
+        .filter((column) => column.pk > 0)
+        .sort((a, b) => a.pk - b.pk)
+        .map((column) => column.name),
+    ).toEqual(["tenant_id", "actor_id", "entity_id"]);
+    const migrated = await testEnv.SOUP.prepare(
+      `SELECT tenant_id, actor_id, entity_id, level FROM entity_access_index`,
+    ).first<{ tenant_id: string; actor_id: string; entity_id: string; level: string }>();
+    expect(migrated).toEqual({
+      tenant_id: tenant,
+      actor_id: ownerId,
+      entity_id: "legacy-doc",
+      level: "owner",
+    });
+
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const created = await api.createTask(
+      "Post migration",
+      requestContext(ownerActor(), { correlationId: "post-migration" }),
+    );
+    await api.rebuildProjection(ownerActor());
+    expect((await api.listVisible(ownerActor())).map((item) => item.title)).toEqual(["Post migration"]);
+    const blank = await testEnv.SOUP.prepare(
+      "SELECT COUNT(*) AS count FROM entity_access_index WHERE tenant_id = ''",
+    ).first<{ count: number }>();
+    expect(blank?.count).toBe(0);
+    expect(created.task.id).toBe(fixtureId("document", 1));
   });
 
   it("creates, lists from D1, edits, and changes status through the RPC stub", async () => {
@@ -72,7 +142,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect((await stub.get(task.id, ownerActor()))?.done).toBe(true);
     expect(await api.listTasks([])).toHaveLength(0);
     const row = await testEnv.SOUP.prepare(
-      `SELECT title, status, priority, version, assignee_ids
+      `SELECT title, status, priority, version, assignee_ids, tags, done
        FROM entity_row WHERE tenant_id = ? AND entity_id = ?`,
     ).bind(tenant, task.id).first<{
       title: string;
@@ -80,6 +150,8 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
       priority: string;
       version: number;
       assignee_ids: string;
+      tags: string;
+      done: number;
     }>();
     expect(row).toEqual({
       title: "Ship the slice v2",
@@ -87,6 +159,8 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
       priority: "high",
       version: 6,
       assignee_ids: JSON.stringify([ownerId]),
+      tags: "[]",
+      done: 1,
     });
   });
 
@@ -297,6 +371,45 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     });
   });
 
+  it("keeps the previous complete D1 generation on mid-projection failure", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const { task, receipt } = await api.createTask(
+      "Complete generation",
+      requestContext(ownerActor(), { correlationId: "atomic-create" }),
+    );
+    await stub.failProjectionUntilAlarm();
+    const failed = api.updateTitle(
+      "Partial generation",
+      requestContext(ownerActor(), {
+        receipt,
+        correlationId: "atomic-update",
+        idempotencyKey: "atomic-update",
+      }),
+    ).then(
+      () => "updated",
+      (error: Error) => error.message,
+    );
+    expect(await failed).toMatch(/projection_failure_injection/);
+
+    const before = await testEnv.SOUP.prepare(
+      `SELECT title, version FROM entity_row WHERE tenant_id = ? AND entity_id = ?`,
+    ).bind(tenant, task.id).first<{ title: string; version: number }>();
+    expect(before).toEqual({ title: "Complete generation", version: 1 });
+    const ownerAccess = await testEnv.SOUP.prepare(
+      `SELECT level FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, ownerId, task.id).first<{ level: string }>();
+    expect(ownerAccess?.level).toBe("owner");
+
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const after = await testEnv.SOUP.prepare(
+      `SELECT title, version FROM entity_row WHERE tenant_id = ? AND entity_id = ?`,
+    ).bind(tenant, task.id).first<{ title: string; version: number }>();
+    expect(after).toEqual({ title: "Partial generation", version: 2 });
+  });
+
   it("keeps a newer mutation when it arrives while alarm recovery is pending", async () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
@@ -390,6 +503,11 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     await evictDurableObject(stub);
     await api.rebuildProjection(ownerActor());
     expect(await api.listVisible(teammateActor())).toHaveLength(1);
+    const rebuiltAccess = await testEnv.SOUP.prepare(
+      `SELECT level FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, teammateId, task.id).first<{ level: string }>();
+    expect(rebuiltAccess?.level).toBe("comment");
     await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
     const denied = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
     expect(denied.ok).toBe(false);
@@ -403,6 +521,144 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     ).bind(tenant, teammateId, task.id).first<{ count: number }>();
     expect(projected?.count).toBe(0);
     expect(await api.listTasks([receipt])).toHaveLength(1);
+  });
+
+  it("projects exact owner/share levels and denies membership-only document access", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const { task } = await api.createTask(
+      "Policy rows",
+      requestContext(ownerActor(), { correlationId: "policy-create" }),
+    );
+    const membersOnly = withMembers(emptyAccess(ownerId, tenant), [ownerId, teammateId]);
+    expect((await stub.shareState(task.id, membersOnly, ownerActor())).ok).toBe(true);
+    const memberRow = await testEnv.SOUP.prepare(
+      `SELECT level FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, teammateId, task.id).first<{ level: string }>();
+    expect(memberRow).toBeNull();
+    expect(await api.listVisible(teammateActor())).toEqual([]);
+
+    const shared = grantShare(membersOnly, teammateId, "comment");
+    expect((await stub.shareState(task.id, shared, ownerActor())).ok).toBe(true);
+    const { results } = await testEnv.SOUP.prepare(
+      `SELECT actor_id, level FROM entity_access_index
+       WHERE tenant_id = ? AND entity_id = ? ORDER BY actor_id`,
+    ).bind(tenant, task.id).all<{ actor_id: string; level: string }>();
+    expect(results).toEqual([
+      { actor_id: ownerId, level: "owner" },
+      { actor_id: teammateId, level: "comment" },
+    ]);
+  });
+
+  it("keeps colliding tenant/actor/entity ids isolated in rows and access PKs", async () => {
+    resetIdSequence();
+    const apiA = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const first = await apiA.createTask(
+      "Tenant A",
+      requestContext(ownerActor(), { correlationId: "collision-a" }),
+    );
+    resetIdSequence();
+    const sameOwnerB = actorContext(userPrincipal(ownerId, tenantB));
+    const apiB = new DurableTaskApi(testEnv.TASK_SLICE, tenantB);
+    const second = await apiB.createTask(
+      "Tenant B",
+      requestContext(sameOwnerB, { correlationId: "collision-b" }),
+    );
+    expect(second.task.id).toBe(first.task.id);
+    expect((await apiA.listVisible(ownerActor())).map((item) => item.title)).toEqual(["Tenant A"]);
+    expect((await apiB.listVisible(sameOwnerB)).map((item) => item.title)).toEqual(["Tenant B"]);
+    const { results: rows } = await testEnv.SOUP.prepare(
+      `SELECT tenant_id, title FROM entity_row
+       WHERE entity_id = ? ORDER BY tenant_id`,
+    ).bind(first.task.id).all<{ tenant_id: string; title: string }>();
+    expect(rows).toEqual([
+      { tenant_id: tenant, title: "Tenant A" },
+      { tenant_id: tenantB, title: "Tenant B" },
+    ]);
+    const { results: access } = await testEnv.SOUP.prepare(
+      `SELECT tenant_id, actor_id, entity_id FROM entity_access_index
+       WHERE actor_id = ? AND entity_id = ? ORDER BY tenant_id`,
+    ).bind(ownerId, first.task.id).all<{
+      tenant_id: string;
+      actor_id: string;
+      entity_id: string;
+    }>();
+    expect(access).toEqual([
+      { tenant_id: tenant, actor_id: ownerId, entity_id: first.task.id },
+      { tenant_id: tenantB, actor_id: ownerId, entity_id: first.task.id },
+    ]);
+  });
+
+  it("projects assignee edit access and fail-closes replacement and removal", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const { task, receipt } = await api.createTask(
+      "Assign me",
+      requestContext(ownerActor(), { correlationId: "assign-create" }),
+    );
+    await api.setAssignee(
+      teammateId,
+      requestContext(ownerActor(), {
+        receipt,
+        correlationId: "assign-add",
+        idempotencyKey: "assign-add",
+      }),
+    );
+    const assigned = await testEnv.SOUP.prepare(
+      `SELECT level FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, teammateId, task.id).first<{ level: string }>();
+    expect(assigned?.level).toBe("edit");
+    expect(await api.listVisible(teammateActor())).toHaveLength(1);
+
+    await stub.failNextOutboxSend();
+    const replace = api.setAssignee(
+      replacementId,
+      requestContext(ownerActor(), {
+        receipt,
+        correlationId: "assign-replace",
+        idempotencyKey: "assign-replace",
+      }),
+    ).then(
+      () => "updated",
+      (error: Error) => error.message,
+    );
+    expect(await replace).toMatch(/TASK_OUTBOX/);
+    expect(await api.listVisible(teammateActor())).toEqual([]);
+    const replacementActor = actorContext(userPrincipal(replacementId, tenant));
+    expect(await api.listVisible(replacementActor)).toEqual([]);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const replacement = await testEnv.SOUP.prepare(
+      `SELECT actor_id, level FROM entity_access_index
+       WHERE tenant_id = ? AND entity_id = ? AND actor_id IN (?, ?) ORDER BY actor_id`,
+    ).bind(tenant, task.id, teammateId, replacementId).all<{ actor_id: string; level: string }>();
+    expect(replacement.results).toEqual([{ actor_id: replacementId, level: "edit" }]);
+
+    await stub.failNextOutboxSend();
+    const remove = api.setAssignee(
+      "",
+      requestContext(ownerActor(), {
+        receipt,
+        correlationId: "assign-remove",
+        idempotencyKey: "assign-remove",
+      }),
+    ).then(
+      () => "updated",
+      (error: Error) => error.message,
+    );
+    expect(await remove).toMatch(/TASK_OUTBOX/);
+    expect(await api.listVisible(replacementActor)).toEqual([]);
+    const closed = await testEnv.SOUP.prepare(
+      `SELECT COUNT(*) AS count FROM entity_access_index
+       WHERE tenant_id = ? AND entity_id = ? AND actor_id = ?`,
+    ).bind(tenant, task.id, replacementId).first<{ count: number }>();
+    expect(closed?.count).toBe(0);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    const authority = await stub.get(task.id, ownerActor());
+    expect(authority?.assigneeIds).toEqual([]);
   });
 
   it("tenant A projection does not wipe tenant B D1 rows", async () => {
@@ -457,6 +713,62 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect(await stub.get(task.id, teammateActor())).toBeNull();
     expect(await stub.get(task.id, ownerActor())).not.toBeNull();
     void receipt;
+  });
+
+  it("closes revoke access before failed enqueue across every query and an existing socket", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const { task } = await api.createTask(
+      "Fail closed",
+      requestContext(ownerActor(), { correlationId: "revoke-create" }),
+    );
+    const shared = grantShare(emptyAccess(ownerId, tenant), teammateId, "comment");
+    expect((await stub.shareState(task.id, shared, ownerActor())).ok).toBe(true);
+    expect(await stub.poisonPending(5)).toBe(1);
+    expect(await api.listVisible(teammateActor())).toHaveLength(1);
+    expect(await api.listActivity(teammateActor())).not.toHaveLength(0);
+    expect(await api.listAlerts(teammateActor())).toHaveLength(1);
+
+    const ticket = await api.createSubscribeTicket(teammateActor());
+    const response = await api.subscribe(0, ticket.ticket);
+    const ws = response.webSocket;
+    if (!ws) throw new Error("expected websocket");
+    const closed = new Promise<Array<{ item: { entityId: string; tombstoned: boolean } }>>((resolve) => {
+      ws.addEventListener("message", (event) => {
+        const message = JSON.parse(String(event.data)) as {
+          deltas?: Array<{ item: { entityId: string; tombstoned: boolean } }>;
+        };
+        if (message.deltas?.some((delta) => delta.item.entityId === task.id && delta.item.tombstoned)) {
+          resolve(message.deltas);
+        }
+      });
+    });
+    ws.accept();
+
+    await stub.failNextOutboxSend();
+    const revoked = await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
+    expect(revoked.ok).toBe(false);
+    if (revoked.ok) throw new Error("expected injected enqueue failure");
+    expect(revoked.message).toMatch(/TASK_OUTBOX/);
+    expect(await Promise.race([
+      closed,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no revoke tombstone")), 1000)),
+    ])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item: expect.objectContaining({ entityId: task.id, tombstoned: true }) }),
+    ]));
+
+    expect(await api.listVisible(teammateActor())).toEqual([]);
+    expect(await api.replayFrom(0, teammateActor())).toEqual([]);
+    expect(await api.listActivity(teammateActor())).toEqual([]);
+    expect(await api.listAlerts(teammateActor())).toEqual([]);
+    const access = await testEnv.SOUP.prepare(
+      `SELECT level FROM entity_access_index
+       WHERE tenant_id = ? AND actor_id = ? AND entity_id = ?`,
+    ).bind(tenant, teammateId, task.id).first<{ level: string }>();
+    expect(access).toBeNull();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await api.listVisible(teammateActor())).toEqual([]);
   });
 
   it("re-mints at the DO boundary so a forged edit receipt cannot write", async () => {

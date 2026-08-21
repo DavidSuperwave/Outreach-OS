@@ -1,4 +1,12 @@
-import { AccessStore, PolicyEngine, emptyAccess, requireReceipt, type Receipt } from "authz";
+import {
+  AccessStore,
+  LEVEL_RANK,
+  PolicyEngine,
+  emptyAccess,
+  requireReceipt,
+  type AccessLevel,
+  type Receipt,
+} from "authz";
 import {
   ActivityLog,
   IdempotencyStore,
@@ -29,6 +37,14 @@ export interface TaskRecord {
 export interface TaskView {
   task: TaskRecord;
   receipt: Receipt;
+}
+
+interface ProjectedAccessRow {
+  actorId: string;
+  entityId: string;
+  entityType: "document";
+  tenantId: string;
+  level: AccessLevel;
 }
 
 export interface TaskApi {
@@ -83,13 +99,7 @@ export class TaskSlice {
   readonly activity = new ActivityLog();
   readonly idempotency = new IdempotencyStore();
   #docs = new Map<string, TaskRecord>();
-  #accessRows: Array<{
-    actorId: string;
-    entityId: string;
-    entityType: "document";
-    tenantId: string;
-    level: string;
-  }> = [];
+  #accessRows: ProjectedAccessRow[] = [];
   #clock = 0;
 
   openApi(): TaskApi {
@@ -152,7 +162,13 @@ export class TaskSlice {
   }
 
   setAssignee(assigneeId: string, ctx: RequestContext): TaskRecord {
-    return this.mutate(ctx, "edit", (task) => ({ ...task, assigneeIds: [assigneeId] }), "property_changed");
+    return this.mutate(ctx, "edit", (task) => {
+      const assigneeIds = assigneeId ? [assigneeId] : [];
+      const state = this.access.require(task.id);
+      this.access.put(task.id, { ...state, assigneeIds });
+      this.rebuildAccessProjection();
+      return { ...task, assigneeIds };
+    }, "property_changed");
   }
 
   markDone(done: boolean, ctx: RequestContext): TaskRecord {
@@ -182,22 +198,25 @@ export class TaskSlice {
 
   /** Project policy outcomes after authoritative ACL writes or snapshot restore. */
   rebuildAccessProjection(): void {
-    this.#accessRows = this.access.snapshot().flatMap(({ entityId, state }) => [
-      {
-        actorId: state.ownerId,
-        entityId,
-        entityType: "document" as const,
-        tenantId: state.tenantId,
-        level: "owner",
-      },
-      ...state.shares.map((share) => ({
-        actorId: share.actorId,
-        entityId,
-        entityType: "document" as const,
-        tenantId: state.tenantId,
-        level: share.level,
-      })),
-    ]);
+    const rows = new Map<string, ProjectedAccessRow>();
+    const add = (
+      tenantId: string,
+      actorId: string,
+      entityId: string,
+      level: AccessLevel,
+    ) => {
+      const key = `${tenantId}\0${actorId}\0${entityId}`;
+      const current = rows.get(key);
+      if (!current || LEVEL_RANK[level] > LEVEL_RANK[current.level]) {
+        rows.set(key, { actorId, entityId, entityType: "document", tenantId, level });
+      }
+    };
+    for (const { entityId, state } of this.access.snapshot()) {
+      add(state.tenantId, state.ownerId, entityId, "owner");
+      for (const share of state.shares) add(state.tenantId, share.actorId, entityId, share.level);
+      for (const assigneeId of state.assigneeIds) add(state.tenantId, assigneeId, entityId, "edit");
+    }
+    this.#accessRows = [...rows.values()];
   }
 
   get(id: string): TaskRecord | undefined {

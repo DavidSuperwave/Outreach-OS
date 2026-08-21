@@ -5,6 +5,7 @@ import type { ActorContext } from "identity/principal";
 import { envelope, type RequestContext } from "control-plane";
 import {
   ensureListSchema,
+  closeAccessProjectionRows,
   projectListSnapshot,
   queryFacetRows,
   queryVisibleEntityIds,
@@ -39,6 +40,12 @@ export const PROJECTION_ALARM_RETRY_MS = 1_000;
 
 interface PendingProjection {
   generation: number;
+  tenantId: string;
+}
+
+interface ClosedAccess {
+  actorId: string;
+  entityId: string;
   tenantId: string;
 }
 
@@ -119,6 +126,22 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   #accessProjection(slice: TaskSlice, tenantId: string): AccessProjectionRow[] {
     return slice.accessProjection(tenantId);
+  }
+
+  #closedAccess(
+    before: readonly AccessProjectionRow[],
+    after: readonly AccessProjectionRow[],
+  ): ClosedAccess[] {
+    const next = new Map(
+      after.map((row) => [`${row.tenantId}\0${row.actorId}\0${row.entityId}`, row.level]),
+    );
+    return before
+      .filter((row) => next.get(`${row.tenantId}\0${row.actorId}\0${row.entityId}`) !== row.level)
+      .map(({ actorId, entityId, tenantId }) => ({ actorId, entityId, tenantId }));
+  }
+
+  async #closeAccess(rows: readonly ClosedAccess[]): Promise<void> {
+    await closeAccessProjectionRows(this.env.SOUP, rows);
   }
 
   async #visibleDeltas(slice: TaskSlice, actor: ActorContext, fromSeq: number): Promise<SoupDelta[]> {
@@ -207,17 +230,21 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     enqueue: boolean,
   ): Promise<void> {
     if (enqueue) await this.#enqueueProjection(pending.tenantId);
+    const injectFailure = this.ctx.storage.sql
+      .exec<{ v: string }>("SELECT v FROM meta WHERE k = 'test_fail_projection_until_alarm'")
+      .toArray()[0];
     await projectListSnapshot(
       this.env.SOUP,
       slice.plane.lists.snapshot(),
       pending.tenantId,
       this.#accessProjection(slice, pending.tenantId),
+      { injectFailure: Boolean(injectFailure) },
     );
     await this.#completeProjection(pending.generation);
     await this.#broadcast(slice);
   }
 
-  async #save(slice: TaskSlice): Promise<void> {
+  async #save(slice: TaskSlice, closedAccess: readonly ClosedAccess[] = []): Promise<void> {
     const tenantId = this.#tenantId(slice) ?? slice.toSnapshot().docs[0]?.tenantId;
     if (!tenantId) {
       this.#persistSnapshot(slice);
@@ -228,6 +255,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     // alarm cannot clear this recovery path before its matching marker exists.
     await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
     const generation = this.#persistAuthority(slice, tenantId);
+    this.#broadcastAccessClosures(slice, closedAccess);
     try {
       await this.#deliverProjection(slice, { generation, tenantId }, true);
     } catch (error) {
@@ -270,6 +298,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       slice.drain();
       this.#persistSnapshot(slice);
       try {
+        this.ctx.storage.sql.exec("DELETE FROM meta WHERE k = 'test_fail_projection_until_alarm'");
         await this.#deliverProjection(slice, pending, true);
       } catch {
         await this.ctx.storage.setAlarm(Date.now() + PROJECTION_ALARM_RETRY_MS);
@@ -288,6 +317,35 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
       }
       ws.send(JSON.stringify({ type: "delta", deltas, seq: slice.plane.lists.seq }));
       ws.serializeAttachment({ cursor: slice.plane.lists.seq, actor: att.actor } satisfies SubscribeAttachment);
+    }
+  }
+
+  #broadcastAccessClosures(slice: TaskSlice, closed: readonly ClosedAccess[]): void {
+    if (closed.length === 0) return;
+    const byActor = new Map<string, SoupDelta[]>();
+    for (const row of closed) {
+      const item = slice.plane.lists.get(row.entityId);
+      if (!item) continue;
+      const key = `${row.tenantId}\0${row.actorId}`;
+      const deltas = byActor.get(key) ?? [];
+      deltas.push({ seq: slice.plane.lists.seq, item: { ...item, tombstoned: true } });
+      byActor.set(key, deltas);
+    }
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as SubscribeAttachment | null;
+      const tenantId = att?.actor.actor.tenantId;
+      if (!att?.actor || !tenantId) continue;
+      const deltas = byActor.get(`${tenantId}\0${att.actor.actor.id}`);
+      if (!deltas?.length) continue;
+      try {
+        ws.send(JSON.stringify({ type: "delta", deltas, seq: slice.plane.lists.seq }));
+        ws.serializeAttachment({
+          cursor: slice.plane.lists.seq,
+          actor: att.actor,
+        } satisfies SubscribeAttachment);
+      } catch {
+        // A disconnected hibernating socket does not reopen access.
+      }
     }
   }
 
@@ -470,6 +528,15 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     });
   }
 
+  /** Fault injection: every projector attempt fails until the recovery alarm. */
+  async failProjectionUntilAlarm(): Promise<void> {
+    await this.#serializeWrite(async () => {
+      this.ctx.storage.sql.exec(
+        "INSERT OR REPLACE INTO meta (k, v) VALUES ('test_fail_projection_until_alarm', '1')",
+      );
+    });
+  }
+
   async get(id: string, actor: ActorContext): Promise<TaskRecord | null> {
     const slice = this.#load();
     this.#assertTenant(actor, slice);
@@ -497,9 +564,14 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
           need: "owner",
         });
         requireReceipt(receipt, "owner", entityId);
+        const tenantId = this.#tenantId(slice);
+        if (!tenantId || state.tenantId !== tenantId) throw new Error("access state tenant mismatch");
+        const before = this.#accessProjection(slice, tenantId);
         slice.access.put(entityId, state);
         slice.rebuildAccessProjection();
-        await this.#save(slice);
+        const closed = this.#closedAccess(before, this.#accessProjection(slice, tenantId));
+        await this.#closeAccess(closed);
+        await this.#save(slice, closed);
         return { ok: true as const };
       });
     } catch (error) {
@@ -546,8 +618,14 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
         need,
       });
       const gated: RequestContext = { ...ctx, receipt };
+      const tenantId = this.#tenantId(slice);
+      const before = tenantId ? this.#accessProjection(slice, tenantId) : [];
       const next = run(slice, gated);
-      await this.#save(slice);
+      const closed = tenantId
+        ? this.#closedAccess(before, this.#accessProjection(slice, tenantId))
+        : [];
+      await this.#closeAccess(closed);
+      await this.#save(slice, closed);
       return next;
     });
   }

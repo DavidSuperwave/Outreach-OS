@@ -26,10 +26,11 @@ export {
   queryVisibleFacetRows,
   queryVisibleEntityIds,
   replaceAccessProjection,
+  closeAccessProjectionRows,
   projectListSnapshot,
   rowToItem,
 } from "./d1-lists.js";
-export type { SoupD1, EntityRowRecord, AccessProjectionRow } from "./d1-lists.js";
+export type { SoupD1, SoupD1Statement, EntityRowRecord, AccessProjectionRow } from "./d1-lists.js";
 export type { SchemaFamilyName, SchemaFamilyContract, SearchEntityType } from "./schemas.js";
 export { groupItems, flattenGroups, toggleCollapsed, groupKey } from "./grouping.js";
 export type { SoupGroup, SoupGroupBy } from "./grouping.js";

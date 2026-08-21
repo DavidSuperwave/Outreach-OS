@@ -7,7 +7,7 @@ class MemoryD1 implements SoupD1 {
   #rows = new Map<string, Record<string, unknown>>();
   #ready = false;
 
-  prepare(query: string) {
+  prepare(query: string): any {
     const sql = query.trim();
     return {
       bind: (...values: unknown[]) => ({
@@ -29,7 +29,7 @@ class MemoryD1 implements SoupD1 {
             for (const id of drop) this.#rows.delete(id);
             return;
           }
-          if (sql.startsWith("INSERT OR REPLACE")) {
+          if (sql.startsWith("INSERT OR REPLACE INTO entity_row")) {
             const [
               entity_id,
               entity_type,
@@ -49,7 +49,7 @@ class MemoryD1 implements SoupD1 {
               assignee_ids,
               tags,
             ] = values;
-            this.#rows.set(String(entity_id), {
+            this.#rows.set(`${String(tenant_id)}:${String(entity_id)}`, {
               entity_id,
               entity_type,
               tenant_id,
@@ -71,6 +71,27 @@ class MemoryD1 implements SoupD1 {
           }
         },
         all: async <T>() => {
+          if (sql === "PRAGMA table_info(entity_row)") {
+            return {
+              results: [
+                { name: "tenant_id", pk: 1 },
+                { name: "entity_id", pk: 2 },
+                { name: "status", pk: 0 },
+                { name: "priority", pk: 0 },
+                { name: "assignee_ids", pk: 0 },
+                { name: "tags", pk: 0 },
+              ] as T[],
+            };
+          }
+          if (sql === "PRAGMA table_info(entity_access_index)") {
+            return {
+              results: [
+                { name: "tenant_id", pk: 1 },
+                { name: "actor_id", pk: 2 },
+                { name: "entity_id", pk: 3 },
+              ] as T[],
+            };
+          }
           const tenantId = values[0];
           const facet = values[1];
           const results = [...this.#rows.values()].filter(
@@ -81,9 +102,31 @@ class MemoryD1 implements SoupD1 {
       }),
     };
   }
+
+  async batch(statements: any[]): Promise<unknown[]> {
+    const results: unknown[] = [];
+    for (const statement of statements) results.push(await statement.run());
+    return results;
+  }
 }
 
 describe("D1 lists projector (OD-27)", () => {
+  it("propagates unrelated schema initialization failures", async () => {
+    const db = {
+      prepare: () => ({
+        bind() {
+          return this;
+        },
+        run: async () => {
+          throw new Error("D1 storage unavailable");
+        },
+        all: async () => ({ results: [] }),
+      }),
+      batch: async () => [],
+    } satisfies SoupD1;
+    await expect(ensureListSchema(db)).rejects.toThrow("D1 storage unavailable");
+  });
+
   it("applies list DDL and round-trips a task document row", async () => {
     const db = new MemoryD1();
     await ensureListSchema(db);
