@@ -10,7 +10,7 @@
   },
   "scripts": {
     "types:check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
     "authz": "workspace:*",
@@ -23,10 +23,12 @@
     "soup": "workspace:*"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.20.1",
     "@types/node": "^26.1.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.115.0"
   }
 }

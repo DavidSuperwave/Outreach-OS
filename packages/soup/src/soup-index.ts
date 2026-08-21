@@ -120,6 +120,21 @@ export class SoupIndex implements ProjectionFamily {
     return [...this.#rows.values()].filter((item) => !item.tombstoned);
   }
 
+  persistence(): { items: SoupItem[]; seq: number; log: SoupDelta[] } {
+    return {
+      items: [...this.#rows.values()].map((item) => ({ ...item })),
+      seq: this.#seq,
+      log: this.#log.map((delta) => ({ seq: delta.seq, item: { ...delta.item } })),
+    };
+  }
+
+  restore(snapshot: { items: readonly SoupItem[]; seq: number; log: readonly SoupDelta[] }): void {
+    this.#rows = new Map(snapshot.items.map((item) => [item.entityId, { ...item }]));
+    this.#seq = snapshot.seq;
+    this.#log = snapshot.log.map((delta) => ({ seq: delta.seq, item: { ...delta.item } }));
+    this.#listeners.clear();
+  }
+
   /**
    * Mixed list. Rows the actor cannot View never render (ADR-004 read-side).
    * `receipts` must already be minted; this projection does not mint.

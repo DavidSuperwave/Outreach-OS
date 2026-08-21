@@ -231,6 +231,17 @@ describe("Shell boots", () => {
     expect(blocked).toContain("data-unserved");
   });
 
+  it("renders the task compose popover and Soup list on /tasks", () => {
+    const html = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", panes: [{ type: "tasks", id: "_" }] }),
+    );
+    expect(html).toContain("data-slice=\"task\"");
+    expect(html).toContain("data-scope=\"task-compose-popover\"");
+    expect(html).toContain("data-surface=\"soup.tasks\"");
+    expect(html).toContain("aria-label=\"Task title\"");
+    expect(html).not.toMatch(/macro/i);
+  });
+
   it("renders N10 settings connections, MCP harvest, and bots XOR copy", () => {
     const connections = renderToString(createElement(Shell, { path: "/settings", theme: "outreach-dark" }));
     expect(connections).toContain("data-command=\"settings.connections\"");

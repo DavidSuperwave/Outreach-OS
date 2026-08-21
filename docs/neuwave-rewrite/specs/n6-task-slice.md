@@ -21,7 +21,10 @@ Duplicate idempotency keys are no-ops. Poison publishes are marked-and-skipped.
 
 ## Storage and indexes
 
-In-process document map (authority) + N3 outbox + N4 `ProjectionPlane` (lists/search families).
+Authoritative document map on `TaskSliceDurableObject` SQLite (survives eviction).
+N3 outbox lives in the same snapshot. N4 lists family is projected to D1 `entity_row`
+(OD-27). In-process maps remain the unit-test core.
+
 
 ## RPC/API contract
 
@@ -40,6 +43,9 @@ React: `TaskWorkspace` / `TaskComposePopover` / `TaskList` on the N5 shell.
 `packages/task-slice/src/slice.test.tsx` — mapping dry run, create/edit/list/status, live
 subscription replay, rebuild+poison, idempotency, SEC-1/cross-tenant, 15 commands including
 `c`+`t`, SSR surface.
+
+`packages/task-slice/__tests__/task-do.test.ts` — Miniflare DO + D1: eviction, RPC stub,
+cursor reconnect, D1 rebuild, idempotency, SEC-1.
 
 ## Failure modes and rollback
 

@@ -17,6 +17,15 @@ export {
   SEARCH_SCHEMA_DDL,
   isSearchEntityType,
 } from "./schemas.js";
+export {
+  ensureListSchema,
+  upsertEntityRow,
+  clearEntityRows,
+  queryFacetRows,
+  projectListSnapshot,
+  rowToItem,
+} from "./d1-lists.js";
+export type { SoupD1, EntityRowRecord } from "./d1-lists.js";
 export type { SchemaFamilyName, SchemaFamilyContract, SearchEntityType } from "./schemas.js";
 export { groupItems, flattenGroups, toggleCollapsed, groupKey } from "./grouping.js";
 export type { SoupGroup, SoupGroupBy } from "./grouping.js";

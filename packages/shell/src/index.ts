@@ -11,5 +11,6 @@ export { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } fro
 export type { KernelConsumedRpc } from "./kernel-surface.js";
 export { Shell } from "./Shell.js";
 export type { ShellProps } from "./Shell.js";
+export { TaskPane } from "./task-pane.js";
 export { SettingsChrome, SETTINGS_TABS, settingsTabFromPath, SETTINGS_TAB_COMMAND } from "./settings.js";
 export type { SettingsTab } from "./settings.js";

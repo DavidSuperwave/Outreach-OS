@@ -37,4 +37,13 @@ export class AccessStore {
     }
     return out;
   }
+
+  snapshot(): Array<{ entityId: string; state: AccessState }> {
+    return [...this.#rows.entries()].map(([entityId, state]) => ({ entityId, state }));
+  }
+
+  restore(rows: readonly { entityId: string; state: AccessState }[]): void {
+    this.#rows.clear();
+    for (const row of rows) this.#rows.set(row.entityId, row.state);
+  }
 }

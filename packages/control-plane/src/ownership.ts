@@ -67,6 +67,13 @@ export const STORAGE_OWNERS: StorageOwner[] = [
     checkpoint: "memory.alarm",
   },
   {
+    name: "task_slice_authority",
+    kind: "do",
+    owner: "task-slice.TaskSliceDurableObject",
+    rebuildSource: "TaskSlice DO sqlite snapshot (document + facet task)",
+    checkpoint: "documents.outbox",
+  },
+  {
     name: "document_authority",
     kind: "do",
     owner: "documents.DocumentsSlice",

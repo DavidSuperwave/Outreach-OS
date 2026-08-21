@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
+import { TaskPane } from "./task-pane.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
 
 export interface ShellProps {
@@ -82,7 +83,7 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
               <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
             ) : null}
             {pane.type === "tasks" ? (
-              <p>Tasks (N8): properties, bulk edit, kanban/grid. One Task Database.</p>
+              <TaskPane items={[]} composeOpen draft="" />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}
             {pane.type === "channel" ? (

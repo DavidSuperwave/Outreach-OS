@@ -60,6 +60,17 @@ function soupCtx(overrides: Partial<SoupCommandContext> = {}): SoupCommandContex
 }
 
 describe("N6 task vertical slice (11 gates)", () => {
+  it("round-trips authority through a JSON snapshot (DO persistence shape)", () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const api = slice.openApi();
+    const { task, receipt } = api.createTask("Snap", requestContext(ownerActor(), { correlationId: "snap" }));
+    const restored = TaskSlice.fromSnapshot(JSON.parse(JSON.stringify(slice.toSnapshot())));
+    expect(restored.get(task.id)?.title).toBe("Snap");
+    expect(restored.listTasks([receipt]).map((item) => item.title)).toEqual(["Snap"]);
+    expect(restored.activity.list()[0]?.action).toBe("created");
+  });
+
   it("maps legacy task ids without writing (OD-1 Branch A)", () => {
     const slice = new TaskSlice();
     const mapped = dryRunIdentityMapping([{ table: "tasks", pgId: 42 }]);

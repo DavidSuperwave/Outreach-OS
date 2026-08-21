@@ -11,7 +11,7 @@ import {
 } from "control-plane";
 import type { ActorContext } from "identity/principal";
 import { EntityRegistry, nextId } from "registry";
-import { ProjectionPlane, type SoupItem, type SoupListener } from "soup";
+import { ProjectionPlane, type SoupDelta, type SoupItem, type SoupListener } from "soup";
 
 export interface TaskRecord {
   id: string;
@@ -42,6 +42,31 @@ export interface TaskApi {
   subscribe(listener: SoupListener): () => void;
 }
 
+/** Wire-shaped async capability (ADR-002). Implemented by TaskSliceDurableObject. */
+export interface TaskRpc {
+  createTask(title: string, ctx: RequestContext): Promise<TaskView>;
+  updateTitle(title: string, ctx: RequestContext): Promise<TaskRecord>;
+  setStatus(status: string, ctx: RequestContext): Promise<TaskRecord>;
+  setPriority(priority: string, ctx: RequestContext): Promise<TaskRecord>;
+  setAssignee(assigneeId: string, ctx: RequestContext): Promise<TaskRecord>;
+  markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
+  listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
+  seq(): Promise<number>;
+  replayFrom(seq: number): Promise<SoupDelta[]>;
+  rebuildProjection(): Promise<void>;
+}
+
+export interface TaskSliceSnapshot {
+  docs: TaskRecord[];
+  registry: ReturnType<EntityRegistry["snapshot"]>;
+  access: ReturnType<AccessStore["snapshot"]>;
+  outbox: ReturnType<Outbox["snapshot"]>;
+  activity: ReturnType<ActivityLog["list"]>;
+  idempotency: ReturnType<IdempotencyStore["snapshot"]>;
+  plane: ReturnType<ProjectionPlane["lists"]["persistence"]>;
+  clock: number;
+}
+
 /**
  * Authoritative task store is document + facet `task` (OD-7).
  * Outbox drain is the async side effect; Soup is the projection; ActivityLog is audit.
@@ -60,12 +85,11 @@ export class TaskSlice {
   openApi(): TaskApi {
     return {
       createTask: (title, ctx) => this.createTask(title, ctx),
-      updateTitle: (title, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, title })),
-      setStatus: (status, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, status }), "property_changed"),
-      setPriority: (priority, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, priority }), "property_changed"),
-      setAssignee: (assigneeId, ctx) =>
-        this.mutate(ctx, "edit", (task) => ({ ...task, assigneeIds: [assigneeId] }), "property_changed"),
-      markDone: (done, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, done })),
+      updateTitle: (title, ctx) => this.updateTitle(title, ctx),
+      setStatus: (status, ctx) => this.setStatus(status, ctx),
+      setPriority: (priority, ctx) => this.setPriority(priority, ctx),
+      setAssignee: (assigneeId, ctx) => this.setAssignee(assigneeId, ctx),
+      markDone: (done, ctx) => this.markDone(done, ctx),
       listTasks: (receipts) => this.listTasks(receipts),
       subscribe: (listener) => this.plane.lists.subscribe(listener),
     };
@@ -102,6 +126,26 @@ export class TaskSlice {
     };
     if (ctx.idempotencyKey) return runOnce(this.idempotency, ctx.idempotencyKey, run);
     return run();
+  }
+
+  updateTitle(title: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, title }));
+  }
+
+  setStatus(status: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, status }), "property_changed");
+  }
+
+  setPriority(priority: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, priority }), "property_changed");
+  }
+
+  setAssignee(assigneeId: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, assigneeIds: [assigneeId] }), "property_changed");
+  }
+
+  markDone(done: boolean, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, done }));
   }
 
   listTasks(receipts: readonly Receipt[]): SoupItem[] {
@@ -184,6 +228,32 @@ export class TaskSlice {
   #now(): number {
     this.#clock += 1;
     return this.#clock;
+  }
+
+  toSnapshot(): TaskSliceSnapshot {
+    return {
+      docs: [...this.#docs.values()].map((doc) => ({ ...doc })),
+      registry: this.registry.snapshot(),
+      access: this.access.snapshot(),
+      outbox: this.outbox.snapshot(),
+      activity: this.activity.list().map((fact) => ({ ...fact })),
+      idempotency: this.idempotency.snapshot(),
+      plane: this.plane.lists.persistence(),
+      clock: this.#clock,
+    };
+  }
+
+  static fromSnapshot(snapshot: TaskSliceSnapshot): TaskSlice {
+    const slice = new TaskSlice();
+    slice.registry.restore(snapshot.registry);
+    slice.access.restore(snapshot.access);
+    slice.outbox.restore(snapshot.outbox);
+    slice.activity.restore(snapshot.activity);
+    slice.idempotency.restore(snapshot.idempotency);
+    slice.plane.lists.restore(snapshot.plane);
+    slice.#docs = new Map(snapshot.docs.map((doc) => [doc.id, { ...doc }]));
+    slice.#clock = snapshot.clock;
+    return slice;
   }
 }
 

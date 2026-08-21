@@ -1,0 +1,24 @@
+{
+  "name": "outreach-task-slice",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TaskSliceDurableObject"]
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "TASK_SLICE", "class_name": "TaskSliceDurableObject" }
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "SOUP",
+      "database_name": "outreach-soup",
+      "database_id": "local-soup"
+    }
+  ]
+}
