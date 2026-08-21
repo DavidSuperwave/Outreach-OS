@@ -23,10 +23,9 @@ interface DurableObjectStub<T> {
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   seq(): Promise<number>;
-  replayFrom(seq: number): Promise<SoupDelta[]>;
-  rebuildProjection(): Promise<void>;
-  poisonPending(attempts?: number): Promise<number>;
-  get(id: string): Promise<TaskRecord | null>;
+  replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
+  rebuildProjection(actor: ActorContext): Promise<void>;
+  get(id: string, actor: ActorContext): Promise<TaskRecord | null>;
   shareState(
     entityId: string,
     state: AccessState,
@@ -86,16 +85,12 @@ export class DurableTaskApi implements TaskRpc {
     return this.#stub().seq();
   }
 
-  replayFrom(seq: number): Promise<SoupDelta[]> {
-    return this.#stub().replayFrom(seq);
+  replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]> {
+    return this.#stub().replayFrom(seq, actor);
   }
 
-  rebuildProjection(): Promise<void> {
-    return this.#stub().rebuildProjection();
-  }
-
-  poisonPending(attempts?: number): Promise<number> {
-    return this.#stub().poisonPending(attempts);
+  rebuildProjection(actor: ActorContext): Promise<void> {
+    return this.#stub().rebuildProjection(actor);
   }
 
   shareState(
@@ -106,9 +101,12 @@ export class DurableTaskApi implements TaskRpc {
     return this.#stub().shareState(entityId, state, actor);
   }
 
-  subscribe(cursor = 0): Promise<Response> {
+  subscribe(cursor = 0, actor: ActorContext): Promise<Response> {
     return this.#stub().fetch(`https://task-slice/subscribe?cursor=${cursor}`, {
-      headers: { Upgrade: "websocket" },
+      headers: {
+        Upgrade: "websocket",
+        "x-neuwave-actor": JSON.stringify(actor),
+      },
     });
   }
 }

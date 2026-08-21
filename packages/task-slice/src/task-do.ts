@@ -18,6 +18,7 @@ export interface TaskSliceEnv {
 
 interface SubscribeAttachment {
   cursor: number;
+  actor: ActorContext;
 }
 
 /**
@@ -58,6 +59,47 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return slice?.toSnapshot().docs[0]?.tenantId;
   }
 
+  #assertTenant(actor: ActorContext, slice?: TaskSlice): void {
+    const claimed = actor.actor.tenantId;
+    if (!claimed) throw new Error("tenant-scoped actor required");
+    const bound = this.#tenantId(slice);
+    if (bound && bound !== claimed) throw new Error("tenant mismatch");
+  }
+
+  #viewReceipts(slice: TaskSlice, actor: ActorContext): Receipt[] {
+    const receipts: Receipt[] = [];
+    for (const doc of slice.toSnapshot().docs) {
+      try {
+        receipts.push(
+          slice.engine.mint({
+            actor,
+            entityType: "document",
+            entityId: doc.id,
+            need: "view",
+          }),
+        );
+      } catch {
+        // Actor cannot view this document (SEC-1).
+      }
+    }
+    return receipts;
+  }
+
+  #visibleDeltas(slice: TaskSlice, actor: ActorContext, fromSeq: number): SoupDelta[] {
+    const receipts = this.#viewReceipts(slice, actor);
+    return slice.plane.lists.replayFrom(fromSeq).filter((delta) => filterVisible([delta.item], receipts).length > 0);
+  }
+
+  #parseActor(request: Request): ActorContext | null {
+    const raw = request.headers.get("x-neuwave-actor");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as ActorContext;
+    } catch {
+      return null;
+    }
+  }
+
   async #save(slice: TaskSlice): Promise<void> {
     this.ctx.storage.sql.exec(
       "INSERT OR REPLACE INTO snapshot (id, json) VALUES (1, ?)",
@@ -73,24 +115,36 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   #broadcast(slice: TaskSlice): void {
     for (const ws of this.ctx.getWebSockets()) {
-      const att = (ws.deserializeAttachment() as SubscribeAttachment | null) ?? { cursor: 0 };
-      const deltas = slice.plane.lists.replayFrom(att.cursor);
-      if (deltas.length === 0) continue;
+      const att = ws.deserializeAttachment() as SubscribeAttachment | null;
+      if (!att?.actor) continue;
+      const deltas = this.#visibleDeltas(slice, att.actor, att.cursor);
+      if (deltas.length === 0) {
+        ws.serializeAttachment({ cursor: slice.plane.lists.seq, actor: att.actor } satisfies SubscribeAttachment);
+        continue;
+      }
       ws.send(JSON.stringify({ type: "delta", deltas, seq: slice.plane.lists.seq }));
-      ws.serializeAttachment({ cursor: slice.plane.lists.seq } satisfies SubscribeAttachment);
+      ws.serializeAttachment({ cursor: slice.plane.lists.seq, actor: att.actor } satisfies SubscribeAttachment);
     }
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/subscribe") {
+      const actor = this.#parseActor(request);
+      if (!actor) return new Response("actor required", { status: 401 });
+      const slice = this.#load();
+      try {
+        this.#assertTenant(actor, slice);
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : "tenant mismatch", { status: 403 });
+      }
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
       const cursor = Number(url.searchParams.get("cursor") ?? "0");
+      const from = Number.isFinite(cursor) ? cursor : 0;
       this.ctx.acceptWebSocket(server);
-      const slice = this.#load();
-      const deltas = slice.plane.lists.replayFrom(Number.isFinite(cursor) ? cursor : 0);
-      server.serializeAttachment({ cursor: slice.plane.lists.seq } satisfies SubscribeAttachment);
+      const deltas = this.#visibleDeltas(slice, actor, from);
+      server.serializeAttachment({ cursor: slice.plane.lists.seq, actor } satisfies SubscribeAttachment);
       server.send(JSON.stringify({ type: "replay", deltas, seq: slice.plane.lists.seq }));
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -107,29 +161,30 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
 
   async createTask(title: string, ctx: RequestContext): Promise<TaskView> {
     const slice = this.#load();
+    this.#assertTenant(ctx.actor, slice);
     const view = slice.createTask(title, ctx);
     await this.#save(slice);
     return view;
   }
 
   async updateTitle(title: string, ctx: RequestContext): Promise<TaskRecord> {
-    return this.#mutate(ctx, (slice) => slice.updateTitle(title, ctx));
+    return this.#mutate(ctx, "edit", (slice, gated) => slice.updateTitle(title, gated));
   }
 
   async setStatus(status: string, ctx: RequestContext): Promise<TaskRecord> {
-    return this.#mutate(ctx, (slice) => slice.setStatus(status, ctx));
+    return this.#mutate(ctx, "edit", (slice, gated) => slice.setStatus(status, gated));
   }
 
   async setPriority(priority: string, ctx: RequestContext): Promise<TaskRecord> {
-    return this.#mutate(ctx, (slice) => slice.setPriority(priority, ctx));
+    return this.#mutate(ctx, "edit", (slice, gated) => slice.setPriority(priority, gated));
   }
 
   async setAssignee(assigneeId: string, ctx: RequestContext): Promise<TaskRecord> {
-    return this.#mutate(ctx, (slice) => slice.setAssignee(assigneeId, ctx));
+    return this.#mutate(ctx, "edit", (slice, gated) => slice.setAssignee(assigneeId, gated));
   }
 
   async markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord> {
-    return this.#mutate(ctx, (slice) => slice.markDone(done, ctx));
+    return this.#mutate(ctx, "edit", (slice, gated) => slice.markDone(done, gated));
   }
 
   async listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]> {
@@ -145,16 +200,20 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return this.#load().plane.lists.seq;
   }
 
-  async replayFrom(seq: number): Promise<SoupDelta[]> {
-    return this.#load().plane.lists.replayFrom(seq);
+  async replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    return this.#visibleDeltas(slice, actor, seq);
   }
 
-  async rebuildProjection(): Promise<void> {
+  async rebuildProjection(actor: ActorContext): Promise<void> {
     const slice = this.#load();
+    this.#assertTenant(actor, slice);
     slice.rebuildProjection();
     await this.#save(slice);
   }
 
+  /** Test/debug helper — not part of TaskRpc. */
   async poisonPending(attempts = 5): Promise<number> {
     const slice = this.#load();
     const task = slice.toSnapshot().docs[0];
@@ -187,8 +246,15 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return slice.outbox.poison().length;
   }
 
-  async get(id: string): Promise<TaskRecord | null> {
-    return this.#load().get(id) ?? null;
+  async get(id: string, actor: ActorContext): Promise<TaskRecord | null> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    try {
+      slice.engine.mint({ actor, entityType: "document", entityId: id, need: "view" });
+    } catch {
+      return null;
+    }
+    return slice.get(id) ?? null;
   }
 
   async shareState(
@@ -198,6 +264,7 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
   ): Promise<{ ok: true } | { ok: false; message: string }> {
     try {
       const slice = this.#load();
+      this.#assertTenant(actor, slice);
       const receipt = slice.engine.mint({
         actor,
         entityType: "document",
@@ -219,9 +286,11 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     need: "view" | "edit" | "owner",
   ): Promise<{ ok: true; receipt: Receipt } | { ok: false; message: string }> {
     try {
+      const slice = this.#load();
+      this.#assertTenant(actorJson, slice);
       return {
         ok: true,
-        receipt: this.#load().engine.mint({
+        receipt: slice.engine.mint({
           actor: actorJson,
           entityType: "document",
           entityId,
@@ -233,9 +302,23 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     }
   }
 
-  async #mutate(ctx: RequestContext, run: (slice: TaskSlice) => TaskRecord): Promise<TaskRecord> {
+  async #mutate(
+    ctx: RequestContext,
+    need: "edit" | "owner",
+    run: (slice: TaskSlice, gated: RequestContext) => TaskRecord,
+  ): Promise<TaskRecord> {
     const slice = this.#load();
-    const next = run(slice);
+    this.#assertTenant(ctx.actor, slice);
+    const entityId = ctx.receipt?.entityId;
+    if (!entityId) throw new Error("task mutation requires a receipt");
+    const receipt = slice.engine.mint({
+      actor: ctx.actor,
+      entityType: "document",
+      entityId,
+      need,
+    });
+    const gated: RequestContext = { ...ctx, receipt };
+    const next = run(slice, gated);
     await this.#save(slice);
     return next;
   }

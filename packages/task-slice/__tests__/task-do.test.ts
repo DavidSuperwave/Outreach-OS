@@ -29,6 +29,10 @@ function ownerBActor() {
   return actorContext(userPrincipal(ownerBId, tenantB));
 }
 
+function teammateActor() {
+  return actorContext(userPrincipal(teammateId, tenant));
+}
+
 afterEach(async () => {
   await reset();
 });
@@ -60,8 +64,8 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
 
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Ship the slice v2");
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
-    expect((await stub.get(task.id))?.status).toBe("in_progress");
-    expect((await stub.get(task.id))?.done).toBe(true);
+    expect((await stub.get(task.id, ownerActor()))?.status).toBe("in_progress");
+    expect((await stub.get(task.id, ownerActor()))?.done).toBe(true);
     expect(await api.listTasks([])).toHaveLength(0);
   });
 
@@ -72,7 +76,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
     await evictDurableObject(stub);
 
-    expect((await stub.get(task.id))?.title).toBe("Keep me");
+    expect((await stub.get(task.id, ownerActor()))?.title).toBe("Keep me");
     expect((await api.listTasks([receipt])).map((item) => item.title)).toEqual(["Keep me"]);
 
     await api.updateTitle("Kept after eviction", requestContext(ownerActor(), { receipt, correlationId: "p2" }));
@@ -87,7 +91,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
     await evictDurableObject(stub);
     await api.updateTitle("Two", requestContext(ownerActor(), { receipt, correlationId: "s2" }));
-    const missed = await api.replayFrom(cursor);
+    const missed = await api.replayFrom(cursor, ownerActor());
     expect(missed.map((delta) => delta.item.title)).toEqual(["Two"]);
     expect(missed).toHaveLength(1);
   });
@@ -97,7 +101,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const { receipt } = await api.createTask("Wired", requestContext(ownerActor(), { correlationId: "ws1" }));
     const cursor = await api.seq();
-    const res = await api.subscribe(cursor);
+    const res = await api.subscribe(cursor, ownerActor());
     expect(res.status).toBe(101);
     const ws = res.webSocket;
     expect(ws).toBeTruthy();
@@ -125,7 +129,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "r1" }));
     await testEnv.SOUP.prepare("DELETE FROM entity_row").run();
     expect(await api.listTasks([receipt])).toHaveLength(0);
-    await api.rebuildProjection();
+    await api.rebuildProjection(ownerActor());
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
   });
 
@@ -133,10 +137,10 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     resetIdSequence();
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const { receipt } = await api.createTask("Keep me", requestContext(ownerActor(), { correlationId: "poi" }));
-    expect(await api.poisonPending(5)).toBe(1);
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    expect(await stub.poisonPending(5)).toBe(1);
     await evictDurableObject(stub);
-    await api.rebuildProjection();
+    await api.rebuildProjection(ownerActor());
     expect((await api.listTasks([receipt]))[0]?.title).toBe("Keep me");
   });
 
@@ -196,5 +200,75 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
       `${tenant}:Alpha v2`,
       `${tenantB}:Bravo`,
     ]);
+  });
+
+  it("rejects subscribe without an actor and hides revoked rows on the socket (SEC-1)", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    const missing = await stub.fetch("https://task-slice/subscribe?cursor=0", {
+      headers: { Upgrade: "websocket" },
+    });
+    expect(missing.status).toBe(401);
+
+    const { task, receipt } = await api.createTask("Secret", requestContext(ownerActor(), { correlationId: "ws-sec" }));
+    await stub.shareState(task.id, grantShare(emptyAccess(ownerId, tenant), teammateId, "comment"), ownerActor());
+    const shared = await api.subscribe(0, teammateActor());
+    expect(shared.status).toBe(101);
+    shared.webSocket?.accept();
+    await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
+    const revoked = await api.subscribe(0, teammateActor());
+    expect(revoked.status).toBe(101);
+    const ws = revoked.webSocket;
+    if (!ws) throw new Error("expected websocket");
+    const replay = new Promise<string[]>((resolve) => {
+      ws.addEventListener("message", (event) => {
+        const payload = JSON.parse(String(event.data)) as { deltas?: Array<{ item: { title: string } }> };
+        resolve((payload.deltas ?? []).map((delta) => delta.item.title));
+      });
+    });
+    ws.accept();
+    expect(await Promise.race([replay, new Promise<string[]>((r) => setTimeout(() => r(["timeout"]), 500))])).toEqual(
+      [],
+    );
+    expect(await stub.get(task.id, teammateActor())).toBeNull();
+    expect(await stub.get(task.id, ownerActor())).not.toBeNull();
+    void receipt;
+  });
+
+  it("re-mints at the DO boundary so a forged edit receipt cannot write", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    const { task, receipt } = await api.createTask("Guard", requestContext(ownerActor(), { correlationId: "forge" }));
+    const forged = {
+      level: "edit" as const,
+      entityType: "document" as const,
+      entityId: task.id,
+      actorId: teammateId,
+      tenantId: tenant,
+    };
+    const denied = api
+      .updateTitle(
+        "pwned",
+        requestContext(teammateActor(), { receipt: forged as typeof receipt, correlationId: "forge-w" }),
+      )
+      .then(
+        () => "wrote",
+        (error: Error) => error.message,
+      );
+    expect(await denied).toMatch(/lacks edit|lacks view/);
+    const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
+    expect((await stub.get(task.id, ownerActor()))?.title).toBe("Guard");
+  });
+
+  it("rejects a foreign-tenant actor on this DO", async () => {
+    resetIdSequence();
+    const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
+    await api.createTask("Home", requestContext(ownerActor(), { correlationId: "home" }));
+    const denied = api.createTask("Away", requestContext(ownerBActor(), { correlationId: "away" })).then(
+      () => "created",
+      (error: Error) => error.message,
+    );
+    expect(await denied).toMatch(/tenant mismatch/);
   });
 });

@@ -52,9 +52,8 @@ export interface TaskRpc {
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   seq(): Promise<number>;
-  replayFrom(seq: number): Promise<SoupDelta[]>;
-  rebuildProjection(): Promise<void>;
-  poisonPending(attempts?: number): Promise<number>;
+  replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
+  rebuildProjection(actor: ActorContext): Promise<void>;
 }
 
 export interface TaskSliceSnapshot {
