@@ -340,8 +340,11 @@ export function TaskPane({
                         type="button"
                         data-command="soup-entity.rename"
                         onClick={() => {
-                          setFocusedId(item.entityId);
-                          if (onRename) setRenamingId(item.entityId);
+                          if (isFocused && onRename) setRenamingId(item.entityId);
+                          else {
+                            setFocusedId(item.entityId);
+                            setRenamingId(null);
+                          }
                         }}
                         style={{
                           background: "none",
