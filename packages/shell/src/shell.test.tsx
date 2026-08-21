@@ -3,6 +3,7 @@ import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
+import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
 import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
@@ -218,6 +219,17 @@ describe("command registry scope tree", () => {
   });
 });
 
+describe("path → split layout", () => {
+  it("maps the 26 path routes onto always-splits or auth chrome", () => {
+    expect(Object.keys(PATH_SPLIT)).toHaveLength(PATH_ROUTES.length);
+    expect(panesFromPath("/tasks")).toEqual([{ type: "tasks", id: "_" }]);
+    expect(panesFromPath("/settings?tab=bots")).toEqual([{ type: "settings", id: "_" }]);
+    expect(panesFromPath("/login")).toEqual([{ type: "home", id: "_" }]);
+    expect(panesFromPath("/tasks/_")).toEqual([{ type: "tasks", id: "_" }]);
+    expect(panesFromPath("/hotkey-debugger/_")).toEqual([{ type: "home", id: "_" }]);
+  });
+});
+
 describe("Shell boots", () => {
   it("renders original React chrome with Outreach tokens and a home split", () => {
     const html = renderToString(
@@ -231,9 +243,22 @@ describe("Shell boots", () => {
     expect(blocked).toContain("data-unserved");
   });
 
+  it("renders kernel login chrome on /login and /signup (PublicApi stays on /api)", () => {
+    const login = renderToString(createElement(Shell, { path: "/login", theme: "outreach-dark" }));
+    expect(login).toContain("data-surface=\"kernel.login\"");
+    expect(login).toContain("data-mode=\"login\"");
+    expect(login).toContain("data-mount=\"kernel-capnp\"");
+    expect(login).toContain("aria-label=\"Username\"");
+    expect(login).toContain("/api");
+    const signup = renderToString(createElement(Shell, { path: "/signup", theme: "outreach-dark" }));
+    expect(signup).toContain("data-mode=\"signup\"");
+    expect(signup).toContain("Create account");
+    expect(signup).not.toMatch(/macro/i);
+  });
+
   it("renders the task compose popover and Soup list on /tasks", () => {
     const html = renderToString(
-      createElement(Shell, { path: "/tasks", theme: "outreach-dark", panes: [{ type: "tasks", id: "_" }] }),
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark" }),
     );
     expect(html).toContain("data-slice=\"task\"");
     expect(html).toContain("data-scope=\"task-compose-popover\"");

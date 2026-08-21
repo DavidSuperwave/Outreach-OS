@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
+import { panesFromPath } from "./path-panes.js";
+import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
@@ -53,9 +55,10 @@ export function Shell({
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
-  const layout = panes ?? [{ type: "home", id: "_" }];
+  const layout = panes ?? panesFromPath(path);
   const tokens = theme === "outreach-light" ? OKLCH_TOKENS["outreach-light"] : OKLCH_TOKENS["outreach-dark"];
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
+  const authPath = path === "/login" || path === "/signup";
   return (
     <div
       data-shell="outreach-os"
@@ -100,6 +103,7 @@ export function Shell({
             {pane.type === "home" && path === "/" ? (
               <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
             ) : null}
+            {authPath ? <LoginPane mode={path === "/signup" ? "signup" : "login"} /> : null}
             {pane.type === "tasks" && !children ? (
               <TaskPane
                 items={taskItems}
