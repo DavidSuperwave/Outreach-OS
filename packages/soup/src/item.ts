@@ -33,6 +33,9 @@ export interface SoupItem {
   unread: boolean;
   done: boolean;
   tombstoned: boolean;
+  /** Task property bundle on the document row (OD-7). Optional on other types. */
+  status?: string | null;
+  priority?: string | null;
 }
 
 export function soupItemType(type: EntityType): SoupItemType | null {

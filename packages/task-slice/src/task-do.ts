@@ -194,7 +194,11 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     if (!tenantId) return [];
     await ensureListSchema(this.env.SOUP);
     const rows = await queryFacetRows(this.env.SOUP, tenantId, "task");
-    return filterVisible(rows, receipts);
+    return filterVisible(rows, receipts).map((item) => {
+      const task = slice.get(item.entityId);
+      if (!task) return item;
+      return { ...item, status: task.status, priority: task.priority, done: task.done, title: task.title };
+    });
   }
 
   async listVisible(actor: ActorContext): Promise<SoupItem[]> {

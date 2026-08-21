@@ -102,6 +102,8 @@ describe("N6 task vertical slice (11 gates)", () => {
     api.markDone(true, writeCtx);
 
     expect(api.listTasks([receipt])[0]?.title).toBe("Ship the slice v2");
+    expect(api.listTasks([receipt])[0]?.status).toBe("in_progress");
+    expect(api.listTasks([receipt])[0]?.priority).toBe("high");
     expect(slice.get(task.id)?.status).toBe("in_progress");
     expect(slice.get(task.id)?.done).toBe(true);
     expect(slice.activity.list().map((fact) => fact.action)).toEqual([

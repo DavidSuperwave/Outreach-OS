@@ -79,6 +79,8 @@ export class SoupIndex implements ProjectionFamily {
       unread: payloadBool(envelope.payload, "unread") ?? existing?.unread ?? false,
       done: payloadBool(envelope.payload, "done") ?? existing?.done ?? false,
       tombstoned,
+      status: payloadString(envelope.payload, "status") ?? existing?.status ?? null,
+      priority: payloadString(envelope.payload, "priority") ?? existing?.priority ?? null,
     };
     if (tombstoned) this.#rows.delete(envelope.entityId);
     else this.#rows.set(envelope.entityId, item);

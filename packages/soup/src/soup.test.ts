@@ -279,3 +279,30 @@ describe("favorites listing is enforced", () => {
     void shared;
   });
 });
+
+describe("N6 task property projection", () => {
+  it("copies status and priority from the document envelope onto the Soup row", () => {
+    const soup = new SoupIndex();
+    const box = new Outbox();
+    const task = seedMint("document", 9, "task");
+    box.append(
+      envelope({
+        topic: "documents",
+        entityType: "document",
+        entityId: task.id,
+        tenantId: tenant,
+        actorId: ownerId,
+        onBehalfOfId: null,
+        occurredAt: 1,
+        version: 1,
+        payload: { title: "Ship", facet: "task", status: "in_progress", priority: "high" },
+        receipt: null,
+        correlationId: "prop-1",
+      }),
+    );
+    soup.ingest(box);
+    const row = soup.query({ types: ["document"], facet: "task" }, [task.owner]).items[0];
+    expect(row?.status).toBe("in_progress");
+    expect(row?.priority).toBe("high");
+  });
+});

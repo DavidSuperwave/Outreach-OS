@@ -152,7 +152,11 @@ export class TaskSlice {
   }
 
   listTasks(receipts: readonly Receipt[]): SoupItem[] {
-    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items;
+    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items.map((item) => {
+      const task = this.#docs.get(item.entityId);
+      if (!task) return item;
+      return { ...item, status: task.status, priority: task.priority, done: task.done, title: task.title };
+    });
   }
 
   get(id: string): TaskRecord | undefined {
