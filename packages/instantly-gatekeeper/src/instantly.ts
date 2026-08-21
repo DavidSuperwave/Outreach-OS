@@ -28,7 +28,6 @@ import type {
 } from "./types.js";
 import TYPES_CODE from "./types-code.js";
 import {
-  INSTANTLY_FORBIDDEN_METHODS,
   InstantlyReadOnlyError,
   instantlyHttp,
   type InstantlyHttp,
@@ -205,17 +204,6 @@ export class InstantlySessionImpl extends RpcTarget implements InstantlySession 
       opened: 0,
       replied: emails.filter((row) => row.direction === "inbound").length,
     };
-  }
-
-  async invoke(method: string): Promise<unknown> {
-    if ((INSTANTLY_FORBIDDEN_METHODS as readonly string[]).includes(method)) {
-      throw new InstantlyReadOnlyError(`${method} is not implemented`);
-    }
-    const fn = (this as unknown as Record<string, unknown>)[method];
-    if (typeof fn !== "function") {
-      throw new Error(`unknown Instantly method ${method}`);
-    }
-    return (fn as () => Promise<unknown>).call(this);
   }
 
   async #observe(title: string, description: string): Promise<void> {

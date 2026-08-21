@@ -41,6 +41,24 @@ export function assertInstantlyReadRequest(method: string, path: string): void {
   }
 }
 
+export function assertInstantlyReadOnlyMethod(method: string): void {
+  if ((INSTANTLY_FORBIDDEN_METHODS as readonly string[]).includes(method)) {
+    throw new InstantlyReadOnlyError(`${method} is not implemented`);
+  }
+}
+
+export function instantlyUrl(path: string): string {
+  assertInstantlyReadRequest("GET", path);
+  if (!path.startsWith("/api/v2/") || path.includes("://") || path.includes("\\") || path.includes("..")) {
+    throw new InstantlyReadOnlyError(`path ${path} is not implemented`);
+  }
+  const url = new URL(path, INSTANTLY_API_ORIGIN);
+  if (url.origin !== INSTANTLY_API_ORIGIN) {
+    throw new InstantlyReadOnlyError(`path ${path} is not implemented`);
+  }
+  return url.href;
+}
+
 export interface InstantlyHttp {
   get(path: string): Promise<unknown>
 }
@@ -51,8 +69,7 @@ export function instantlyHttp(
 ): InstantlyHttp {
   return {
     async get(path: string): Promise<unknown> {
-      assertInstantlyReadRequest("GET", path);
-      const url = path.startsWith("http") ? path : `${INSTANTLY_API_ORIGIN}${path}`;
+      const url = instantlyUrl(path);
       const response = await fetchImpl(url, {
         method: "GET",
         headers: {
