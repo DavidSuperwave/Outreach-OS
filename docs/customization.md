@@ -32,6 +32,7 @@ The custom logo appears in the app chrome, sign-in screens, and browser tab on e
 | `aiGateway` | Deployment-funded model catalog | Disabled, Workers AI direct, or provider traffic through AI Gateway |
 | `context` | Context sharing boundary, snapshot KV, and optional Artifacts repositories | A stable domain label; automatic or existing KV; Git-backed collections disabled or enabled |
 | `customGatekeeper` | Example integration identity and guidance | Organization-specific display text |
+| `workers.instantlyGatekeeper.name` | Read-only Instantly Gatekeeper Worker | Unique lowercase name; optional `INSTANTLY_API_KEY` secret |
 | `errorReporting` | Private explicit-issue destination | Console Reporter enabled state, environment, and release metadata |
 | `resources` | Blueprint/avatar KV and blueprint-content R2 | `null` to provision or explicit IDs/names to reuse |
 | `observability` | Worker telemetry | Structured logs, invocation logs, traces, and sampling; see the [observability guide](observability.md) |
@@ -156,7 +157,11 @@ The starter enables structured custom logs and a private console-backed Error Re
 
 ## Custom Gatekeepers
 
-Keep deployment-owned Gatekeepers under `packages/`, outside the `cloudflare-os` submodule. `scripts/deploy.mjs` binds this repository's example to the Workshop as `GATEKEEPER_CUSTOM` and Context as `GATEKEEPER_CONTEXT`. GitHub inbound webhooks deploy as a separate Worker (`packages/github-hooks`, `POST /hooks/github/*`); kernel `gatekeeper-github` remains the OAuth session.
+Keep deployment-owned Gatekeepers under `packages/`, outside the `cloudflare-os` submodule. `scripts/deploy.mjs` binds this repository's example to the Workshop as `GATEKEEPER_CUSTOM`, Instantly reads as `GATEKEEPER_INSTANTLY`, and Context as `GATEKEEPER_CONTEXT`. GitHub inbound webhooks deploy as a separate Worker (`packages/github-hooks`, `POST /hooks/github/*`); kernel `gatekeeper-github` remains the OAuth session.
+
+Instantly is **reads only**. The Session API lists campaigns, accounts, leads, emails, and analytics. Do not add send/activate/start. Without `INSTANTLY_API_KEY`, the Gatekeeper serves the Intraplex ICP fixture. Put the key with `wrangler secret put INSTANTLY_API_KEY` when connecting a live workspace.
+
+OS-pilot standing instructions live in [`docs/os-pilot/standing-instructions.md`](os-pilot/standing-instructions.md) for paste into `/admin`.
 
 The minimal example flow is:
 

@@ -12,6 +12,7 @@ const generatedPaths = {
   workshop: join(root, "cloudflare-os/packages/workshop-backend", generatedName),
   context: join(root, "cloudflare-os/packages/gatekeeper-context", generatedName),
   customGatekeeper: join(root, "packages/custom-gatekeeper", generatedName),
+  instantlyGatekeeper: join(root, "packages/instantly-gatekeeper", generatedName),
   githubHooks: join(root, "packages/github-hooks", generatedName),
   errorReporter: join(root, "packages/error-reporter", generatedName),
 };
@@ -22,6 +23,7 @@ const requiredPaths = [
   "workers.workshop.name",
   "workers.context.name",
   "workers.customGatekeeper.name",
+  "workers.instantlyGatekeeper.name",
   "workers.githubHooks.name",
   "access.issuer",
   "access.audience",
@@ -124,7 +126,7 @@ export function validateConfig(config) {
     .filter(([key]) => key !== "errorReporter" || config.errorReporting.enabled)
     .map(([, worker]) => worker.name);
   if (new Set(workerNames).size !== workerNames.length) {
-    throw new Error("Workshop, Context, custom Gatekeeper, and GitHub hooks Worker names must be unique.");
+    throw new Error("Workshop, Context, custom Gatekeeper, Instantly Gatekeeper, and GitHub hooks Worker names must be unique.");
   }
   if (!workerNames.every((name) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name))) {
     throw new Error("Worker names must use lowercase letters, numbers, and hyphens.");
@@ -255,6 +257,7 @@ export function generateConfigs(config, bases) {
   const workshop = structuredClone(bases.workshop);
   const context = structuredClone(bases.context);
   const customGatekeeper = structuredClone(bases.customGatekeeper);
+  const instantlyGatekeeper = structuredClone(bases.instantlyGatekeeper);
   const githubHooks = structuredClone(bases.githubHooks);
   const errorReporter = config.errorReporting.enabled
     ? structuredClone(bases.errorReporter)
@@ -308,6 +311,11 @@ export function generateConfigs(config, bases) {
       service: config.workers.customGatekeeper.name,
       entrypoint: "GatekeeperVendor",
     },
+    {
+      binding: "GATEKEEPER_INSTANTLY",
+      service: config.workers.instantlyGatekeeper.name,
+      entrypoint: "GatekeeperVendor",
+    },
   ];
   workshop.kv_namespaces = [
     { binding: "BLUEPRINTS", ...(config.resources.blueprintsKvNamespaceId
@@ -345,6 +353,8 @@ export function generateConfigs(config, bases) {
     CUSTOM_MESSAGE: config.customGatekeeper.message,
   };
 
+  setCommon(instantlyGatekeeper, config, config.workers.instantlyGatekeeper.name);
+
   setCommon(githubHooks, config, config.workers.githubHooks.name);
   githubHooks.workers_dev = true;
   githubHooks.secrets = {
@@ -359,7 +369,7 @@ export function generateConfigs(config, bases) {
     setCommon(errorReporter, config, config.workers.errorReporter.name);
   }
 
-  return { workshop, context, customGatekeeper, githubHooks, ...(errorReporter && { errorReporter }) };
+  return { workshop, context, customGatekeeper, instantlyGatekeeper, githubHooks, ...(errorReporter && { errorReporter }) };
 }
 
 async function readJsonc(path) {
@@ -400,6 +410,7 @@ function requireSubmodule() {
 function build(config) {
   run(["--dir", "cloudflare-os", "--filter", "@gadgets/gatekeeper-context", "build"]);
   run(["--dir", "packages/custom-gatekeeper", "run", "build"]);
+  run(["--dir", "packages/instantly-gatekeeper", "run", "build"]);
   run(["--dir", "packages/github-hooks", "run", "build"]);
   if (config.errorReporting.enabled) {
     run(["--dir", "packages/error-reporter", "run", "build"]);
@@ -418,6 +429,7 @@ async function main() {
     workshop: await readJsonc(join(root, "cloudflare-os/packages/workshop-backend/wrangler.jsonc")),
     context: await readJsonc(join(root, "cloudflare-os/packages/gatekeeper-context/wrangler.jsonc")),
     customGatekeeper: await readJsonc(join(root, "packages/custom-gatekeeper/wrangler.jsonc")),
+    instantlyGatekeeper: await readJsonc(join(root, "packages/instantly-gatekeeper/wrangler.jsonc")),
     githubHooks: await readJsonc(join(root, "packages/github-hooks/wrangler.jsonc")),
     errorReporter: await readJsonc(join(root, "packages/error-reporter/wrangler.jsonc")),
   });
@@ -438,6 +450,8 @@ async function main() {
       join(root, "cloudflare-os/packages/gatekeeper-context"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "packages/custom-gatekeeper"));
+    run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
+      join(root, "packages/instantly-gatekeeper"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],
       join(root, "packages/github-hooks"));
     run(["exec", "wrangler", "deploy", "--config", generatedName, ...deployArgs],

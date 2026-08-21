@@ -226,6 +226,10 @@ describe("Shell boots", () => {
     expect(html).toContain("data-shell=\"outreach-os\"");
     expect(html).toContain("Outreach OS");
     expect(html).toContain("data-split=\"home\"");
+    expect(html).toContain("data-surface=\"os-pilot\"");
+    expect(html).toContain("Playbook: Intraplex ICP");
+    expect(html).toContain("data-gadget=\"table\"");
+    expect(html).toContain("data-instantly=\"reads-only\"");
     expect(html).not.toMatch(/macro/i);
     const blocked = renderToString(createElement(Shell, { path: "/.well-known" }));
     expect(blocked).toContain("data-unserved");

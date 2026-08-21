@@ -3,6 +3,7 @@ import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
+import { PilotHome } from "pilot/browser";
 
 export interface ShellProps {
   path: string;
@@ -79,7 +80,7 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
         {layout.map((pane) => (
           <section key={`${pane.type}:${pane.id}`} data-split={pane.type} data-split-id={pane.id}>
             {pane.type === "home" && path === "/" ? (
-              <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
+              <PilotHome />
             ) : null}
             {pane.type === "tasks" ? (
               <p>Tasks (N8): properties, bulk edit, kanban/grid. One Task Database.</p>
