@@ -198,12 +198,17 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
     await stub.failNextOutboxSend();
 
-    await expect(
-      api.createTask("Alarm recovery", requestContext(ownerActor(), {
+    const failedCreate = api.createTask(
+      "Alarm recovery",
+      requestContext(ownerActor(), {
         correlationId: "alarm-create",
         idempotencyKey: "alarm-create",
-      })),
-    ).rejects.toThrow(/TASK_OUTBOX/);
+      }),
+    ).then(
+      () => "created",
+      (error: Error) => error.message,
+    );
+    expect(await failedCreate).toMatch(/TASK_OUTBOX/);
 
     const entityId = fixtureId("document", 1);
     expect((await stub.get(entityId, ownerActor()))?.title).toBe("Alarm recovery");
@@ -226,12 +231,17 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const api = new DurableTaskApi(testEnv.TASK_SLICE, tenant);
     const stub = testEnv.TASK_SLICE.get(testEnv.TASK_SLICE.idFromName(tenant));
     await stub.failNextOutboxSend();
-    await expect(
-      api.createTask("First snapshot", requestContext(ownerActor(), {
+    const failedCreate = api.createTask(
+      "First snapshot",
+      requestContext(ownerActor(), {
         correlationId: "pending-create",
         idempotencyKey: "pending-create",
-      })),
-    ).rejects.toThrow(/TASK_OUTBOX/);
+      }),
+    ).then(
+      () => "created",
+      (error: Error) => error.message,
+    );
+    expect(await failedCreate).toMatch(/TASK_OUTBOX/);
 
     const entityId = fixtureId("document", 1);
     const minted = await stub.mintView(ownerActor(), entityId, "edit");
