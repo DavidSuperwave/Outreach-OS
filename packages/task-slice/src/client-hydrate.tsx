@@ -226,6 +226,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     commandMenuOpenRef.current = false;
     setTaskComposeOpen(true);
     taskComposeOpenRef.current = true;
+    registryRef.current?.jettison();
     return true;
   }, []);
 
@@ -353,6 +354,9 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement;
       const chord = chordFromEvent(event);
+      if (inputFocused && taskComposeOpenRef.current && chord !== "escape") {
+        return;
+      }
       const id = registry.dispatch({
         chord,
         inputFocused,
