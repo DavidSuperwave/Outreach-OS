@@ -201,6 +201,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     const teammateMint = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
     expect(teammateMint.ok).toBe(true);
     if (!teammateMint.ok) throw new Error("expected teammate view");
+    await api.drainOutbox();
     expect(await api.listTasks([teammateMint.receipt])).toHaveLength(1);
     await stub.shareState(task.id, emptyAccess(ownerId, tenant), ownerActor());
     const denied = await stub.mintView(actorContext(userPrincipal(teammateId, tenant)), task.id, "view");
