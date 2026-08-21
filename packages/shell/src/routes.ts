@@ -50,3 +50,28 @@ export function isWebServed(path: string): boolean {
 export function wellKnownResponse(): null {
   return null;
 }
+
+/** Neuwave AppSidebar unmounts on solo settings and auth (ledger: `global.toggle-sidebar`). */
+/** Kernel login/signup chrome. Signed-in users land on `/` (N5). */
+export function isAuthCoverPath(path: string): boolean {
+  const pathname = (path.split("?")[0] ?? path).replace(/\/+$/, "") || "/";
+  return pathname === "/login" || pathname === "/signup";
+}
+
+/** Post-login destination. `c` then `t` still opens task compose from home. */
+export const POST_AUTH_PATH = "/" as const;
+
+export function isFullCoverRoute(path: string): boolean {
+  const pathname = (path.split("?")[0] ?? path).replace(/\/+$/, "") || "/";
+  return (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/invite" ||
+    pathname === "/join" ||
+    pathname === "/share" ||
+    pathname === "/oauth/callback" ||
+    pathname === "/settings" ||
+    pathname === "/mcp" ||
+    pathname.startsWith("/settings/")
+  );
+}

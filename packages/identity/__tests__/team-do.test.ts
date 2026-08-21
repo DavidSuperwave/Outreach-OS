@@ -64,4 +64,19 @@ describe("TeamDurableObject sqlite authority", () => {
     expect(await api.resolveEffectiveRole(outsider, team.id)).toBe("member");
     expect(await api.resolveEffectiveRole(member, team.id)).toBeNull();
   });
+
+  it("ensureHomeTeam is idempotent and ensureKernelUser registers a wrapper principal", async () => {
+    const api = new DurableTeamsApi(testEnv.TEAM, new Set(["admin"]));
+    const session = await api.ensureKernelUser("alice");
+    expect(session.username).toBe("alice");
+    expect(session.userId.startsWith("usr_")).toBe(true);
+    expect((await api.ensureKernelUser("alice")).userId).toBe(session.userId);
+
+    const team = await api.ensureHomeTeam(session);
+    expect(team.id.startsWith("team_")).toBe(true);
+    expect(team.name).toBe("Outreach");
+    const again = await api.ensureHomeTeam(session);
+    expect(again.id).toBe(team.id);
+    expect(await api.resolveEffectiveRole(session, team.id)).toBe("owner");
+  });
 });

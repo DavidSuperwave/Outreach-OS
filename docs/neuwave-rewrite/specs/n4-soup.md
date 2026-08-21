@@ -23,7 +23,10 @@ families. Lists and search do not share storage. Single projector owner (`soup-p
 
 In-memory maps keyed by entity id implementing `LIST_SCHEMA_DDL` / `SEARCH_SCHEMA_DDL`.
 Checkpoints `soup.lists` and `soup.search` on the N3 outbox. `entity_access_index` is a lists-family
-join; the freeze uses minted View receipts via `filterVisible` (authority path never reads it).
+join. N6 hardens list reads to consume this projected, tenant-scoped policy outcome directly;
+query paths never mint receipts and the authority path never reads the projection. N6's v2
+compatibility migration gives rows and access composite tenant keys; projector replacement uses
+an atomic D1 batch, while revocation closes affected access rows before the authority commit.
 
 ## Commands and UI surfaces
 

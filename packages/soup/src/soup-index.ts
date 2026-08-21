@@ -10,6 +10,7 @@ import {
   payloadBool,
   payloadNumber,
   payloadString,
+  payloadStringArray,
   soupItemType,
   type SoupItem,
   type SoupItemType,
@@ -79,6 +80,10 @@ export class SoupIndex implements ProjectionFamily {
       unread: payloadBool(envelope.payload, "unread") ?? existing?.unread ?? false,
       done: payloadBool(envelope.payload, "done") ?? existing?.done ?? false,
       tombstoned,
+      status: payloadString(envelope.payload, "status") ?? existing?.status ?? null,
+      priority: payloadString(envelope.payload, "priority") ?? existing?.priority ?? null,
+      assigneeIds: payloadStringArray(envelope.payload, "assigneeIds") ?? existing?.assigneeIds,
+      tags: payloadStringArray(envelope.payload, "tags") ?? existing?.tags,
     };
     if (tombstoned) this.#rows.delete(envelope.entityId);
     else this.#rows.set(envelope.entityId, item);
@@ -118,6 +123,21 @@ export class SoupIndex implements ProjectionFamily {
 
   snapshot(): SoupItem[] {
     return [...this.#rows.values()].filter((item) => !item.tombstoned);
+  }
+
+  persistence(): { items: SoupItem[]; seq: number; log: SoupDelta[] } {
+    return {
+      items: [...this.#rows.values()].map((item) => ({ ...item })),
+      seq: this.#seq,
+      log: this.#log.map((delta) => ({ seq: delta.seq, item: { ...delta.item } })),
+    };
+  }
+
+  restore(snapshot: { items: readonly SoupItem[]; seq: number; log: readonly SoupDelta[] }): void {
+    this.#rows = new Map(snapshot.items.map((item) => [item.entityId, { ...item }]));
+    this.#seq = snapshot.seq;
+    this.#log = snapshot.log.map((delta) => ({ seq: delta.seq, item: { ...delta.item } }));
+    this.#listeners.clear();
   }
 
   /**

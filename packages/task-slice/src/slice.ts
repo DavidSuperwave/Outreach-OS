@@ -1,4 +1,12 @@
-import { AccessStore, PolicyEngine, emptyAccess, requireReceipt, type Receipt } from "authz";
+import {
+  AccessStore,
+  LEVEL_RANK,
+  PolicyEngine,
+  emptyAccess,
+  requireReceipt,
+  type AccessLevel,
+  type Receipt,
+} from "authz";
 import {
   ActivityLog,
   IdempotencyStore,
@@ -11,7 +19,7 @@ import {
 } from "control-plane";
 import type { ActorContext } from "identity/principal";
 import { EntityRegistry, nextId } from "registry";
-import { ProjectionPlane, type SoupItem, type SoupListener } from "soup";
+import { ProjectionPlane, type SoupDelta, type SoupItem, type SoupListener } from "soup";
 
 export interface TaskRecord {
   id: string;
@@ -31,6 +39,14 @@ export interface TaskView {
   receipt: Receipt;
 }
 
+interface ProjectedAccessRow {
+  actorId: string;
+  entityId: string;
+  entityType: "document";
+  tenantId: string;
+  level: AccessLevel;
+}
+
 export interface TaskApi {
   createTask(title: string, ctx: RequestContext): TaskView;
   updateTitle(title: string, ctx: RequestContext): TaskRecord;
@@ -40,6 +56,34 @@ export interface TaskApi {
   markDone(done: boolean, ctx: RequestContext): TaskRecord;
   listTasks(receipts: readonly Receipt[]): SoupItem[];
   subscribe(listener: SoupListener): () => void;
+}
+
+/** Wire-shaped async capability (ADR-002). Implemented by TaskSliceDurableObject. */
+export interface TaskRpc {
+  createTask(title: string, ctx: RequestContext): Promise<TaskView>;
+  updateTitle(title: string, ctx: RequestContext): Promise<TaskRecord>;
+  setStatus(status: string, ctx: RequestContext): Promise<TaskRecord>;
+  setPriority(priority: string, ctx: RequestContext): Promise<TaskRecord>;
+  setAssignee(assigneeId: string, ctx: RequestContext): Promise<TaskRecord>;
+  markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
+  listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
+  listVisible(actor: ActorContext): Promise<SoupItem[]>;
+  listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
+  listAlerts(actor: ActorContext): Promise<import("./operator-alerts.js").OperatorAlert[]>;
+  seq(): Promise<number>;
+  replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
+  rebuildProjection(actor: ActorContext): Promise<void>;
+}
+
+export interface TaskSliceSnapshot {
+  docs: TaskRecord[];
+  registry: ReturnType<EntityRegistry["snapshot"]>;
+  access: ReturnType<AccessStore["snapshot"]>;
+  outbox: ReturnType<Outbox["snapshot"]>;
+  activity: ReturnType<ActivityLog["list"]>;
+  idempotency: ReturnType<IdempotencyStore["snapshot"]>;
+  plane: ReturnType<ProjectionPlane["lists"]["persistence"]>;
+  clock: number;
 }
 
 /**
@@ -55,17 +99,17 @@ export class TaskSlice {
   readonly activity = new ActivityLog();
   readonly idempotency = new IdempotencyStore();
   #docs = new Map<string, TaskRecord>();
+  #accessRows: ProjectedAccessRow[] = [];
   #clock = 0;
 
   openApi(): TaskApi {
     return {
       createTask: (title, ctx) => this.createTask(title, ctx),
-      updateTitle: (title, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, title })),
-      setStatus: (status, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, status }), "property_changed"),
-      setPriority: (priority, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, priority }), "property_changed"),
-      setAssignee: (assigneeId, ctx) =>
-        this.mutate(ctx, "edit", (task) => ({ ...task, assigneeIds: [assigneeId] }), "property_changed"),
-      markDone: (done, ctx) => this.mutate(ctx, "edit", (task) => ({ ...task, done })),
+      updateTitle: (title, ctx) => this.updateTitle(title, ctx),
+      setStatus: (status, ctx) => this.setStatus(status, ctx),
+      setPriority: (priority, ctx) => this.setPriority(priority, ctx),
+      setAssignee: (assigneeId, ctx) => this.setAssignee(assigneeId, ctx),
+      markDone: (done, ctx) => this.markDone(done, ctx),
       listTasks: (receipts) => this.listTasks(receipts),
       subscribe: (listener) => this.plane.lists.subscribe(listener),
     };
@@ -78,6 +122,7 @@ export class TaskSlice {
       const id = nextId("document");
       this.registry.register({ type: "document", id, tenantId, createdAt: this.#now(), facet: "task" });
       this.access.put(id, emptyAccess(ctx.actor.actor.id, tenantId));
+      this.rebuildAccessProjection();
       const task: TaskRecord = {
         id,
         tenantId,
@@ -104,8 +149,85 @@ export class TaskSlice {
     return run();
   }
 
+  updateTitle(title: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, title }));
+  }
+
+  setStatus(status: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, status }), "property_changed");
+  }
+
+  setPriority(priority: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, priority }), "property_changed");
+  }
+
+  setAssignee(assigneeId: string, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => {
+      const assigneeIds = assigneeId ? [assigneeId] : [];
+      const state = this.access.require(task.id);
+      this.access.put(task.id, { ...state, assigneeIds });
+      this.rebuildAccessProjection();
+      return { ...task, assigneeIds };
+    }, "property_changed");
+  }
+
+  markDone(done: boolean, ctx: RequestContext): TaskRecord {
+    return this.mutate(ctx, "edit", (task) => ({ ...task, done }));
+  }
+
   listTasks(receipts: readonly Receipt[]): SoupItem[] {
-    return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items;
+    const current = new Set(
+      this.#accessRows.map((row) => `${row.tenantId}\0${row.actorId}\0${row.entityId}`),
+    );
+    return this.plane.lists
+      .query({ types: ["document"], facet: "task" }, receipts)
+      .items.filter((item) =>
+        receipts.some(
+          (receipt) =>
+            receipt.entityId === item.entityId &&
+            current.has(`${receipt.tenantId}\0${receipt.actorId}\0${receipt.entityId}`),
+        ),
+      );
+  }
+
+  listVisible(actor: ActorContext): SoupItem[] {
+    const tenantId = actor.actor.tenantId;
+    if (!tenantId) return [];
+    const visible = new Set(
+      this.#accessRows
+        .filter((row) => row.tenantId === tenantId && row.actorId === actor.actor.id)
+        .map((row) => row.entityId),
+    );
+    return this.plane.lists
+      .snapshot()
+      .filter((item) => item.facet === "task" && item.tenantId === tenantId && visible.has(item.entityId));
+  }
+
+  accessProjection(tenantId: string) {
+    return this.#accessRows.filter((row) => row.tenantId === tenantId).map((row) => ({ ...row }));
+  }
+
+  /** Project policy outcomes after authoritative ACL writes or snapshot restore. */
+  rebuildAccessProjection(): void {
+    const rows = new Map<string, ProjectedAccessRow>();
+    const add = (
+      tenantId: string,
+      actorId: string,
+      entityId: string,
+      level: AccessLevel,
+    ) => {
+      const key = `${tenantId}\0${actorId}\0${entityId}`;
+      const current = rows.get(key);
+      if (!current || LEVEL_RANK[level] > LEVEL_RANK[current.level]) {
+        rows.set(key, { actorId, entityId, entityType: "document", tenantId, level });
+      }
+    };
+    for (const { entityId, state } of this.access.snapshot()) {
+      add(state.tenantId, state.ownerId, entityId, "owner");
+      for (const share of state.shares) add(state.tenantId, share.actorId, entityId, share.level);
+      for (const assigneeId of state.assigneeIds) add(state.tenantId, assigneeId, entityId, "edit");
+    }
+    this.#accessRows = [...rows.values()];
   }
 
   get(id: string): TaskRecord | undefined {
@@ -132,12 +254,16 @@ export class TaskSlice {
     const receipt = ctx.receipt;
     if (!receipt) throw new Error("task mutation requires a receipt");
     requireReceipt(receipt, need, receipt.entityId);
-    const current = this.#docs.get(receipt.entityId);
-    if (!current) throw new Error(`unknown task ${receipt.entityId}`);
-    const next = { ...patch(current), version: current.version + 1 };
-    this.#docs.set(next.id, next);
-    this.#publish(next, ctx, action);
-    return next;
+    const run = () => {
+      const current = this.#docs.get(receipt.entityId);
+      if (!current) throw new Error(`unknown task ${receipt.entityId}`);
+      const next = { ...patch(current), version: current.version + 1 };
+      this.#docs.set(next.id, next);
+      this.#publish(next, ctx, action);
+      return next;
+    };
+    if (ctx.idempotencyKey) return runOnce(this.idempotency, ctx.idempotencyKey, run);
+    return run();
   }
 
   #publish(task: TaskRecord, ctx: RequestContext, action: "created" | "edited" | "property_changed"): void {
@@ -159,6 +285,8 @@ export class TaskSlice {
           priority: task.priority,
           done: task.done,
           body: task.title,
+          assigneeIds: task.assigneeIds,
+          tags: task.tags,
         },
         receipt: {
           level: ctx.receipt?.level ?? "owner",
@@ -184,6 +312,42 @@ export class TaskSlice {
   #now(): number {
     this.#clock += 1;
     return this.#clock;
+  }
+
+  toSnapshot(): TaskSliceSnapshot {
+    return {
+      docs: [...this.#docs.values()].map((doc) => ({ ...doc })),
+      registry: this.registry.snapshot(),
+      access: this.access.snapshot(),
+      outbox: this.outbox.snapshot(),
+      activity: this.activity.list().map((fact) => ({ ...fact })),
+      idempotency: this.idempotency.snapshot(),
+      plane: this.plane.lists.persistence(),
+      clock: this.#clock,
+    };
+  }
+
+  static fromSnapshot(snapshot: TaskSliceSnapshot): TaskSlice {
+    const slice = new TaskSlice();
+    slice.registry.restore(snapshot.registry);
+    slice.access.restore(snapshot.access);
+    // Pre-fix snapshots stored task assignees only on TaskRecord. The task
+    // record is authoritative for the property bundle; lift it into access
+    // state while preserving owner, shares, and every other policy field.
+    for (const doc of snapshot.docs) {
+      const state = slice.access.get(doc.id);
+      if (state) {
+        slice.access.put(doc.id, { ...state, assigneeIds: [...doc.assigneeIds] });
+      }
+    }
+    slice.rebuildAccessProjection();
+    slice.outbox.restore(snapshot.outbox);
+    slice.activity.restore(snapshot.activity);
+    slice.idempotency.restore(snapshot.idempotency);
+    slice.plane.lists.restore(snapshot.plane);
+    slice.#docs = new Map(snapshot.docs.map((doc) => [doc.id, { ...doc }]));
+    slice.#clock = snapshot.clock;
+    return slice;
   }
 }
 

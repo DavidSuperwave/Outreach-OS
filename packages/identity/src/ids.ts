@@ -44,6 +44,12 @@ export function randomId(type: EntityTypeTag): string {
   return typedId(type, bytesToHex(bytes));
 }
 
+/** Deterministic typed id from a seed (home team / wrapper principal for a kernel username). */
+export async function stableId(type: EntityTypeTag, seed: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
+  return typedId(type, bytesToHex(new Uint8Array(digest).subarray(0, 16)));
+}
+
 function bytesToHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

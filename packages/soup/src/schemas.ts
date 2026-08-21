@@ -70,6 +70,19 @@ CREATE TABLE entity_access_index (
 );
 `.trim();
 
+/**
+ * Additive compatibility migrations for deployments that already applied the
+ * N4 list schema above. Keep LIST_SCHEMA_DDL as the frozen v1 contract: new
+ * list fields are introduced here so an existing D1 database is upgraded
+ * without a destructive table rewrite.
+ */
+export const LIST_SCHEMA_MIGRATIONS = {
+  version: 2,
+  entityRowPrimaryKey: ["tenant_id", "entity_id"],
+  accessPrimaryKey: ["tenant_id", "actor_id", "entity_id"],
+  orphanAccessPolicy: "discard-and-rebuild-from-authority",
+} as const;
+
 export const SEARCH_SCHEMA_DDL = `
 CREATE TABLE search_doc (
   entity_id TEXT PRIMARY KEY,

@@ -22,6 +22,15 @@ export class IdempotencyStore {
   get<T>(key: string): T | undefined {
     return this.#rows.get(key)?.result as T | undefined;
   }
+
+  snapshot(): IdempotencyRecord[] {
+    return [...this.#rows.values()].map((row) => ({ ...row }));
+  }
+
+  restore(rows: readonly IdempotencyRecord[]): void {
+    this.#rows.clear();
+    for (const row of rows) this.#rows.set(row.key, { ...row });
+  }
 }
 
 export function runOnce<T>(store: IdempotencyStore, key: string, fn: () => T): T {

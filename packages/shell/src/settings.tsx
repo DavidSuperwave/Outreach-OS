@@ -29,6 +29,11 @@ export function SettingsChrome({
 }) {
   return (
     <section data-surface="settings" data-settings-tab={tab} data-command={SETTINGS_TAB_COMMAND[tab]}>
+      <p>
+        <a href="/" data-command="settings.close">
+          Back
+        </a>
+      </p>
       <nav data-settings-tabs="" aria-label="Settings">
         {SETTINGS_TABS.map((id) => (
           <a

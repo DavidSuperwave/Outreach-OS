@@ -37,15 +37,81 @@ export const STORAGE_KEYS = {
   theme: "outreach-theme",
   defaultLight: "outreach-default-light",
   defaultDark: "outreach-default-dark",
+  sidebarCollapsed: "outreach-sidebar-collapsed",
 } as const;
 
-export const OKLCH_TOKENS = {
+export type TokenSet = {
+  surface: string;
+  text: string;
+  border: string;
+  accent: string;
+  status: string;
+  muted: string;
+  overlay: string;
+  popover: string;
+};
+
+/** One OKLCH palette per THEME_IDS row. Names are Outreach-governed (OD-24). */
+export const OKLCH_TOKENS: Record<ThemeId, TokenSet> = {
   "outreach-dark": {
     surface: "oklch(0.18 0.02 260)",
     text: "oklch(0.96 0.01 260)",
     border: "oklch(0.32 0.02 260)",
     accent: "oklch(0.72 0.14 250)",
     status: "oklch(0.75 0.16 145)",
+    muted: "oklch(0.70 0.02 260)",
+    overlay: "oklch(0.14 0.02 260 / 0.72)",
+    popover: "oklch(0.22 0.025 260)",
+  },
+  void: {
+    surface: "oklch(0.12 0.005 260)",
+    text: "oklch(0.94 0.01 260)",
+    border: "oklch(0.24 0.01 260)",
+    accent: "oklch(0.78 0.02 260)",
+    status: "oklch(0.72 0.12 145)",
+    muted: "oklch(0.62 0.01 260)",
+    overlay: "oklch(0.08 0.005 260 / 0.78)",
+    popover: "oklch(0.16 0.01 260)",
+  },
+  ember: {
+    surface: "oklch(0.18 0.04 40)",
+    text: "oklch(0.96 0.02 70)",
+    border: "oklch(0.32 0.05 40)",
+    accent: "oklch(0.72 0.18 45)",
+    status: "oklch(0.74 0.15 145)",
+    muted: "oklch(0.70 0.04 50)",
+    overlay: "oklch(0.12 0.04 40 / 0.72)",
+    popover: "oklch(0.22 0.045 40)",
+  },
+  spirit: {
+    surface: "oklch(0.18 0.05 310)",
+    text: "oklch(0.96 0.02 310)",
+    border: "oklch(0.32 0.06 310)",
+    accent: "oklch(0.74 0.16 320)",
+    status: "oklch(0.75 0.14 165)",
+    muted: "oklch(0.70 0.04 310)",
+    overlay: "oklch(0.12 0.04 310 / 0.72)",
+    popover: "oklch(0.23 0.05 310)",
+  },
+  moon: {
+    surface: "oklch(0.22 0.015 250)",
+    text: "oklch(0.95 0.01 250)",
+    border: "oklch(0.36 0.02 250)",
+    accent: "oklch(0.78 0.06 250)",
+    status: "oklch(0.76 0.12 145)",
+    muted: "oklch(0.72 0.02 250)",
+    overlay: "oklch(0.16 0.015 250 / 0.7)",
+    popover: "oklch(0.26 0.02 250)",
+  },
+  rain: {
+    surface: "oklch(0.20 0.03 230)",
+    text: "oklch(0.95 0.015 230)",
+    border: "oklch(0.34 0.04 230)",
+    accent: "oklch(0.70 0.10 230)",
+    status: "oklch(0.74 0.13 160)",
+    muted: "oklch(0.68 0.03 230)",
+    overlay: "oklch(0.14 0.03 230 / 0.72)",
+    popover: "oklch(0.24 0.035 230)",
   },
   "outreach-light": {
     surface: "oklch(0.98 0.01 95)",
@@ -53,8 +119,80 @@ export const OKLCH_TOKENS = {
     border: "oklch(0.86 0.02 95)",
     accent: "oklch(0.55 0.14 250)",
     status: "oklch(0.52 0.16 145)",
+    muted: "oklch(0.45 0.02 260)",
+    overlay: "oklch(0.30 0.02 260 / 0.36)",
+    popover: "oklch(0.99 0.01 95)",
   },
-} as const;
+  satsuma: {
+    surface: "oklch(0.97 0.03 60)",
+    text: "oklch(0.24 0.04 50)",
+    border: "oklch(0.86 0.05 60)",
+    accent: "oklch(0.62 0.18 50)",
+    status: "oklch(0.52 0.15 145)",
+    muted: "oklch(0.48 0.04 55)",
+    overlay: "oklch(0.40 0.04 50 / 0.32)",
+    popover: "oklch(0.99 0.02 60)",
+  },
+  lapis: {
+    surface: "oklch(0.19 0.06 260)",
+    text: "oklch(0.96 0.02 250)",
+    border: "oklch(0.34 0.07 260)",
+    accent: "oklch(0.72 0.16 255)",
+    status: "oklch(0.76 0.14 170)",
+    muted: "oklch(0.70 0.04 255)",
+    overlay: "oklch(0.12 0.05 260 / 0.74)",
+    popover: "oklch(0.24 0.06 260)",
+  },
+  flora: {
+    surface: "oklch(0.20 0.04 145)",
+    text: "oklch(0.96 0.02 140)",
+    border: "oklch(0.34 0.05 145)",
+    accent: "oklch(0.74 0.16 145)",
+    status: "oklch(0.78 0.14 145)",
+    muted: "oklch(0.70 0.04 145)",
+    overlay: "oklch(0.14 0.04 145 / 0.72)",
+    popover: "oklch(0.25 0.045 145)",
+  },
+  paper: {
+    surface: "oklch(0.97 0.015 90)",
+    text: "oklch(0.26 0.03 70)",
+    border: "oklch(0.84 0.03 90)",
+    accent: "oklch(0.50 0.12 70)",
+    status: "oklch(0.50 0.14 145)",
+    muted: "oklch(0.48 0.03 80)",
+    overlay: "oklch(0.36 0.03 80 / 0.34)",
+    popover: "oklch(0.99 0.01 90)",
+  },
+  decepticon: {
+    surface: "oklch(0.16 0.07 300)",
+    text: "oklch(0.95 0.04 100)",
+    border: "oklch(0.32 0.08 300)",
+    accent: "oklch(0.78 0.20 95)",
+    status: "oklch(0.72 0.18 145)",
+    muted: "oklch(0.68 0.05 300)",
+    overlay: "oklch(0.10 0.06 300 / 0.76)",
+    popover: "oklch(0.21 0.07 300)",
+  },
+};
+
+export function isThemeId(value: string | null | undefined): value is ThemeId {
+  return Boolean(value && (THEME_IDS as readonly string[]).includes(value));
+}
+
+/** Semantic token custom properties applied once on the shell root (07-UI-UX). */
+export function tokenVars(theme: ThemeId): Record<`--outreach-${string}`, string> {
+  const tokens = OKLCH_TOKENS[theme];
+  return {
+    "--outreach-surface": tokens.surface,
+    "--outreach-text": tokens.text,
+    "--outreach-border": tokens.border,
+    "--outreach-accent": tokens.accent,
+    "--outreach-status": tokens.status,
+    "--outreach-muted": tokens.muted,
+    "--outreach-overlay": tokens.overlay,
+    "--outreach-popover": tokens.popover,
+  };
+}
 
 export function assertNoMacroBrand(value: string): void {
   if (/macro[-_]/i.test(value) || /macro dark|macro light/i.test(value)) {

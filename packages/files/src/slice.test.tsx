@@ -234,7 +234,7 @@ describe("N14 chrome + STORAGE_OWNERS", () => {
     expect(html).toContain("data-shell=\"outreach-os\"");
     expect(html).toContain("data-split=\"files\"");
     expect(html).toContain("data-path=\"/files/_\"");
-    expect(html).toContain("href=\"/file\"");
+    expect(html).toContain("href=\"/documents\"");
     expect(html).toContain("brief.pdf");
     expect(html).toContain("data-command=\"global.upload-files\"");
     expect(html).toContain("data-upload-state=\"ready\"");

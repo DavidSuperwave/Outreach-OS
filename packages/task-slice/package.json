@@ -10,11 +10,18 @@
   },
   "scripts": {
     "types:check": "tsc --noEmit",
-    "test": "vitest run"
+    "build:client": "node scripts/build-client.mjs",
+    "pretest": "node scripts/build-client.mjs",
+    "test": "vitest run && vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
+    "@gadgets/backend-utils": "workspace:*",
+    "@gadgets/typed-storage": "workspace:*",
+    "@gadgets/workshop-shared": "workspace:*",
     "authz": "workspace:*",
+    "capnweb": "^0.8.0",
     "control-plane": "workspace:*",
+    "hash-wasm": "^4.12.0",
     "identity": "workspace:*",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -23,10 +30,13 @@
     "soup": "workspace:*"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.20.1",
     "@types/node": "^26.1.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
+    "esbuild": "^0.25.12",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.115.0"
   }
 }

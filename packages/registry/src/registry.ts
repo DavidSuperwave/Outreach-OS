@@ -73,4 +73,13 @@ export class EntityRegistry {
     }
     return row;
   }
+
+  snapshot(): RegistryRecord[] {
+    return [...this.#rows.values()].map((row) => ({ ...row }));
+  }
+
+  restore(rows: readonly RegistryRecord[]): void {
+    this.#rows.clear();
+    for (const row of rows) this.#rows.set(row.id, { ...row });
+  }
 }

@@ -184,7 +184,8 @@ describe("UI fixtures gallery", () => {
     expect(html).toContain("data-split=\"files\"");
     expect(html).toContain("data-surface=\"files.list\"");
     expect(html).toContain("brief.pdf");
-    expect(html).toContain("href=\"/file\"");
+    expect(html).toContain("data-command=\"go-to.documents\"");
+    expect(html).toContain("href=\"/documents\"");
   });
 
   it("renders CalendarWorkspace on Shell /calendar and /calls", () => {

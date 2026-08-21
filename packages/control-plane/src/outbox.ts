@@ -76,6 +76,28 @@ export class Outbox {
     return this.#checkpoints.get(projection);
   }
 
+  snapshot(): { rows: OutboxRecord[]; checkpoints: ProjectionCheckpoint[] } {
+    return {
+      rows: this.#rows.map((row) => ({
+        envelope: row.envelope,
+        attempts: row.attempts,
+        status: row.status,
+        poisonReason: row.poisonReason,
+      })),
+      checkpoints: [...this.#checkpoints.values()].map((row) => ({ ...row })),
+    };
+  }
+
+  restore(snapshot: { rows: readonly OutboxRecord[]; checkpoints: readonly ProjectionCheckpoint[] }): void {
+    this.#rows = snapshot.rows.map((row) => ({
+      envelope: row.envelope,
+      attempts: row.attempts,
+      status: row.status,
+      poisonReason: row.poisonReason,
+    }));
+    this.#checkpoints = new Map(snapshot.checkpoints.map((row) => [row.projection, { ...row }]));
+  }
+
   /** Replay non-poison envelopes after `fromEventId` (checkpoint resume). */
   replay(fromEventId?: string): EventEnvelope[] {
     const apply = this.#rows.filter((row) => row.status !== "poison").map((row) => row.envelope);

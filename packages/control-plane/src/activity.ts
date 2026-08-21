@@ -39,4 +39,8 @@ export class ActivityLog {
   list(): readonly ActivityFact[] {
     return this.#facts;
   }
+
+  restore(facts: readonly ActivityFact[]): void {
+    this.#facts = facts.map((fact) => ({ ...fact }));
+  }
 }

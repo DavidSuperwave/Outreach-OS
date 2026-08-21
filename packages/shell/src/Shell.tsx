@@ -1,8 +1,22 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
-import { isWebServed, wellKnownResponse } from "./routes.js";
+import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
+import { panesFromPath, pathnameOf, PATH_SPLIT } from "./path-panes.js";
+import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
-import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
+import { HomePane } from "./home-pane.js";
+import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
+import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
+import type { LeaderKey } from "./registry.js";
+import {
+  COMMAND_MENU_CATEGORIES,
+  CREATE_MENU_ITEMS,
+  SIDEBAR_NAV,
+  commandMenuScopeLabel,
+  filterCommandMenuItems,
+  type CommandMenuCategory,
+  type CommandMenuScope,
+} from "./n5-hotkeys.js";
 
 export interface ShellProps {
   path: string;
@@ -10,79 +24,359 @@ export interface ShellProps {
   theme?: ThemeId;
   username?: string;
   children?: ReactNode;
+  taskItems?: readonly TaskPaneItem[];
+  taskComposeOpen?: boolean;
+  taskDraft?: string;
+  activityFacts?: readonly TaskPaneActivity[];
+  operatorAlerts?: readonly TaskPaneAlert[];
+  onCreateTask?: (title: string) => void;
+  onMarkDone?: (entityId: string, done: boolean) => void;
+  onRenameTask?: (entityId: string, title: string) => void;
+  onSetStatus?: (entityId: string, status: string) => void;
+  onSetPriority?: (entityId: string, priority: string) => void;
+  onSetAssignee?: (entityId: string, assigneeId: string) => void;
+  kernelAuthError?: string;
+  onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
+  sessionReady?: boolean;
+  commandMenuOpen?: boolean;
+  createMenuOpen?: boolean;
+  commandQuery?: string;
+  commandCategory?: CommandMenuCategory;
+  commandSelectedIndex?: number;
+  commandScope?: CommandMenuScope;
+  onCommandQueryChange?: (query: string) => void;
+  onCommandMenuSelect?: (id: string) => void;
+  onCreateMenuSelect?: (id: string) => void;
+  sidebarCollapsed?: boolean;
+  armedLeader?: LeaderKey | null;
+  onToggleCommandMenu?: () => void;
+  onToggleCreateMenu?: () => void;
+  onToggleSidebar?: () => void;
 }
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/documents", label: "Documents" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/mail", label: "Mail" },
-  { href: "/file", label: "Files" },
-  { href: "/search", label: "Search" },
-  { href: "/activity", label: "Activity" },
-  { href: "/settings", label: "Settings" },
-  { href: "/mcp", label: "MCP" },
-  { href: "/channels", label: "Channels" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/calls", label: "Calls" },
-  { href: "/companies", label: "Companies" },
-];
+function navActive(path: string, href: string, layout: readonly SplitPane[]): boolean {
+  if (href === "/") return path === "/" || layout.some((pane) => pane.type === "home");
+  if (layout.length > 1) {
+    const mapped = PATH_SPLIT[href as keyof typeof PATH_SPLIT];
+    if (mapped && layout.some((pane) => pane.type === mapped)) return true;
+  }
+  return path === href || path.startsWith(`${href}/`);
+}
 
 /** Original React shell (OD-11). Not a SolidJS port and not a workshop-frontend fork. */
-export function Shell({ path, panes, theme = "outreach-dark", username = "admin", children }: ShellProps) {
+export function Shell({
+  path,
+  panes,
+  theme = "outreach-dark",
+  username = "admin",
+  children,
+  taskItems = [],
+  taskComposeOpen = false,
+  taskDraft = "",
+  activityFacts = [],
+  operatorAlerts = [],
+  onCreateTask,
+  onMarkDone,
+  onRenameTask,
+  onSetStatus,
+  onSetPriority,
+  onSetAssignee,
+  kernelAuthError,
+  onKernelAuth,
+  sessionReady,
+  commandMenuOpen = false,
+  createMenuOpen = false,
+  commandQuery = "",
+  commandCategory = "all",
+  commandSelectedIndex = 0,
+  commandScope = "root",
+  onCommandQueryChange,
+  onCommandMenuSelect,
+  onCreateMenuSelect,
+  sidebarCollapsed = false,
+  armedLeader = null,
+  onToggleCommandMenu,
+  onToggleCreateMenu,
+  onToggleSidebar,
+}: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
-  const layout = panes ?? [{ type: "home", id: "_" }];
-  const tokens = theme === "outreach-light" ? OKLCH_TOKENS["outreach-light"] : OKLCH_TOKENS["outreach-dark"];
+  const layout = panes ?? panesFromPath(path);
+  const pathname = pathnameOf(path);
+  const multiSplit = layout.length > 1;
+  const vars = tokenVars(theme);
   const showSettings = path === "/settings" || path === "/mcp" || path.startsWith("/settings");
+  const authPath = path === "/login" || path === "/signup";
+  const chromeButton: CSSProperties = {
+    color: "var(--outreach-accent)",
+    background: "none",
+    border: 0,
+    cursor: "pointer",
+  };
+  const overlay: CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    background: "var(--outreach-overlay)",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    padding: "12vh 1.25rem 1.25rem",
+    zIndex: 20,
+  };
+  const popover: CSSProperties = {
+    background: "var(--outreach-popover)",
+    color: "var(--outreach-text)",
+    border: "1px solid var(--outreach-border)",
+    borderRadius: "0.75rem",
+    minWidth: "18rem",
+    maxWidth: "28rem",
+    width: "100%",
+    padding: "0.85rem 1rem",
+    boxShadow: "0 12px 40px oklch(0.12 0.02 260 / 0.35)",
+  };
+  const paletteItems = filterCommandMenuItems(commandQuery, commandCategory, commandScope);
+  const selectedIndex =
+    paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
+  const fullCover = isFullCoverRoute(path);
+  const sidebarWidth = sidebarCollapsed ? "3.75rem" : "15.5rem";
+  const goToHintsVisible = armedLeader === "g";
+  const goToHintKbd: CSSProperties = {
+    color: goToHintsVisible ? "var(--outreach-surface)" : "var(--outreach-muted)",
+    background: goToHintsVisible ? "var(--outreach-accent)" : "transparent",
+    opacity: goToHintsVisible ? 1 : 0,
+    outline: goToHintsVisible ? "1px solid var(--outreach-accent)" : "none",
+    borderRadius: "0.25rem",
+    padding: "0 0.28rem",
+    minWidth: "1.15rem",
+    textAlign: "center",
+    fontWeight: 600,
+  };
+  const collapsedGoToHint: CSSProperties = goToHintsVisible
+    ? {
+        color: "var(--outreach-accent)",
+        outline: "1px solid var(--outreach-accent)",
+        borderRadius: "0.25rem",
+        padding: "0 0.25rem",
+      }
+    : {};
+  const chromeLink: CSSProperties = {
+    ...chromeButton,
+    display: "flex",
+    width: "100%",
+    textAlign: "left",
+    textDecoration: "none",
+    padding: sidebarCollapsed ? "0.45rem 0" : "0.4rem 0.55rem",
+    justifyContent: sidebarCollapsed ? "center" : "space-between",
+    alignItems: "center",
+    gap: "0.5rem",
+    borderRadius: "0.4rem",
+    boxSizing: "border-box",
+  };
   return (
     <div
       data-shell="outreach-os"
       data-theme={theme}
       data-theme-label={THEME_LABELS[theme] ?? theme}
       data-path={encodeSplits(layout)}
-      style={{
-        minHeight: "100vh",
-        fontFamily: "ui-sans-serif, system-ui, sans-serif",
-        background: tokens.surface,
-        color: tokens.text,
-        borderColor: tokens.border,
-      }}
-    >
-      <header
-        data-chrome="sidebar"
-        style={{
+      data-session-ready={sessionReady ? "true" : "false"}
+      data-layout={fullCover ? "full-cover" : "app"}
+      data-armed-leader={armedLeader ?? undefined}
+      style={
+        {
+          ...vars,
+          minHeight: "100vh",
           display: "flex",
-          gap: "1.25rem",
-          alignItems: "center",
-          padding: "0.85rem 1.25rem",
-          borderBottom: `1px solid ${tokens.border}`,
+          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          background: "var(--outreach-surface)",
+          color: "var(--outreach-text)",
+          borderColor: "var(--outreach-border)",
+        } as CSSProperties
+      }
+    >
+      {fullCover ? null : (
+        <aside
+          data-chrome="sidebar"
+          data-collapsed={sidebarCollapsed ? "true" : "false"}
+          data-leader={goToHintsVisible ? "g" : undefined}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            width: sidebarWidth,
+            flexShrink: 0,
+            minHeight: "100vh",
+            padding: sidebarCollapsed ? "0.85rem 0.45rem" : "0.85rem 0.7rem",
+            borderRight: "1px solid var(--outreach-border)",
+            boxSizing: "border-box",
+            gap: "0.65rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: sidebarCollapsed ? "center" : "space-between",
+              gap: "0.35rem",
+            }}
+          >
+            {sidebarCollapsed ? null : <strong>Outreach OS</strong>}
+            <button
+              type="button"
+              data-command="global.toggle-sidebar"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title="Toggle sidebar"
+              onClick={onToggleSidebar}
+              style={chromeButton}
+            >
+              {sidebarCollapsed ? "»" : "«"}
+            </button>
+          </div>
+          <button type="button" data-command="global.create" onClick={onToggleCreateMenu} style={chromeLink}>
+            <span>{sidebarCollapsed ? "+" : "Create"}</span>
+            {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>c</kbd>}
+          </button>
+          <button type="button" data-command="global.command-menu" onClick={onToggleCommandMenu} style={chromeLink}>
+            <span>{sidebarCollapsed ? "⌘" : "Command menu"}</span>
+            {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>⌘K</kbd>}
+          </button>
+          {goToHintsVisible ? (
+            <p
+              data-surface="go-to-hints"
+              role="status"
+              aria-label="Go to"
+              style={{
+                margin: 0,
+                padding: "0.35rem 0.55rem",
+                color: "var(--outreach-accent)",
+                border: "1px solid var(--outreach-accent)",
+                borderRadius: "0.4rem",
+                fontSize: "0.85rem",
+              }}
+            >
+              {sidebarCollapsed ? "g" : "Go to"}
+            </p>
+          ) : null}
+          <nav
+            aria-label="Primary"
+            style={{ display: "flex", flexDirection: "column", gap: "0.15rem", flex: 1, minHeight: 0 }}
+          >
+            {SIDEBAR_NAV.map((item) => {
+              const active = navActive(path, item.href, layout);
+              return (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  data-nav={item.href}
+                  data-command={item.id}
+                  data-hint={item.hint}
+                  title={item.label}
+                  style={{
+                    ...chromeLink,
+                    textDecoration: active ? "underline" : "none",
+                    background: active ? "var(--outreach-popover)" : "none",
+                    color: "var(--outreach-accent)",
+                  }}
+                >
+                  <span style={sidebarCollapsed ? collapsedGoToHint : undefined}>
+                    {sidebarCollapsed ? item.hint : item.label}
+                  </span>
+                  {sidebarCollapsed ? null : (
+                    <kbd data-goto-hint="" data-armed={goToHintsVisible ? "true" : "false"} style={goToHintKbd}>
+                      {item.hint}
+                    </kbd>
+                  )}
+                </a>
+              );
+            })}
+          </nav>
+          <div data-chrome="sidebar-utility" style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+            <a href="/settings" data-command="global.toggle-settings" data-nav="/settings" style={chromeLink}>
+              {sidebarCollapsed ? "S" : "Settings"}
+            </a>
+            <a href="/mcp" data-command="global.mcp-setup" data-nav="/mcp" style={chromeLink}>
+              {sidebarCollapsed ? "M" : "MCP"}
+            </a>
+            <span data-actor={username} style={{ color: "var(--outreach-muted)", padding: "0.35rem 0.55rem" }}>
+              {sidebarCollapsed ? username.slice(0, 1).toUpperCase() : username}
+            </span>
+          </div>
+        </aside>
+      )}
+      <main
+        data-route={layout[0]?.type ?? "home"}
+        data-split-count={String(layout.length)}
+        style={{
+          padding: multiSplit ? 0 : "1.25rem",
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <strong>Outreach OS</strong>
-        <nav aria-label="Primary" style={{ display: "flex", gap: "0.85rem" }}>
-          {NAV.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              data-nav={item.href}
-              style={{ color: tokens.accent, textDecoration: path === item.href ? "underline" : "none" }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-      <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem" }}>
-        {layout.map((pane) => (
-          <section key={`${pane.type}:${pane.id}`} data-split={pane.type} data-split-id={pane.id}>
-            {pane.type === "home" && path === "/" ? (
-              <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
+        {kernelAuthError ? (
+          <p
+            data-auth-error=""
+            data-permission={/lacks |denied|receipt/i.test(kernelAuthError) ? "denied" : undefined}
+            role="alert"
+          >
+            {kernelAuthError}
+          </p>
+        ) : null}
+        <div
+          data-split-layout={multiSplit ? "row" : "stack"}
+          style={{
+            display: "flex",
+            flexDirection: multiSplit ? "row" : "column",
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+          }}
+        >
+        {layout.map((pane, index) => (
+          <section
+            key={`${pane.type}:${pane.id}:${index}`}
+            data-split={pane.type}
+            data-split-id={pane.id}
+            style={
+              multiSplit
+                ? {
+                    flex: 1,
+                    minWidth: 0,
+                    padding: "1.25rem",
+                    overflow: "auto",
+                    borderRight:
+                      index < layout.length - 1 ? "1px solid var(--outreach-border)" : undefined,
+                  }
+                : undefined
+            }
+          >
+            {pane.type === "home" &&
+            !authPath &&
+            (pathname === "/" || pathname.startsWith("/home/")) ? (
+              <HomePane alerts={operatorAlerts} />
             ) : null}
-            {pane.type === "tasks" ? (
-              <p>Tasks (N8): properties, bulk edit, kanban/grid. One Task Database.</p>
+            {authPath ? (
+              <LoginPane
+                mode={path === "/signup" ? "signup" : "login"}
+                error={kernelAuthError}
+                onAuth={onKernelAuth}
+              />
+            ) : null}
+            {pane.type === "tasks" && !children ? (
+              <TaskPane
+                items={taskItems}
+                composeOpen={taskComposeOpen}
+                draft={taskDraft}
+                activity={activityFacts}
+                alerts={operatorAlerts}
+                onCreate={onCreateTask}
+                onMarkDone={onMarkDone}
+                onRename={onRenameTask}
+                onSetStatus={onSetStatus}
+                onSetPriority={onSetPriority}
+                onSetAssignee={onSetAssignee}
+              />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}
             {pane.type === "channel" ? (
@@ -114,6 +408,7 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
             ) : null}
           </section>
         ))}
+        </div>
         {children}
         {path === "/onboarding" || path === "/getting-started" ? (
           <section data-surface="n19.parked" data-spec="needed" data-path={path}>
@@ -121,10 +416,163 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
           </section>
         ) : null}
         {showSettings ? <SettingsChrome tab={settingsTabFromPath(path)} /> : null}
+        {armedLeader === "o" && !commandMenuOpen ? (
+          <div
+            data-surface="open-category-hints"
+            data-leader="o"
+            role="status"
+            aria-label="Open category"
+            style={{
+              position: "fixed",
+              left: sidebarCollapsed ? "4.25rem" : "16.25rem",
+              top: "4.5rem",
+              zIndex: 30,
+              ...popover,
+              minWidth: "16rem",
+              width: "auto",
+              border: "2px solid var(--outreach-accent)",
+            }}
+          >
+            <p style={{ color: "var(--outreach-text)", margin: "0 0 0.75rem", fontWeight: 600 }}>Open category</p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {COMMAND_MENU_CATEGORIES.map((row) => (
+                <li
+                  key={row.id}
+                  data-command={row.command}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                    padding: "0.3rem 0",
+                  }}
+                >
+                  <span>{row.label}</span>
+                  <kbd
+                    style={{
+                      color: "var(--outreach-surface)",
+                      background: "var(--outreach-accent)",
+                      borderRadius: "0.25rem",
+                      padding: "0 0.28rem",
+                      minWidth: "1.15rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    {row.hint}
+                  </kbd>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {createMenuOpen ? (
+          <div data-surface="create-menu" role="dialog" aria-label="Create" style={overlay}>
+            <div style={popover}>
+              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>Create</p>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {CREATE_MENU_ITEMS.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      data-command={item.id}
+                      onClick={() => onCreateMenuSelect?.(item.id)}
+                      style={{
+                        ...chromeButton,
+                        display: "flex",
+                        width: "100%",
+                        justifyContent: "space-between",
+                        padding: "0.45rem 0",
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      <kbd style={{ color: "var(--outreach-muted)" }}>{item.chord}</kbd>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+        {commandMenuOpen ? (
+          <div data-surface="command-menu" data-command-scope={commandScope} role="dialog" aria-label="Command menu" style={overlay}>
+            <div style={{ ...popover, maxWidth: "32rem" }}>
+              <p style={{ color: "var(--outreach-muted)", margin: "0 0 0.75rem" }}>{commandMenuScopeLabel(commandScope)}</p>
+              {commandScope !== "root" ? (
+                <button
+                  type="button"
+                  data-command="command-menu.backspace-back"
+                  onClick={() => onCommandMenuSelect?.("command-menu.backspace-back")}
+                  style={{ ...chromeButton, marginBottom: "0.75rem" }}
+                >
+                  Back
+                </button>
+              ) : null}
+              <input
+                name="command-query"
+                aria-label="Command search"
+                value={commandQuery}
+                onChange={(event) => onCommandQueryChange?.(event.currentTarget.value)}
+                placeholder="Search"
+                autoComplete="off"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: "0.75rem",
+                  padding: "0.45rem 0.6rem",
+                  background: "var(--outreach-surface)",
+                  color: "var(--outreach-text)",
+                  border: "1px solid var(--outreach-border)",
+                  borderRadius: "0.45rem",
+                }}
+              />
+              {commandScope === "root" ? (
+              <div data-surface="command-menu.categories" role="tablist" aria-label="Command categories">
+                {COMMAND_MENU_CATEGORIES.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={commandCategory === row.id}
+                    data-command={row.command}
+                    data-category={row.id}
+                    onClick={() => onCommandMenuSelect?.(row.command)}
+                    style={{
+                      ...chromeButton,
+                      padding: "0.25rem 0.5rem",
+                      textDecoration: commandCategory === row.id ? "underline" : "none",
+                    }}
+                  >
+                    {row.label}
+                  </button>
+                ))}
+              </div>
+              ) : null}
+              <ul role="listbox" aria-label="Command results" style={{ listStyle: "none", margin: "0.75rem 0 0", padding: 0 }}>
+                {paletteItems.map((item, index) => (
+                  <li key={item.id} role="option" aria-selected={index === selectedIndex}>
+                    <button
+                      type="button"
+                      data-command={item.id}
+                      data-selected={index === selectedIndex ? "true" : "false"}
+                      onClick={() => onCommandMenuSelect?.(item.id)}
+                      style={{
+                        ...chromeButton,
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.45rem 0.35rem",
+                        background: index === selectedIndex ? "var(--outreach-surface)" : "none",
+                        borderRadius: "0.35rem",
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
       </main>
-      <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: `1px solid ${tokens.border}` }}>
-        {username}
-      </footer>
     </div>
   );
 }
