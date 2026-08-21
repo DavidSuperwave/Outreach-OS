@@ -23,6 +23,7 @@ interface DurableObjectStub<T> {
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   listVisible(actor: ActorContext): Promise<SoupItem[]>;
+  listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
   seq(): Promise<number>;
   replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
   rebuildProjection(actor: ActorContext): Promise<void>;
@@ -84,6 +85,10 @@ export class DurableTaskApi implements TaskRpc {
 
   listVisible(actor: ActorContext): Promise<SoupItem[]> {
     return this.#stub().listVisible(actor);
+  }
+
+  listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]> {
+    return this.#stub().listActivity(actor);
   }
 
   seq(): Promise<number> {

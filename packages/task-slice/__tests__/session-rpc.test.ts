@@ -76,6 +76,9 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
 
     const renamed = await session.updateTitle(created.task.id, "Renamed", "s2");
     expect(renamed.title).toBe("Renamed");
+
+    const facts = await session.listActivity();
+    expect(facts.map((fact) => fact.action).sort()).toEqual(["created", "edited"]);
   });
 
   it("rejects client-supplied actor JSON on the Cap'n Web mount", async () => {

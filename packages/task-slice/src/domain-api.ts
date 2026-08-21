@@ -1,3 +1,4 @@
+import type { ActivityFact } from "control-plane";
 import type { SoupDelta, SoupItem } from "soup";
 import type { TaskRecord, TaskView } from "./slice.js";
 
@@ -21,6 +22,7 @@ export interface TaskAuthenticatedApi {
 export interface TaskSessionApi {
   createTask(title: string, correlationId?: string): Promise<TaskView>;
   listTasks(): Promise<SoupItem[]>;
+  listActivity(): Promise<ActivityFact[]>;
   updateTitle(entityId: string, title: string, correlationId?: string): Promise<TaskRecord>;
   setStatus(entityId: string, status: string, correlationId?: string): Promise<TaskRecord>;
   setPriority(entityId: string, priority: string, correlationId?: string): Promise<TaskRecord>;

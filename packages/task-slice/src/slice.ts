@@ -52,6 +52,7 @@ export interface TaskRpc {
   markDone(done: boolean, ctx: RequestContext): Promise<TaskRecord>;
   listTasks(receipts: readonly Receipt[]): Promise<SoupItem[]>;
   listVisible(actor: ActorContext): Promise<SoupItem[]>;
+  listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]>;
   seq(): Promise<number>;
   replayFrom(seq: number, actor: ActorContext): Promise<SoupDelta[]>;
   rebuildProjection(actor: ActorContext): Promise<void>;

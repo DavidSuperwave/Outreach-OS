@@ -149,6 +149,10 @@ export class TaskSessionTarget extends RpcTarget implements TaskSessionApi {
     return this.#api().listVisible(this.actor);
   }
 
+  async listActivity() {
+    return this.#api().listActivity(this.actor);
+  }
+
   async updateTitle(entityId: string, title: string, correlationId?: string) {
     if (!entityId || !title) throw new Error("entityId and title required");
     return this.#mutate(entityId, "edit", correlationId, (api, ctx) => api.updateTitle(title, ctx));

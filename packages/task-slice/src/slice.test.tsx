@@ -11,6 +11,7 @@ import { TaskSlice, actorContext, requestContext } from "./slice.js";
 import { dryRunIdentityMapping } from "./mapping.js";
 import { SLICE_COMMAND_IDS, bindSliceCommands, runSliceCommand } from "./commands.js";
 import { TaskWorkspace } from "./ui.js";
+import { inProcessTaskSession, loadTaskSurface } from "./in-process-session.js";
 
 const tenant = fixtureId("team", 1);
 const ownerId = fixtureId("user", 1);
@@ -297,5 +298,26 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(html).toContain("data-surface=\"activity.facts\"");
     expect(html).toContain("data-activity-action=\"created\"");
     expect(html).not.toMatch(/macro/i);
+  });
+
+  it("renders the shell from a TaskSessionApi snapshot (same methods as Cap'n Web)", async () => {
+    resetIdSequence();
+    const slice = new TaskSlice();
+    const session = inProcessTaskSession(slice, ownerActor());
+    await session.createTask("Session task", "session-ui");
+    const surface = await loadTaskSurface(session);
+    expect(surface.items.map((item) => item.title)).toEqual(["Session task"]);
+    expect(surface.activity.map((fact) => fact.action)).toContain("created");
+    const html = renderToString(
+      createElement(TaskWorkspace, {
+        items: surface.items,
+        composeOpen: true,
+        draft: "Session task",
+        activity: surface.activity,
+      }),
+    );
+    expect(html).toContain("Session task");
+    expect(html).toContain("data-surface=\"activity.facts\"");
+    expect(html).toContain("data-activity-action=\"created\"");
   });
 });

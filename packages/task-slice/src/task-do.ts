@@ -202,6 +202,13 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return this.listTasks(this.#viewReceipts(slice, actor));
   }
 
+  async listActivity(actor: ActorContext): Promise<import("control-plane").ActivityFact[]> {
+    const slice = this.#load();
+    this.#assertTenant(actor, slice);
+    const visible = new Set(this.#viewReceipts(slice, actor).map((receipt) => receipt.entityId));
+    return slice.activity.list().filter((fact) => visible.has(fact.entityId));
+  }
+
   async seq(): Promise<number> {
     return this.#load().plane.lists.seq;
   }
