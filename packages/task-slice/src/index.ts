@@ -5,5 +5,3 @@ export type { LegacyTaskRef, IdentityMappingResult } from "./mapping.js";
 export { SLICE_COMMAND_IDS, runSliceCommand, bindSliceCommands } from "./commands.js";
 export type { SliceCommandId, SliceCommandInput, SliceCommandResult } from "./commands.js";
 export { TaskComposePopover, TaskList, TaskWorkspace } from "./ui.js";
-export { TaskSliceDurableObject } from "./task-do.js";
-export { DurableTaskApi } from "./durable-task-api.js";

@@ -16,13 +16,22 @@ export function TaskComposePopover({ open, title }: { open: boolean; title: stri
 
 export function TaskList({ items }: { items: readonly SoupItem[] }) {
   return (
-    <ul data-surface="soup.tasks" role="list">
-      {items.map((item) => (
-        <li key={item.entityId} data-entity-id={item.entityId} data-facet={item.facet ?? ""}>
-          {item.title}
-        </li>
-      ))}
-    </ul>
+    <table data-surface="soup.tasks" role="table">
+      <thead>
+        <tr>
+          <th>Done</th>
+          <th>Title</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr key={item.entityId} data-entity-id={item.entityId} data-facet={item.facet ?? ""} data-done={item.done ? "true" : "false"}>
+            <td>{item.done ? "done" : "open"}</td>
+            <td>{item.title}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -30,17 +39,27 @@ export function TaskWorkspace({
   items,
   composeOpen,
   draft,
+  activity = [],
 }: {
   items: readonly SoupItem[];
   composeOpen: boolean;
   draft: string;
+  activity?: readonly { id: string; action: string; entityId: string }[];
 }) {
   return (
-    <div data-slice="task">
-      <Shell path="/tasks" panes={[{ type: "tasks", id: "_" }]} theme="outreach-dark">
-        <TaskComposePopover open={composeOpen} title={draft} />
-        <TaskList items={items} />
-      </Shell>
-    </div>
+    <Shell
+      path="/tasks"
+      panes={[{ type: "tasks", id: "_" }]}
+      theme="outreach-dark"
+      taskItems={items.map((item) => ({
+        entityId: item.entityId,
+        title: item.title,
+        facet: item.facet,
+        done: item.done,
+      }))}
+      taskComposeOpen={composeOpen}
+      taskDraft={draft}
+      activityFacts={activity}
+    />
   );
 }

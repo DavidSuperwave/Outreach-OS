@@ -239,6 +239,7 @@ describe("Shell boots", () => {
     expect(html).toContain("data-scope=\"task-compose-popover\"");
     expect(html).toContain("data-surface=\"soup.tasks\"");
     expect(html).toContain("aria-label=\"Task title\"");
+    expect(html).toContain("data-hint=\"create-menu.task\"");
     expect(html).not.toMatch(/macro/i);
   });
 

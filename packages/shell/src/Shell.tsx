@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
 import { isWebServed, wellKnownResponse } from "./routes.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
-import { TaskPane } from "./task-pane.js";
+import { TaskPane, type TaskPaneActivity, type TaskPaneItem } from "./task-pane.js";
 import { OKLCH_TOKENS, THEME_LABELS, type ThemeId } from "./theme.js";
 
 export interface ShellProps {
@@ -11,6 +11,10 @@ export interface ShellProps {
   theme?: ThemeId;
   username?: string;
   children?: ReactNode;
+  taskItems?: readonly TaskPaneItem[];
+  taskComposeOpen?: boolean;
+  taskDraft?: string;
+  activityFacts?: readonly TaskPaneActivity[];
 }
 
 const NAV = [
@@ -31,7 +35,17 @@ const NAV = [
 ];
 
 /** Original React shell (OD-11). Not a SolidJS port and not a workshop-frontend fork. */
-export function Shell({ path, panes, theme = "outreach-dark", username = "admin", children }: ShellProps) {
+export function Shell({
+  path,
+  panes,
+  theme = "outreach-dark",
+  username = "admin",
+  children,
+  taskItems = [],
+  taskComposeOpen = true,
+  taskDraft = "",
+  activityFacts = [],
+}: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
   }
@@ -82,8 +96,13 @@ export function Shell({ path, panes, theme = "outreach-dark", username = "admin"
             {pane.type === "home" && path === "/" ? (
               <p>Playbooks, inspect, ask, table gadget. Governed connectors on Settings.</p>
             ) : null}
-            {pane.type === "tasks" ? (
-              <TaskPane items={[]} composeOpen draft="" />
+            {pane.type === "tasks" && !children ? (
+              <TaskPane
+                items={taskItems}
+                composeOpen={taskComposeOpen}
+                draft={taskDraft}
+                activity={activityFacts}
+              />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}
             {pane.type === "channel" ? (

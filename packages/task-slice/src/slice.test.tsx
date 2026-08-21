@@ -282,6 +282,11 @@ describe("N6 task vertical slice (11 gates)", () => {
         items: api.listTasks([receipt]),
         composeOpen: true,
         draft: "Visible task",
+        activity: slice.activity.list().map((fact) => ({
+          id: fact.id,
+          action: fact.action,
+          entityId: fact.entityId,
+        })),
       }),
     );
     expect(html).toContain("data-shell=\"outreach-os\"");
@@ -289,6 +294,8 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(html).toContain("Visible task");
     expect(html).toContain("data-scope=\"task-compose-popover\"");
     expect(html).toContain("aria-label=\"Task title\"");
+    expect(html).toContain("data-surface=\"activity.facts\"");
+    expect(html).toContain("data-activity-action=\"created\"");
     expect(html).not.toMatch(/macro/i);
   });
 });
