@@ -398,6 +398,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     sessionReady,
     commandMenuOpen,
     sidebarCollapsed,
+    onToggleCommandMenu: () => setCommandMenuOpen((open) => !open),
     onCommandMenuSelect: (id) => {
       defaultChromeHotkeyHandle(
         (path) => window.location.assign(path),

@@ -31,6 +31,7 @@ export interface ShellProps {
   commandMenuOpen?: boolean;
   onCommandMenuSelect?: (id: string) => void;
   sidebarCollapsed?: boolean;
+  onToggleCommandMenu?: () => void;
 }
 
 const NAV = [
@@ -74,6 +75,7 @@ export function Shell({
   commandMenuOpen = false,
   onCommandMenuSelect,
   sidebarCollapsed = false,
+  onToggleCommandMenu,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -121,6 +123,14 @@ export function Shell({
             </a>
           ))}
         </nav>
+        <button
+          type="button"
+          data-command="global.command-menu"
+          onClick={onToggleCommandMenu}
+          style={{ marginLeft: "auto", color: tokens.accent, background: "none", border: 0, cursor: "pointer" }}
+        >
+          Command menu
+        </button>
       </header>
       <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem" }}>
         {kernelAuthError ? (
