@@ -7,6 +7,8 @@ export interface TaskPaneItem {
   done?: boolean;
   status?: string | null;
   priority?: string | null;
+  assigneeIds?: readonly string[];
+  tags?: readonly string[];
 }
 
 export interface TaskPaneActivity {
@@ -44,6 +46,7 @@ export function TaskPane({
   onRename,
   onSetStatus,
   onSetPriority,
+  onSetAssignee,
 }: {
   items?: readonly TaskPaneItem[];
   composeOpen?: boolean;
@@ -55,9 +58,11 @@ export function TaskPane({
   onRename?: (entityId: string, title: string) => void;
   onSetStatus?: (entityId: string, status: string) => void;
   onSetPriority?: (entityId: string, priority: string) => void;
+  onSetAssignee?: (entityId: string, assigneeId: string) => void;
 }): ReactNode {
   const [tab, setTab] = useState<SoupTaskTab>("all");
   const [focusedId, setFocusedId] = useState<string | null>(items[0]?.entityId ?? null);
+  const [openedId, setOpenedId] = useState<string | null>(null);
   const visible = useMemo(() => {
     if (tab === "open") return items.filter((item) => !item.done);
     if (tab === "done") return items.filter((item) => item.done);
@@ -77,6 +82,7 @@ export function TaskPane({
       data-slice="task"
       data-soup-tab={tab}
       data-focused-id={focused?.entityId ?? ""}
+      data-opened-id={openedId ?? ""}
       onKeyDown={(event) => {
         const target = event.target;
         const typing =
@@ -96,6 +102,9 @@ export function TaskPane({
         } else if (event.key === "1" || event.key === "2" || event.key === "3") {
           const next = SOUP_TASK_TABS.find((row) => row.chord === event.key);
           if (next) setTab(next.id);
+        } else if (event.key === "Enter" && focused) {
+          event.preventDefault();
+          setOpenedId(focused.entityId);
         }
       }}
       tabIndex={0}
@@ -146,12 +155,14 @@ export function TaskPane({
             <th>Title</th>
             <th>Status</th>
             <th>Priority</th>
+            <th>Assignee</th>
+            <th>Tags</th>
           </tr>
         </thead>
         <tbody>
           {visible.length === 0 ? (
             <tr data-empty="tasks">
-              <td colSpan={4}>No tasks</td>
+              <td colSpan={6}>No tasks</td>
             </tr>
           ) : (
             visible.map((item) => (
@@ -161,6 +172,7 @@ export function TaskPane({
                 data-facet={item.facet ?? "task"}
                 data-done={item.done ? "true" : "false"}
                 data-focused={focused?.entityId === item.entityId ? "true" : "false"}
+                data-opened={openedId === item.entityId ? "true" : "false"}
                 data-command-scope="soup-entity"
                 aria-selected={focused?.entityId === item.entityId}
                 onClick={() => setFocusedId(item.entityId)}
@@ -196,9 +208,10 @@ export function TaskPane({
                     item.title
                   )}
                 </td>
-                <td data-command="soup-entity.status">
+                <td data-command="soup-entity.properties" data-surface="task.properties">
                   <select
                     aria-label="Status"
+                    data-command="soup-entity.status"
                     value={item.status ?? "todo"}
                     onChange={(event) => onSetStatus?.(item.entityId, event.currentTarget.value)}
                   >
@@ -209,9 +222,10 @@ export function TaskPane({
                     ))}
                   </select>
                 </td>
-                <td data-command="soup-entity.priority">
+                <td>
                   <select
                     aria-label="Priority"
+                    data-command="soup-entity.priority"
                     value={item.priority ?? "none"}
                     onChange={(event) => onSetPriority?.(item.entityId, event.currentTarget.value)}
                   >
@@ -221,6 +235,35 @@ export function TaskPane({
                       </option>
                     ))}
                   </select>
+                </td>
+                <td data-command="soup-entity.assignee">
+                  {onSetAssignee ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const assigneeId = String(new FormData(event.currentTarget).get("assignee") ?? "").trim();
+                        if (assigneeId) onSetAssignee(item.entityId, assigneeId);
+                      }}
+                    >
+                      <input
+                        name="assignee"
+                        defaultValue={item.assigneeIds?.[0] ?? ""}
+                        aria-label="Assignee"
+                        data-command="soup-entity.assignee"
+                      />
+                    </form>
+                  ) : (
+                    item.assigneeIds?.[0] ?? ""
+                  )}
+                </td>
+                <td data-command="soup-entity.tags">
+                  <input
+                    name="tags"
+                    defaultValue={(item.tags ?? []).join(", ")}
+                    aria-label="Tags"
+                    data-command="soup-entity.tags"
+                    readOnly
+                  />
                 </td>
               </tr>
             ))

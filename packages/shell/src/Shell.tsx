@@ -23,6 +23,7 @@ export interface ShellProps {
   onRenameTask?: (entityId: string, title: string) => void;
   onSetStatus?: (entityId: string, status: string) => void;
   onSetPriority?: (entityId: string, priority: string) => void;
+  onSetAssignee?: (entityId: string, assigneeId: string) => void;
   kernelAuthError?: string;
   onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
   sessionReady?: boolean;
@@ -62,6 +63,7 @@ export function Shell({
   onRenameTask,
   onSetStatus,
   onSetPriority,
+  onSetAssignee,
   kernelAuthError,
   onKernelAuth,
   sessionReady,
@@ -142,6 +144,7 @@ export function Shell({
                 onRename={onRenameTask}
                 onSetStatus={onSetStatus}
                 onSetPriority={onSetPriority}
+                onSetAssignee={onSetAssignee}
               />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}

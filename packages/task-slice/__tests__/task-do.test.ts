@@ -67,6 +67,7 @@ describe("N6 TaskSliceDurableObject + D1 lists (11 slice gates)", () => {
     expect((await stub.get(task.id, ownerActor()))?.status).toBe("in_progress");
     expect((await api.listTasks([receipt]))[0]?.status).toBe("in_progress");
     expect((await api.listTasks([receipt]))[0]?.priority).toBe("high");
+    expect((await api.listTasks([receipt]))[0]?.assigneeIds).toEqual([ownerId]);
     expect((await stub.get(task.id, ownerActor()))?.done).toBe(true);
     expect(await api.listTasks([])).toHaveLength(0);
   });

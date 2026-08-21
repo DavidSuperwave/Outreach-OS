@@ -36,6 +36,8 @@ export interface SoupItem {
   /** Task property bundle on the document row (OD-7). Optional on other types. */
   status?: string | null;
   priority?: string | null;
+  assigneeIds?: string[];
+  tags?: string[];
 }
 
 export function soupItemType(type: EntityType): SoupItemType | null {
@@ -55,4 +57,10 @@ export function payloadBool(payload: Record<string, unknown>, key: string): bool
 export function payloadNumber(payload: Record<string, unknown>, key: string): number | undefined {
   const value = payload[key];
   return typeof value === "number" ? value : undefined;
+}
+
+export function payloadStringArray(payload: Record<string, unknown>, key: string): string[] | undefined {
+  const value = payload[key];
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) return value;
+  return undefined;
 }

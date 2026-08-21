@@ -46,6 +46,49 @@ const PARENT: Record<ScopeId, ScopeId | null> = {
   detached: null,
 };
 
+const MODIFIER_CODES = new Set([
+  "ShiftLeft",
+  "ShiftRight",
+  "ControlLeft",
+  "ControlRight",
+  "AltLeft",
+  "AltRight",
+  "MetaLeft",
+  "MetaRight",
+]);
+
+/**
+ * Canonical Neuwave chord token: `opt+shift+cmd+<key>`.
+ * `event.code` supplies the physical key so Shift+Digit1 stays `shift+1`
+ * and Shift+Meta+KeyS becomes `shift+cmd+s` (not `s`).
+ */
+export function chordFromEvent(event: {
+  key: string;
+  code: string;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+}): string {
+  if (MODIFIER_CODES.has(event.code)) return event.key.toLowerCase();
+  let key: string;
+  if (event.code.startsWith("Key") && event.code.length === 4) key = event.code.slice(3).toLowerCase();
+  else if (event.code.startsWith("Digit") && event.code.length === 6) key = event.code.slice(5);
+  else if (event.code === "Space") key = "space";
+  else if (event.code === "Enter") key = "enter";
+  else if (event.code === "Escape") key = "escape";
+  else if (event.code === "ArrowDown") key = "arrowdown";
+  else if (event.code === "ArrowUp") key = "arrowup";
+  else key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
+  const parts: string[] = [];
+  if (event.altKey) parts.push("opt");
+  if (event.shiftKey) parts.push("shift");
+  if (event.metaKey) parts.push("cmd");
+  else if (event.ctrlKey) parts.push("ctrl");
+  parts.push(key);
+  return parts.join("+");
+}
+
 /**
  * Central command registry (ADR-001). Dispatch walks active → parent.
  * First capturing handler (true) wins. override replaces same-chord in a scope; add stacks.

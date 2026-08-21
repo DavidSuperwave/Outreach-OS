@@ -6,7 +6,7 @@ export type { KernelAuthFields } from "./login-pane.js";
 export type { SplitType, SplitPane } from "./splits.js";
 export { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
 export type { ThemeId } from "./theme.js";
-export { CommandRegistry } from "./registry.js";
+export { CommandRegistry, chordFromEvent } from "./registry.js";
 export type { KeyEvent, CommandHandler, ScopeId, LeaderKey } from "./registry.js";
 export { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 export type { N5CommandId, ChromeCommandContext } from "./commands.js";

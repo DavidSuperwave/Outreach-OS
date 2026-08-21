@@ -7,7 +7,7 @@ import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
 import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
 import { N5_COMMAND_IDS, commandEnabled, defaultChromeContext } from "./commands.js";
 import { KERNEL_CONSUMED_RPC, KERNEL_RPC_TOTAL, KERNEL_UNCONSUMED_BY_SHELL } from "./kernel-surface.js";
-import { CommandRegistry } from "./registry.js";
+import { CommandRegistry, chordFromEvent } from "./registry.js";
 import { Shell } from "./Shell.js";
 
 describe("27-route map", () => {
@@ -217,6 +217,48 @@ describe("command registry scope tree", () => {
     expect(registry.dispatch({ chord: "f", inputFocused: true, touch: false, platform: "mac" })).toBeNull();
     expect(registry.dispatch({ chord: "f", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.filter");
   });
+
+  it("builds Neuwave modifier chords from KeyboardEvent (shift+cmd+s, shift+e, digits)", () => {
+    expect(
+      chordFromEvent({ key: "S", code: "KeyS", altKey: false, shiftKey: true, metaKey: true, ctrlKey: false }),
+    ).toBe("shift+cmd+s");
+    expect(
+      chordFromEvent({ key: "s", code: "KeyS", altKey: false, shiftKey: true, metaKey: false, ctrlKey: true }),
+    ).toBe("shift+ctrl+s");
+    expect(
+      chordFromEvent({ key: "E", code: "KeyE", altKey: false, shiftKey: true, metaKey: false, ctrlKey: false }),
+    ).toBe("shift+e");
+    expect(
+      chordFromEvent({ key: "e", code: "KeyE", altKey: false, shiftKey: false, metaKey: false, ctrlKey: false }),
+    ).toBe("e");
+    expect(
+      chordFromEvent({ key: "!", code: "Digit1", altKey: false, shiftKey: true, metaKey: false, ctrlKey: false }),
+    ).toBe("shift+1");
+    expect(
+      chordFromEvent({ key: "Enter", code: "Enter", altKey: false, shiftKey: false, metaKey: false, ctrlKey: false }),
+    ).toBe("enter");
+    const registry = new CommandRegistry();
+    registry.register({
+      id: "soup-entity.status",
+      scope: "global",
+      chord: "shift+cmd+s",
+      priority: 0,
+      registrationType: "override",
+      runWithInputFocused: false,
+      handle: () => true,
+    });
+    const chord = chordFromEvent({
+      key: "s",
+      code: "KeyS",
+      altKey: false,
+      shiftKey: true,
+      metaKey: true,
+      ctrlKey: false,
+    });
+    expect(registry.dispatch({ chord, inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.status",
+    );
+  });
 });
 
 describe("path → split layout", () => {
@@ -273,7 +315,7 @@ describe("Shell boots", () => {
       createElement(Shell, {
         path: "/tasks",
         theme: "outreach-dark",
-        taskItems: [{ entityId: "doc_1", title: "Ship", facet: "task", done: false, status: "in_progress", priority: "high" }],
+        taskItems: [{ entityId: "doc_1", title: "Ship", facet: "task", done: false, status: "in_progress", priority: "high", assigneeIds: ["user_1"], tags: ["slice"] }],
       }),
     );
     expect(populated).toContain("Ship");
@@ -281,6 +323,9 @@ describe("Shell boots", () => {
     expect(populated).toContain("aria-label=\"Priority\"");
     expect(populated).toContain("in_progress");
     expect(populated).toContain("high");
+    expect(populated).toContain("aria-label=\"Tags\"");
+    expect(populated).toContain("user_1");
+    expect(populated).toContain("slice");
   });
 
   it("renders N10 settings connections, MCP harvest, and bots XOR copy", () => {

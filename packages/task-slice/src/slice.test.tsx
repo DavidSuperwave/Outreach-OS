@@ -5,11 +5,12 @@ import { fixtureId, resetIdSequence } from "registry";
 import { userPrincipal } from "identity/principal";
 import { grantShare, emptyAccess } from "authz";
 import { envelope } from "control-plane";
-import { commandEnabled as chromeEnabled, defaultChromeContext, CommandRegistry } from "shell";
+import { commandEnabled as chromeEnabled, defaultChromeContext, CommandRegistry, chordFromEvent } from "shell";
 import { commandEnabled as soupEnabled, type SoupCommandContext } from "soup";
 import { TaskSlice, actorContext, requestContext } from "./slice.js";
 import { dryRunIdentityMapping } from "./mapping.js";
 import { SLICE_COMMAND_IDS, bindSliceCommands, runSliceCommand } from "./commands.js";
+import { SLICE_HOTKEY_BINDINGS } from "./slice-hotkeys.js";
 import { TaskWorkspace } from "./ui.js";
 import { inProcessTaskSession, loadTaskSurface, submitTaskCompose } from "./in-process-session.js";
 
@@ -104,6 +105,7 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(api.listTasks([receipt])[0]?.title).toBe("Ship the slice v2");
     expect(api.listTasks([receipt])[0]?.status).toBe("in_progress");
     expect(api.listTasks([receipt])[0]?.priority).toBe("high");
+    expect(api.listTasks([receipt])[0]?.assigneeIds).toEqual([ownerId]);
     expect(slice.get(task.id)?.status).toBe("in_progress");
     expect(slice.get(task.id)?.done).toBe(true);
     expect(slice.activity.list().map((fact) => fact.action)).toEqual([
@@ -262,17 +264,75 @@ describe("N6 task vertical slice (11 gates)", () => {
     expect(soupEnabled("soup-entity.status", soup)).toBe(true);
 
     const registry = new CommandRegistry();
+    let ctx = requestContext(ownerActor(), { correlationId: "c-t" });
     bindSliceCommands(
       registry,
       api,
-      () => requestContext(ownerActor(), { correlationId: "c-t" }),
-      () => ({ title: "From chord" }),
+      () => ctx,
+      () => ({ title: "From chord", status: "in_progress", priority: "high", assigneeId: ownerId }),
     );
-    registry.activateLeader("c");
+    expect(SLICE_HOTKEY_BINDINGS.map((row) => row.id).sort()).toEqual([...SLICE_COMMAND_IDS].sort());
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "c", inputFocused: false, touch: false, platform: "mac" })).toBe("global.create");
     expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
       "create-menu.task",
     );
     expect(slice.toSnapshot().docs.map((doc) => doc.title)).toContain("From chord");
+    const createdTask = slice.toSnapshot().docs.find((doc) => doc.title === "From chord");
+    if (!createdTask) throw new Error("expected From chord");
+    const receiptForChords = slice.engine.mint({
+      actor: ownerActor(),
+      entityType: "document",
+      entityId: createdTask.id,
+      need: "edit",
+    });
+    ctx = requestContext(ownerActor(), { receipt: receiptForChords, correlationId: "chord-mut" });
+    registry.setActive("split");
+    expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.tab-1");
+    expect(registry.dispatch({ chord: "enter", inputFocused: false, touch: false, platform: "mac" })).toBe("soup.open");
+    expect(registry.dispatch({ chord: "shift+cmd+s", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.status",
+    );
+    expect(slice.get(createdTask.id)?.status).toBe("in_progress");
+    expect(registry.dispatch({ chord: "shift+ctrl+p", inputFocused: false, touch: false, platform: "non-mac" })).toBe(
+      "soup-entity.priority",
+    );
+    expect(slice.get(createdTask.id)?.priority).toBe("high");
+    expect(registry.dispatch({ chord: "shift+cmd+a", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.assignee",
+    );
+    expect(
+      registry.dispatch({
+        chord: chordFromEvent({ key: "o", code: "KeyO", altKey: false, shiftKey: true, metaKey: true, ctrlKey: false }),
+        inputFocused: false,
+        touch: false,
+        platform: "mac",
+      }),
+    ).toBe("soup-entity.properties");
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.tags",
+    );
+    expect(registry.dispatch({ chord: "e", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.mark-done",
+    );
+    expect(slice.get(createdTask.id)?.done).toBe(true);
+    expect(registry.dispatch({ chord: "shift+e", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.mark-not-done",
+    );
+    expect(slice.get(createdTask.id)?.done).toBe(false);
+    expect(registry.dispatch({ chord: "r", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "soup-entity.rename",
+    );
+    expect(registry.dispatch({ chord: "g", inputFocused: false, touch: false, platform: "mac" })).toBe("global.go-to");
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe("go-to.tasks");
+    expect(registry.dispatch({ chord: "o", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "global.open-category-leader",
+    );
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe(
+      "command-menu.open-category.tasks",
+    );
+    registry.setActive("detached");
+    expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe("launcher.task");
   });
 
   it("renders the task list and compose popover on the custom React shell", () => {

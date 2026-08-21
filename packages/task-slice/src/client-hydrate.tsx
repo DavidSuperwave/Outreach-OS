@@ -1,11 +1,12 @@
 import { createElement, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { newWebSocketRpcSession, type RpcStub } from "capnweb";
-import { CommandRegistry } from "shell";
+import { CommandRegistry, chordFromEvent } from "shell";
 import { Shell } from "shell";
 import type { TaskPaneActivity, TaskPaneAlert, TaskPaneItem } from "shell";
 import type { TaskDomainPublicApi, TaskSessionApi } from "./domain-api.js";
 import { hashPasswordForKernel } from "./kernel-password.js";
 import {
+  attachTaskSubscribe,
   bootLiveTaskSession,
   KERNEL_AUTH_TOKEN_KEY,
   loadTaskSurface,
@@ -17,6 +18,7 @@ import {
   type KernelPasswordPublicApi,
 } from "./live-session.js";
 import type { OutreachBootConfig } from "./live-session.js";
+import { registerSliceHotkeys } from "./slice-hotkeys.js";
 
 function wsUrl(path: string): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -36,6 +38,74 @@ function readBoot(): OutreachBootConfig {
   return JSON.parse(node.textContent) as OutreachBootConfig;
 }
 
+function focusedTaskRow(): HTMLElement | null {
+  return document.querySelector("[data-slice='task'] [data-focused='true']");
+}
+
+function focusInFocusedRow(selector: string): boolean {
+  const node = focusedTaskRow()?.querySelector<HTMLElement>(selector);
+  node?.focus();
+  if (node instanceof HTMLInputElement) node.select();
+  return Boolean(node);
+}
+
+function clickInFocusedRow(selector: string): boolean {
+  const node = focusedTaskRow()?.querySelector<HTMLElement>(selector);
+  node?.click();
+  return Boolean(node);
+}
+
+function handleLiveSliceHotkey(id: string): boolean {
+  switch (id) {
+    case "global.create":
+    case "global.go-to":
+    case "global.open-category-leader":
+      return true;
+    case "create-menu.task":
+    case "launcher.task": {
+      const input = document.querySelector<HTMLInputElement>(
+        '[data-scope="task-compose-popover"] input[name="title"]',
+      );
+      input?.focus();
+      return Boolean(input);
+    }
+    case "go-to.tasks":
+    case "command-menu.open-category.tasks":
+      if (window.location.pathname !== "/tasks") window.location.assign("/tasks");
+      return true;
+    case "soup.tab-1":
+    case "soup.tab-2":
+    case "soup.tab-3": {
+      const tab = document.querySelector<HTMLButtonElement>(`[data-slice='task'] [data-command='${id}']`);
+      tab?.click();
+      return Boolean(tab);
+    }
+    case "soup.open": {
+      const row = focusedTaskRow();
+      row?.setAttribute("data-opened", "true");
+      row?.click();
+      return Boolean(row);
+    }
+    case "soup-entity.mark-done":
+      return clickInFocusedRow("[data-command='soup-entity.mark-done']");
+    case "soup-entity.mark-not-done":
+      return clickInFocusedRow("[data-command='soup-entity.mark-not-done']");
+    case "soup-entity.rename":
+      return focusInFocusedRow("input[data-command='soup-entity.rename']");
+    case "soup-entity.status":
+    case "soup-entity.properties":
+      return focusInFocusedRow("[data-command='soup-entity.status'], select[aria-label='Status']");
+    case "soup-entity.priority":
+      return focusInFocusedRow("[data-command='soup-entity.priority'], select[aria-label='Priority']");
+    case "soup-entity.assignee":
+      return focusInFocusedRow("input[data-command='soup-entity.assignee']");
+    case "soup-entity.tags":
+      return focusInFocusedRow("input[data-command='soup-entity.tags']");
+    default:
+      return false;
+  }
+}
+
 function surfaceItems(
   items: Awaited<ReturnType<typeof loadTaskSurface>>["items"],
 ): TaskPaneItem[] {
@@ -46,6 +116,8 @@ function surfaceItems(
     done: item.done,
     status: item.status,
     priority: item.priority,
+    assigneeIds: item.assigneeIds,
+    tags: item.tags,
   }));
 }
 
@@ -72,7 +144,7 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     if (!token || (boot.path !== "/tasks" && !boot.path.startsWith("/tasks/"))) return;
     let cancelled = false;
     let domain: RpcStub<TaskDomainPublicApi> | undefined;
-    let sub: WebSocket | undefined;
+    let stopSubscribe: (() => void) | undefined;
     sessionRef.current = null;
     setSessionReady(false);
     const storedTenant = localStorage.getItem(boot.tenantKey) ?? "";
@@ -86,114 +158,48 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       setSessionReady(true);
       setUsername(token.slice(0, token.indexOf(":")) || "signed-in");
       await applySurface(live);
-      const cursor = await live.seq();
-      sub = new WebSocket(
-        `${wsUrl(boot.subscribe)}?cursor=${cursor}&token=${encodeURIComponent(token)}&tenant=${encodeURIComponent(nextTenant)}`,
-      );
-      sub.addEventListener("message", () => {
-        void applySurface(live);
+      if (cancelled) return;
+      const sub = attachTaskSubscribe({
+        open: (url) => new WebSocket(url),
+        subscribePath: wsUrl(boot.subscribe),
+        token,
+        tenant: nextTenant,
+        session: live,
+        onDelta: () => {
+          void applySurface(live);
+        },
+        onError: (error) => {
+          if (!cancelled) setAuthError(error instanceof Error ? error.message : "subscribe failed");
+        },
       });
+      stopSubscribe = () => sub.close();
     })().catch((error: unknown) => {
       if (!cancelled) setAuthError(error instanceof Error ? error.message : "session failed");
     });
     return () => {
       cancelled = true;
       sessionRef.current = null;
-      sub?.close();
+      stopSubscribe?.();
       domain?.[Symbol.dispose]();
     };
   }, [applySurface, boot.domainApi, boot.path, boot.subscribe, boot.tenantKey, token]);
 
   useEffect(() => {
     const registry = new CommandRegistry();
-    registry.register({
-      id: "global.create",
-      scope: "global",
-      chord: "c",
-      priority: 0,
-      registrationType: "override",
-      runWithInputFocused: false,
-      handle: () => {
-        registry.activateLeader("c");
-        return true;
-      },
-    });
-    registry.register({
-      id: "create-menu.task",
-      scope: "command-scope-create-menu",
-      chord: "t",
-      priority: 0,
-      registrationType: "override",
-      runWithInputFocused: true,
-      handle: () => {
-        const input = document.querySelector<HTMLInputElement>('input[name="title"]');
-        input?.focus();
-        return true;
-      },
-    });
-    registry.register({
-      id: "global.go-to",
-      scope: "global",
-      chord: "g",
-      priority: 0,
-      registrationType: "override",
-      runWithInputFocused: false,
-      handle: () => {
-        registry.activateLeader("g");
-        return true;
-      },
-    });
-    registry.register({
-      id: "go-to.tasks",
-      scope: "command-scope-go-to",
-      chord: "t",
-      priority: 0,
-      registrationType: "override",
-      runWithInputFocused: false,
-      handle: () => {
-        if (window.location.pathname !== "/tasks") window.location.assign("/tasks");
-        return true;
-      },
-    });
-    registry.register({
-      id: "soup-entity.mark-done",
-      scope: "global",
-      chord: "e",
-      priority: 0,
-      registrationType: "add",
-      runWithInputFocused: false,
-      handle: () => {
-        const focused = document.querySelector<HTMLElement>("[data-slice='task'] [data-focused='true']");
-        const button = focused?.querySelector<HTMLButtonElement>("[data-command='soup-entity.mark-done'], [data-command='soup-entity.mark-not-done']");
-        button?.click();
-        return Boolean(button);
-      },
-    });
-    registry.register({
-      id: "soup-entity.rename",
-      scope: "global",
-      chord: "r",
-      priority: 0,
-      registrationType: "add",
-      runWithInputFocused: false,
-      handle: () => {
-        const input = document.querySelector<HTMLInputElement>(
-          "[data-slice='task'] [data-focused='true'] input[data-command='soup-entity.rename']",
-        );
-        input?.focus();
-        input?.select();
-        return Boolean(input);
-      },
-    });
+    registry.setActive("split");
+    registerSliceHotkeys(registry, handleLiveSliceHotkey);
     const onKey = (event: KeyboardEvent) => {
-      const chord = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
-      const inputFocused = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-      registry.dispatch({
-        chord,
+      const inputFocused =
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement;
+      const id = registry.dispatch({
+        chord: chordFromEvent(event),
         inputFocused,
         touch: false,
         platform: navigator.platform.toLowerCase().includes("mac") ? "mac" : "non-mac",
       });
+      if (id) event.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -296,6 +302,20 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     }
   };
 
+  const onSetAssignee = async (entityId: string, assigneeId: string) => {
+    const session = sessionRef.current;
+    if (!session) {
+      setAuthError("task session is not ready");
+      return;
+    }
+    try {
+      await session.setAssignee(entityId, assigneeId);
+      await applySurface(session);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "assignee failed");
+    }
+  };
+
   return createElement(Shell, {
     path: boot.path,
     theme: "outreach-dark",
@@ -312,5 +332,6 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     onRenameTask,
     onSetStatus,
     onSetPriority,
+    onSetAssignee,
   });
 }

@@ -2,6 +2,7 @@ import type { CommandRegistry } from "shell";
 import type { RequestContext } from "control-plane";
 import type { SoupItem } from "soup";
 import type { TaskApi, TaskRecord, TaskView } from "./slice.js";
+import { registerSliceHotkeys } from "./slice-hotkeys.js";
 
 /**
  * ~15 command identities exercised end-to-end by the Task slice (05 §N6).
@@ -77,35 +78,17 @@ export function bindSliceCommands(
   ctx: () => RequestContext,
   input: () => SliceCommandInput = () => ({}),
 ): void {
-  const run = (id: SliceCommandId) => {
-    runSliceCommand(api, id, ctx(), input());
+  registerSliceHotkeys(registry, (id) => {
+    if (id === "global.create" || id === "global.go-to" || id === "global.open-category-leader") {
+      return true;
+    }
+    if (!(SLICE_COMMAND_IDS as readonly string[]).includes(id) && !id.startsWith("soup.tab-")) {
+      return false;
+    }
+    const commandId = (SLICE_COMMAND_IDS as readonly string[]).includes(id)
+      ? (id as SliceCommandId)
+      : "soup.tab-1";
+    runSliceCommand(api, commandId, ctx(), input());
     return true;
-  };
-  registry.register({
-    id: "create-menu.task",
-    scope: "command-scope-create-menu",
-    chord: "t",
-    priority: 0,
-    registrationType: "override",
-    runWithInputFocused: true,
-    handle: () => run("create-menu.task"),
-  });
-  registry.register({
-    id: "soup-entity.mark-done",
-    scope: "global",
-    chord: "e",
-    priority: 0,
-    registrationType: "add",
-    runWithInputFocused: false,
-    handle: () => run("soup-entity.mark-done"),
-  });
-  registry.register({
-    id: "soup-entity.rename",
-    scope: "global",
-    chord: "r",
-    priority: 0,
-    registrationType: "add",
-    runWithInputFocused: false,
-    handle: () => run("soup-entity.rename"),
   });
 }

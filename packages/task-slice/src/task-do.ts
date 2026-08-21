@@ -197,7 +197,15 @@ export class TaskSliceDurableObject extends DurableObject<TaskSliceEnv> implemen
     return filterVisible(rows, receipts).map((item) => {
       const task = slice.get(item.entityId);
       if (!task) return item;
-      return { ...item, status: task.status, priority: task.priority, done: task.done, title: task.title };
+      return {
+        ...item,
+        status: task.status,
+        priority: task.priority,
+        done: task.done,
+        title: task.title,
+        assigneeIds: task.assigneeIds,
+        tags: task.tags,
+      };
     });
   }
 

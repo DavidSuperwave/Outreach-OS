@@ -8,6 +8,8 @@ export {
   loginViaKernelPublicApi,
   loadTaskSurface,
   submitTaskCompose,
+  attachTaskSubscribe,
+  taskSubscribeUrl,
   KERNEL_AUTH_TOKEN_KEY,
   ORIGIN_MOUNTS,
   TASK_TENANT_STORAGE_KEY,

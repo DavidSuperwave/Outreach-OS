@@ -295,7 +295,14 @@ describe("N6 task property projection", () => {
         onBehalfOfId: null,
         occurredAt: 1,
         version: 1,
-        payload: { title: "Ship", facet: "task", status: "in_progress", priority: "high" },
+        payload: {
+          title: "Ship",
+          facet: "task",
+          status: "in_progress",
+          priority: "high",
+          assigneeIds: ["user_assignee"],
+          tags: ["n6"],
+        },
         receipt: null,
         correlationId: "prop-1",
       }),
@@ -304,5 +311,7 @@ describe("N6 task property projection", () => {
     const row = soup.query({ types: ["document"], facet: "task" }, [task.owner]).items[0];
     expect(row?.status).toBe("in_progress");
     expect(row?.priority).toBe("high");
+    expect(row?.assigneeIds).toEqual(["user_assignee"]);
+    expect(row?.tags).toEqual(["n6"]);
   });
 });

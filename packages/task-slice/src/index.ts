@@ -6,6 +6,7 @@ export { dryRunIdentityMapping, mapLegacyTaskId } from "./mapping.js";
 export type { LegacyTaskRef, IdentityMappingResult } from "./mapping.js";
 export { SLICE_COMMAND_IDS, runSliceCommand, bindSliceCommands } from "./commands.js";
 export type { SliceCommandId, SliceCommandInput, SliceCommandResult } from "./commands.js";
+export { SLICE_HOTKEY_BINDINGS, registerSliceHotkeys } from "./slice-hotkeys.js";
 export { TaskComposePopover, TaskList, TaskWorkspace } from "./ui.js";
 export { inProcessTaskSession, loadTaskSurface, submitTaskCompose } from "./in-process-session.js";
 export {
@@ -16,7 +17,9 @@ export {
   ORIGIN_MOUNTS,
   TASK_TENANT_STORAGE_KEY,
   outreachBootConfig,
+  attachTaskSubscribe,
+  taskSubscribeUrl,
 } from "./live-session.js";
-export type { KernelPasswordPublicApi, OutreachBootConfig } from "./live-session.js";
+export type { KernelPasswordPublicApi, OutreachBootConfig, TaskSubscribeSocket } from "./live-session.js";
 export { renderOutreachDocument } from "./origin-html.js";
 export type { OperatorAlert } from "./operator-alerts.js";

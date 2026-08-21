@@ -10,6 +10,7 @@ import {
   payloadBool,
   payloadNumber,
   payloadString,
+  payloadStringArray,
   soupItemType,
   type SoupItem,
   type SoupItemType,
@@ -81,6 +82,8 @@ export class SoupIndex implements ProjectionFamily {
       tombstoned,
       status: payloadString(envelope.payload, "status") ?? existing?.status ?? null,
       priority: payloadString(envelope.payload, "priority") ?? existing?.priority ?? null,
+      assigneeIds: payloadStringArray(envelope.payload, "assigneeIds") ?? existing?.assigneeIds,
+      tags: payloadStringArray(envelope.payload, "tags") ?? existing?.tags,
     };
     if (tombstoned) this.#rows.delete(envelope.entityId);
     else this.#rows.set(envelope.entityId, item);

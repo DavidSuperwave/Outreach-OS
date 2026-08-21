@@ -114,3 +114,84 @@ export async function submitTaskCompose(
   await session.createTask(title, correlationId);
   return loadTaskSurface(session);
 }
+
+export function taskSubscribeUrl(
+  subscribePath: string,
+  cursor: number,
+  token: string,
+  tenant: string,
+): string {
+  const sep = subscribePath.includes("?") ? "&" : "?";
+  return `${subscribePath}${sep}cursor=${cursor}&token=${encodeURIComponent(token)}&tenant=${encodeURIComponent(tenant)}`;
+}
+
+export interface TaskSubscribeSocket {
+  addEventListener(type: "message" | "close" | "error", listener: (event: { data?: unknown }) => void): void;
+  close(): void;
+}
+
+/**
+ * Browser /subscribe: replay from cursor on drop, then reopen. Query token is
+ * required because a browser WebSocket cannot set Authorization.
+ */
+export function attachTaskSubscribe(opts: {
+  open: (url: string) => TaskSubscribeSocket;
+  subscribePath: string;
+  token: string;
+  tenant: string;
+  session: Pick<TaskSessionApi, "seq" | "replayFrom">;
+  onDelta: () => void;
+  onError?: (error: unknown) => void;
+}): { close(): void } {
+  let closed = false;
+  let socket: TaskSubscribeSocket | undefined;
+  let cursor = 0;
+  let reconnecting = false;
+
+  const connect = async () => {
+    if (closed) return;
+    try {
+      cursor = await opts.session.seq();
+    } catch (error) {
+      opts.onError?.(error);
+      return;
+    }
+    if (closed) return;
+    socket = opts.open(taskSubscribeUrl(opts.subscribePath, cursor, opts.token, opts.tenant));
+    socket.addEventListener("message", (event) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as { seq?: number };
+        if (typeof payload.seq === "number") cursor = payload.seq;
+      } catch {
+        // non-JSON frames are still a live ping — refresh the Soup surface
+      }
+      opts.onDelta();
+    });
+    const reattach = () => {
+      if (closed || reconnecting) return;
+      reconnecting = true;
+      void (async () => {
+        try {
+          const missed = await opts.session.replayFrom(cursor);
+          if (missed.length) opts.onDelta();
+          cursor = await opts.session.seq();
+        } catch (error) {
+          opts.onError?.(error);
+        } finally {
+          reconnecting = false;
+          if (!closed) await connect();
+        }
+      })();
+    };
+    socket.addEventListener("close", reattach);
+    socket.addEventListener("error", reattach);
+  };
+
+  void connect();
+  return {
+    close() {
+      closed = true;
+      socket?.close();
+    },
+  };
+}

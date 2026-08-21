@@ -356,9 +356,11 @@ describe("N6 Cap'n Web TaskDomainApi beside kernel PublicApi", () => {
     void renamed;
     await session.setStatus(created.items[0]!.entityId, "in_progress", "hydrate-status");
     await session.setPriority(created.items[0]!.entityId, "high", "hydrate-priority");
+    await session.setAssignee(created.items[0]!.entityId, "admin", "hydrate-assignee");
     const listed = await session.listTasks();
     expect(listed[0]?.status).toBe("in_progress");
     expect(listed[0]?.priority).toBe("high");
+    expect(listed[0]?.assigneeIds).toEqual(["admin"]);
 
     const sub = await handleOutreachFetch(
       new Request(`https://task-slice/subscribe?cursor=0&token=${encodeURIComponent(token)}&tenant=${tenantId}`, {

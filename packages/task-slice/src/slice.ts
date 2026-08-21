@@ -155,7 +155,15 @@ export class TaskSlice {
     return this.plane.lists.query({ types: ["document"], facet: "task" }, receipts).items.map((item) => {
       const task = this.#docs.get(item.entityId);
       if (!task) return item;
-      return { ...item, status: task.status, priority: task.priority, done: task.done, title: task.title };
+      return {
+        ...item,
+        status: task.status,
+        priority: task.priority,
+        done: task.done,
+        title: task.title,
+        assigneeIds: task.assigneeIds,
+        tags: task.tags,
+      };
     });
   }
 
@@ -210,6 +218,8 @@ export class TaskSlice {
           priority: task.priority,
           done: task.done,
           body: task.title,
+          assigneeIds: task.assigneeIds,
+          tags: task.tags,
         },
         receipt: {
           level: ctx.receipt?.level ?? "owner",
