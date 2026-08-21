@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   theme: "outreach-theme",
   defaultLight: "outreach-default-light",
   defaultDark: "outreach-default-dark",
+  sidebarCollapsed: "outreach-sidebar-collapsed",
 } as const;
 
 export const OKLCH_TOKENS = {

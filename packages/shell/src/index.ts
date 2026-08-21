@@ -1,4 +1,12 @@
-export { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, WEB_UNSERVED_ROUTES, isWebServed, wellKnownResponse } from "./routes.js";
+export {
+  PATH_ROUTES,
+  LAYOUT_ROUTE,
+  ROUTES,
+  WEB_UNSERVED_ROUTES,
+  isWebServed,
+  wellKnownResponse,
+  isFullCoverRoute,
+} from "./routes.js";
 export { ALWAYS_SPLITS, KILLED_DEV_SPLITS, encodeSplits, decodeSplits, SplitManager, isProductSplit, isKilledSplit } from "./splits.js";
 export { PATH_SPLIT, pathnameOf, panesFromPath } from "./path-panes.js";
 export { LoginPane } from "./login-pane.js";
@@ -21,6 +29,7 @@ export {
   filterCommandMenuItems,
   commandMenuCategoryFromId,
   GO_TO_PATH,
+  SIDEBAR_NAV,
   persistTheme,
 } from "./n5-hotkeys.js";
 export type { CommandMenuCategory } from "./n5-hotkeys.js";

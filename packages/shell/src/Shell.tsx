@@ -1,12 +1,18 @@
 import type { CSSProperties, ReactNode } from "react";
 import { encodeSplits, type SplitPane } from "./splits.js";
-import { isWebServed, wellKnownResponse } from "./routes.js";
+import { isFullCoverRoute, isWebServed, wellKnownResponse } from "./routes.js";
 import { panesFromPath } from "./path-panes.js";
 import { LoginPane } from "./login-pane.js";
 import { SettingsChrome, settingsTabFromPath } from "./settings.js";
 import { TaskPane, type TaskPaneActivity, type TaskPaneAlert, type TaskPaneItem } from "./task-pane.js";
 import { THEME_LABELS, tokenVars, type ThemeId } from "./theme.js";
-import { COMMAND_MENU_CATEGORIES, CREATE_MENU_ITEMS, filterCommandMenuItems, type CommandMenuCategory } from "./n5-hotkeys.js";
+import {
+  COMMAND_MENU_CATEGORIES,
+  CREATE_MENU_ITEMS,
+  SIDEBAR_NAV,
+  filterCommandMenuItems,
+  type CommandMenuCategory,
+} from "./n5-hotkeys.js";
 
 export interface ShellProps {
   path: string;
@@ -39,24 +45,13 @@ export interface ShellProps {
   sidebarCollapsed?: boolean;
   onToggleCommandMenu?: () => void;
   onToggleCreateMenu?: () => void;
+  onToggleSidebar?: () => void;
 }
 
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/documents", label: "Documents" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/mail", label: "Mail" },
-  { href: "/file", label: "Files" },
-  { href: "/search", label: "Search" },
-  { href: "/activity", label: "Activity" },
-  { href: "/settings", label: "Settings" },
-  { href: "/mcp", label: "MCP" },
-  { href: "/channels", label: "Channels" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/calls", label: "Calls" },
-  { href: "/companies", label: "Companies" },
-];
+function navActive(path: string, href: string): boolean {
+  if (href === "/") return path === "/";
+  return path === href || path.startsWith(`${href}/`);
+}
 
 /** Original React shell (OD-11). Not a SolidJS port and not a workshop-frontend fork. */
 export function Shell({
@@ -90,6 +85,7 @@ export function Shell({
   sidebarCollapsed = false,
   onToggleCommandMenu,
   onToggleCreateMenu,
+  onToggleSidebar,
 }: ShellProps) {
   if (!isWebServed(path) || wellKnownResponse() !== null) {
     return <div data-shell="outreach-os" data-unserved="true" />;
@@ -128,6 +124,21 @@ export function Shell({
   const paletteItems = filterCommandMenuItems(commandQuery, commandCategory);
   const selectedIndex =
     paletteItems.length === 0 ? 0 : Math.min(Math.max(0, commandSelectedIndex), paletteItems.length - 1);
+  const fullCover = isFullCoverRoute(path);
+  const sidebarWidth = sidebarCollapsed ? "3.75rem" : "15.5rem";
+  const chromeLink: CSSProperties = {
+    ...chromeButton,
+    display: "flex",
+    width: "100%",
+    textAlign: "left",
+    textDecoration: "none",
+    padding: sidebarCollapsed ? "0.45rem 0" : "0.4rem 0.55rem",
+    justifyContent: sidebarCollapsed ? "center" : "space-between",
+    alignItems: "center",
+    gap: "0.5rem",
+    borderRadius: "0.4rem",
+    boxSizing: "border-box",
+  };
   return (
     <div
       data-shell="outreach-os"
@@ -135,10 +146,12 @@ export function Shell({
       data-theme-label={THEME_LABELS[theme] ?? theme}
       data-path={encodeSplits(layout)}
       data-session-ready={sessionReady ? "true" : "false"}
+      data-layout={fullCover ? "full-cover" : "app"}
       style={
         {
           ...vars,
           minHeight: "100vh",
+          display: "flex",
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
           background: "var(--outreach-surface)",
           color: "var(--outreach-text)",
@@ -146,43 +159,91 @@ export function Shell({
         } as CSSProperties
       }
     >
-      <header
-        data-chrome="sidebar"
-        data-collapsed={sidebarCollapsed ? "true" : "false"}
-        style={{
-          display: "flex",
-          gap: "1.25rem",
-          alignItems: "center",
-          padding: "0.85rem 1.25rem",
-          borderBottom: "1px solid var(--outreach-border)",
-        }}
-      >
-        <strong>Outreach OS</strong>
-        <nav aria-label="Primary" style={{ display: "flex", gap: "0.85rem" }}>
-          {NAV.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              data-nav={item.href}
-              style={{ color: "var(--outreach-accent)", textDecoration: path === item.href ? "underline" : "none" }}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <button
-          type="button"
-          data-command="global.create"
-          onClick={onToggleCreateMenu}
-          style={{ ...chromeButton, marginLeft: "auto" }}
+      {fullCover ? null : (
+        <aside
+          data-chrome="sidebar"
+          data-collapsed={sidebarCollapsed ? "true" : "false"}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            width: sidebarWidth,
+            flexShrink: 0,
+            minHeight: "100vh",
+            padding: sidebarCollapsed ? "0.85rem 0.45rem" : "0.85rem 0.7rem",
+            borderRight: "1px solid var(--outreach-border)",
+            boxSizing: "border-box",
+            gap: "0.65rem",
+          }}
         >
-          Create
-        </button>
-        <button type="button" data-command="global.command-menu" onClick={onToggleCommandMenu} style={chromeButton}>
-          Command menu
-        </button>
-      </header>
-      <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: sidebarCollapsed ? "center" : "space-between",
+              gap: "0.35rem",
+            }}
+          >
+            {sidebarCollapsed ? null : <strong>Outreach OS</strong>}
+            <button
+              type="button"
+              data-command="global.toggle-sidebar"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title="Toggle sidebar"
+              onClick={onToggleSidebar}
+              style={chromeButton}
+            >
+              {sidebarCollapsed ? "»" : "«"}
+            </button>
+          </div>
+          <button type="button" data-command="global.create" onClick={onToggleCreateMenu} style={chromeLink}>
+            <span>{sidebarCollapsed ? "+" : "Create"}</span>
+            {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>c</kbd>}
+          </button>
+          <button type="button" data-command="global.command-menu" onClick={onToggleCommandMenu} style={chromeLink}>
+            <span>{sidebarCollapsed ? "⌘" : "Command menu"}</span>
+            {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>⌘K</kbd>}
+          </button>
+          <nav
+            aria-label="Primary"
+            style={{ display: "flex", flexDirection: "column", gap: "0.15rem", flex: 1, minHeight: 0 }}
+          >
+            {SIDEBAR_NAV.map((item) => {
+              const active = navActive(path, item.href);
+              return (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  data-nav={item.href}
+                  data-command={item.id}
+                  data-hint={item.hint}
+                  title={item.label}
+                  style={{
+                    ...chromeLink,
+                    textDecoration: active ? "underline" : "none",
+                    background: active ? "var(--outreach-popover)" : "none",
+                    color: "var(--outreach-accent)",
+                  }}
+                >
+                  <span>{sidebarCollapsed ? item.hint : item.label}</span>
+                  {sidebarCollapsed ? null : <kbd style={{ color: "var(--outreach-muted)" }}>{item.hint}</kbd>}
+                </a>
+              );
+            })}
+          </nav>
+          <div data-chrome="sidebar-utility" style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+            <a href="/settings" data-command="global.toggle-settings" data-nav="/settings" style={chromeLink}>
+              {sidebarCollapsed ? "S" : "Settings"}
+            </a>
+            <a href="/mcp" data-command="global.mcp-setup" data-nav="/mcp" style={chromeLink}>
+              {sidebarCollapsed ? "M" : "MCP"}
+            </a>
+            <span data-actor={username} style={{ color: "var(--outreach-muted)", padding: "0.35rem 0.55rem" }}>
+              {sidebarCollapsed ? username.slice(0, 1).toUpperCase() : username}
+            </span>
+          </div>
+        </aside>
+      )}
+      <main data-route={layout[0]?.type ?? "home"} style={{ padding: "1.25rem", flex: 1, minWidth: 0 }}>
         {kernelAuthError ? (
           <p
             data-auth-error=""
@@ -353,9 +414,6 @@ export function Shell({
           </div>
         ) : null}
       </main>
-      <footer data-actor={username} style={{ padding: "0.75rem 1.25rem", borderTop: "1px solid var(--outreach-border)" }}>
-        {username}
-      </footer>
     </div>
   );
 }

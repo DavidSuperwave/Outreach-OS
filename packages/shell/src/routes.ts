@@ -50,3 +50,19 @@ export function isWebServed(path: string): boolean {
 export function wellKnownResponse(): null {
   return null;
 }
+
+/** Neuwave AppSidebar unmounts on solo settings and auth (ledger: `global.toggle-sidebar`). */
+export function isFullCoverRoute(path: string): boolean {
+  const pathname = (path.split("?")[0] ?? path).replace(/\/+$/, "") || "/";
+  return (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/invite" ||
+    pathname === "/join" ||
+    pathname === "/share" ||
+    pathname === "/oauth/callback" ||
+    pathname === "/settings" ||
+    pathname === "/mcp" ||
+    pathname.startsWith("/settings/")
+  );
+}

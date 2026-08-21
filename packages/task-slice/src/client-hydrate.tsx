@@ -9,6 +9,7 @@ import {
   defaultChromeHotkeyHandle,
   filterCommandMenuItems,
   commandMenuCategoryFromId,
+  isFullCoverRoute,
   persistTheme,
   registerChromeHotkeys,
   STORAGE_KEYS,
@@ -172,7 +173,13 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
       return false;
     }
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.sidebarCollapsed) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [theme, setTheme] = useState<ThemeId>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.theme);
     return stored === "outreach-light" || stored === "outreach-dark" ? stored : "outreach-dark";
@@ -367,6 +374,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
           splitCount: 1,
           canAppendSplit: true,
           leader: registry.leader,
+          fullCoverRoute: isFullCoverRoute(boot.path),
+          sidebarMounted: !isFullCoverRoute(boot.path),
         }),
       toggleCommandMenu,
       toggleCreateMenu,
@@ -396,7 +405,15 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
         return true;
       },
       toggleSidebar: () => {
-        setSidebarCollapsed((value) => !value);
+        setSidebarCollapsed((value) => {
+          const next = !value;
+          try {
+            localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, next ? "1" : "0");
+          } catch {
+            /* ignore */
+          }
+          return next;
+        });
         return true;
       },
     });
@@ -597,6 +614,8 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
             commandMenuOpen: commandMenuOpenRef.current,
             createMenuOpen: createMenuOpenRef.current,
             leader: registryRef.current?.leader ?? (createMenuOpenRef.current ? "c" : null),
+            fullCoverRoute: isFullCoverRoute(boot.path),
+            sidebarMounted: !isFullCoverRoute(boot.path),
           }),
         logout: () => {
           localStorage.removeItem(boot.authTokenKey);
@@ -648,6 +667,17 @@ export function LiveOutreach({ boot = readBoot() }: { boot?: OutreachBootConfig 
     sidebarCollapsed,
     onToggleCommandMenu: toggleCommandMenu,
     onToggleCreateMenu: toggleCreateMenu,
+    onToggleSidebar: () => {
+      setSidebarCollapsed((value) => {
+        const next = !value;
+        try {
+          localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, next ? "1" : "0");
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
     onCommandQueryChange: (query) => {
       setCommandQuery(query);
       commandQueryRef.current = query;

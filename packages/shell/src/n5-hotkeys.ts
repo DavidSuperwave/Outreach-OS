@@ -32,6 +32,23 @@ export const GO_TO_PATH: Record<string, string> = {
   "go-to.companies": "/companies",
 };
 
+/** Primary sidebar rows. Search and markdown-documents stay hiddenFromSidebar (ledger). */
+export const SIDEBAR_NAV: readonly { id: keyof typeof GO_TO_PATH; href: string; label: string; hint: string }[] = [
+  { id: "go-to.home", href: "/", label: "Home", hint: "h" },
+  { id: "go-to.inbox", href: "/inbox", label: "Inbox", hint: "i" },
+  { id: "go-to.tasks", href: "/tasks", label: "Tasks", hint: "t" },
+  { id: "go-to.documents", href: "/documents", label: "Files", hint: "f" },
+  { id: "go-to.mail", href: "/mail", label: "Email", hint: "e" },
+  { id: "go-to.channels", href: "/channels", label: "Channels", hint: "c" },
+  { id: "go-to.calendar", href: "/calendar", label: "Calendar", hint: "r" },
+  { id: "go-to.calls", href: "/calls", label: "Calls", hint: "l" },
+  { id: "go-to.companies", href: "/companies", label: "Customers", hint: "o" },
+  { id: "go-to.activity", href: "/activity", label: "Activity", hint: "y" },
+  { id: "go-to.agents", href: "/agents", label: "Agents", hint: "a" },
+  { id: "go-to.reminders", href: "/reminders", label: "Reminders", hint: "m" },
+  { id: "go-to.getting-started", href: "/getting-started", label: "Getting started", hint: "s" },
+];
+
 const CREATE_OR_LAUNCH: Record<string, string> = {
   "create-menu.email": "/mail",
   "create-menu.chat": "/agents",

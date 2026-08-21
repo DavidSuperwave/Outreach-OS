@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createElement } from "react";
-import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse } from "./routes.js";
+import { PATH_ROUTES, LAYOUT_ROUTE, ROUTES, isWebServed, wellKnownResponse, isFullCoverRoute } from "./routes.js";
 import { ALWAYS_SPLITS, KILLED_DEV_SPLITS, decodeSplits, encodeSplits, SplitManager, isKilledSplit } from "./splits.js";
 import { PATH_SPLIT, panesFromPath } from "./path-panes.js";
 import { THEME_IDS, THEME_LABELS, STORAGE_KEYS, OKLCH_TOKENS, assertNoMacroBrand } from "./theme.js";
@@ -17,6 +17,7 @@ import {
   COMMAND_MENU_ITEMS,
   CREATE_MENU_ITEMS,
   filterCommandMenuItems,
+  SIDEBAR_NAV,
 } from "./n5-hotkeys.js";
 import { N5_KEYED_BINDINGS, N5_UNKEYED_IDS } from "./n5-ledger.js";
 
@@ -128,6 +129,11 @@ describe("N5 chrome commands (160)", () => {
     expect(chromeActiveScope("/settings")).toBe("detached");
     expect(chromeActiveScope("/tasks", { commandMenuOpen: true })).toBe("detached");
     expect(chromeActiveScope("/tasks", { createMenuOpen: true })).toBe("command-scope-create-menu");
+    expect(isFullCoverRoute("/login")).toBe(true);
+    expect(isFullCoverRoute("/settings")).toBe(true);
+    expect(isFullCoverRoute("/tasks")).toBe(false);
+    expect(SIDEBAR_NAV.some((row) => row.id === "go-to.search")).toBe(false);
+    expect(SIDEBAR_NAV.find((row) => row.id === "go-to.documents")?.label).toBe("Files");
   });
 
   it("registers keyed chrome chords; settings 1/2/3 stay off the soup split", () => {
@@ -175,6 +181,21 @@ describe("N5 chrome commands (160)", () => {
     );
     expect(registry.dispatch({ chord: "t", inputFocused: false, touch: false, platform: "mac" })).toBe("go-to.tasks");
     expect(registry.dispatch({ chord: "/", inputFocused: false, touch: false, platform: "mac" })).toBe("go-to.search");
+    expect(
+      registry.dispatch({
+        chord: chordFromEvent({
+          key: ".",
+          code: "Period",
+          altKey: false,
+          shiftKey: false,
+          metaKey: true,
+          ctrlKey: false,
+        }),
+        inputFocused: true,
+        touch: false,
+        platform: "mac",
+      }),
+    ).toBe("global.toggle-sidebar");
     registry.setActive("detached");
     expect(registry.dispatch({ chord: "1", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-1");
     expect(registry.dispatch({ chord: "2", inputFocused: false, touch: false, platform: "mac" })).toBe("settings.tab-2");
@@ -365,6 +386,10 @@ describe("Shell boots", () => {
     expect(html).toContain("data-shell=\"outreach-os\"");
     expect(html).toContain("Outreach OS");
     expect(html).toContain("data-split=\"home\"");
+    expect(html).toContain("data-layout=\"app\"");
+    expect(html).toContain("data-chrome=\"sidebar\"");
+    expect(html).toContain("data-command=\"go-to.tasks\"");
+    expect(html).toContain("data-command=\"global.toggle-sidebar\"");
     expect(html).not.toMatch(/macro/i);
     const blocked = renderToString(createElement(Shell, { path: "/.well-known" }));
     expect(blocked).toContain("data-unserved");
@@ -377,6 +402,8 @@ describe("Shell boots", () => {
     expect(login).toContain("data-mount=\"kernel-capnp\"");
     expect(login).toContain("aria-label=\"Username\"");
     expect(login).toContain("/api");
+    expect(login).toContain("data-layout=\"full-cover\"");
+    expect(login).not.toContain("data-chrome=\"sidebar\"");
     const signup = renderToString(createElement(Shell, { path: "/signup", theme: "outreach-dark" }));
     expect(signup).toContain("data-mode=\"signup\"");
     expect(signup).toContain("Create account");
@@ -395,9 +422,19 @@ describe("Shell boots", () => {
     expect(html).toContain("data-command=\"soup.tab-1\"");
     expect(html).toContain("data-command=\"soup-nav.down-j\"");
     expect(html).toContain("data-command=\"global.command-menu\"");
+    expect(html).toContain("data-command=\"go-to.tasks\"");
+    expect(html).toContain("Customers");
+    expect(html).not.toContain("data-nav=\"/search\"");
+    expect(html).not.toContain("data-command=\"go-to.search\"");
+    expect(html).not.toContain("data-command=\"go-to.markdown-documents\"");
     expect(html).toContain("data-empty=\"tasks\"");
     expect(html).toContain("aria-label=\"Tasks\"");
     expect(html).not.toMatch(/macro/i);
+    const collapsed = renderToString(
+      createElement(Shell, { path: "/tasks", theme: "outreach-dark", sidebarCollapsed: true }),
+    );
+    expect(collapsed).toContain("data-collapsed=\"true\"");
+    expect(collapsed).toContain("aria-label=\"Expand sidebar\"");
     const compose = renderToString(
       createElement(Shell, { path: "/tasks", theme: "outreach-dark", taskComposeOpen: true }),
     );
@@ -430,6 +467,9 @@ describe("Shell boots", () => {
     expect(connections).toContain("data-vendor=\"instantly\"");
     expect(connections).toContain("reads only");
     expect(connections).toContain("GATEKEEPER_GITHUB");
+    expect(connections).toContain("data-layout=\"full-cover\"");
+    expect(connections).not.toContain("data-chrome=\"sidebar\"");
+    expect(connections).toContain("data-command=\"settings.close\"");
     const mcp = renderToString(createElement(Shell, { path: "/mcp", theme: "outreach-dark" }));
     expect(mcp).toContain("data-command=\"settings.mcp\"");
     expect(mcp).toContain("authorization_code_pkce");
