@@ -20,6 +20,9 @@ export interface ShellProps {
   operatorAlerts?: readonly TaskPaneAlert[];
   onCreateTask?: (title: string) => void;
   onMarkDone?: (entityId: string, done: boolean) => void;
+  onRenameTask?: (entityId: string, title: string) => void;
+  onSetStatus?: (entityId: string, status: string) => void;
+  onSetPriority?: (entityId: string, priority: string) => void;
   kernelAuthError?: string;
   onKernelAuth?: (fields: { username: string; password: string; displayName: string }) => void;
   sessionReady?: boolean;
@@ -56,6 +59,9 @@ export function Shell({
   operatorAlerts = [],
   onCreateTask,
   onMarkDone,
+  onRenameTask,
+  onSetStatus,
+  onSetPriority,
   kernelAuthError,
   onKernelAuth,
   sessionReady,
@@ -133,6 +139,9 @@ export function Shell({
                 alerts={operatorAlerts}
                 onCreate={onCreateTask}
                 onMarkDone={onMarkDone}
+                onRename={onRenameTask}
+                onSetStatus={onSetStatus}
+                onSetPriority={onSetPriority}
               />
             ) : null}
             {pane.type === "documents" ? <p>Documents (N7): create / version / move / restore. Project = folder.</p> : null}

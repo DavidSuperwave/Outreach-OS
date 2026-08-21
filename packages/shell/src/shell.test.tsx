@@ -265,7 +265,22 @@ describe("Shell boots", () => {
     expect(html).toContain("data-surface=\"soup.tasks\"");
     expect(html).toContain("aria-label=\"Task title\"");
     expect(html).toContain("data-hint=\"create-menu.task\"");
+    expect(html).toContain("data-command=\"soup.tab-1\"");
+    expect(html).toContain("data-empty=\"tasks\"");
+    expect(html).toContain("aria-label=\"Tasks\"");
     expect(html).not.toMatch(/macro/i);
+    const populated = renderToString(
+      createElement(Shell, {
+        path: "/tasks",
+        theme: "outreach-dark",
+        taskItems: [{ entityId: "doc_1", title: "Ship", facet: "task", done: false, status: "in_progress", priority: "high" }],
+      }),
+    );
+    expect(populated).toContain("Ship");
+    expect(populated).toContain("aria-label=\"Status\"");
+    expect(populated).toContain("aria-label=\"Priority\"");
+    expect(populated).toContain("in_progress");
+    expect(populated).toContain("high");
   });
 
   it("renders N10 settings connections, MCP harvest, and bots XOR copy", () => {
